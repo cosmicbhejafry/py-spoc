@@ -1,9 +1,10 @@
-from pyspoc import Reducer
+from pyspoc import Reducer, ReducedStatistic
 import numpy as np
 from typing import Union
 from abc import ABC
 from pyspoc.dataset import Dataset
-
+import numpy as np
+from scipy.stats import gmean
 
 class MaxCovPerFeature(Reducer):
 
@@ -42,3 +43,52 @@ class MaxCovPerFeature(Reducer):
             raise ValueError(f"Unsupported stats: {self.stats}")
 
         return np.array(summary)
+
+class EigenAMGMRatio(Reducer):
+    name = "EigenAMGMRatio"
+    identifier = "eig_summary"
+    labels = ["isotropy"]
+
+    def __init__(self,):
+        super().__init__()
+
+    def compute(self, data: np.ndarray) -> np.ndarray:
+        """computes ratio of arithmetic mean / geometric mean.
+        should always be >= 1
+        the closer it is to 1, the more spherical data"""
+
+        eigs = np.linalg.eigvals(data)
+        
+        if np.any(eigs <= 0):
+            raise ValueError("Negative eigen values?")
+
+        # arithmetic_mean = np.mean(eigs)
+        # geometric_mean = gmean(eigs)
+    
+        return np.mean(eigs) / gmean(eigs)
+    
+
+class EigenEntropy(Reducer):
+    # https://en.wikipedia.org/wiki/Von_Neumann_entropy
+    name = "EigenEntropy"
+    identifier = ""
+    labels = ["isotropy"]
+
+    def __init__(self,):
+        super().__init__()
+
+    def compute(self, data: np.ndarray) -> np.ndarray:
+        """
+        """
+
+        # make trace = 1
+        data_norm = data / np.trace(data)
+
+        eigs = np.linalg.eigvals(data_norm)
+        
+        if np.any(eigs <= 0):
+            raise ValueError("Negative eigen values?")
+
+    
+        return -np.sum(eigs * np.log(eigs))
+

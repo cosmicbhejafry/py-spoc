@@ -19,7 +19,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         'minkowski 4.0'
     ]
 
-    def __init__(self, metric: str = "euclidean", point = 'global_mean_centroid'):
+    def __init__(self, metric: str = "euclidean"):
 
         if metric.startswith('minkowski'):
             try:
@@ -34,8 +34,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
             )
 
         self.metric = metric
-        self.point = point
-
+        # self.point = point
     
     def calculate(self, dataset: Dataset):
         result = super().calculate(dataset)
@@ -51,7 +50,22 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
             return cdist(XA=X,XB=center,metric=metricval,p=pval)
         
         return cdist(XA=X,XB=center,metric=self.metric)
-    
+
+    # TODO: IMPLEMENT PAIRWISE DISTANCE FUNCTION
+    def _pairwise_dists(self, X: np.ndarray) -> np.ndarray:
+        pass
+
+    def _distance_histogram(self,dists, bins=10, range=None):
+        # TODO: Q - should smooth??
+        hist, _ = np.histogram(dists, bins=bins, range=range, density=False)
+        hist = hist.astype(np.float64)
+        hist += 1e-10  # smoothing to avoid zero bins
+        return hist / np.sum(hist)
+
+    def _distance_softmax_transform(self,distances):
+        # TODO: distance softmax implement
+        pass
+
     def _get_center_from_point(self,X,point=None):
 
         if point==None:
@@ -70,6 +84,31 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
     # TODO: ADD CACHING OF DISTRIBUTION SO THAT IT'S EASIER 
     # TODO: UNIT TEST
 
+
+class KLMeanMedianDistances(DistanceDistributionBase):
+    # TODO: move, inherit from distance distribution base
+    name = "KLMeanMedianDistances"
+    identifier = ""
+    labels = ["skew"]
+
+    def __init__(self,metric):
+        super().__init__(metric=metric)
+
+    def compute(self, data: np.ndarray) -> np.ndarray:
+        """computes 
+        """
+        dists_mean = self._dist_from_point(data, 'global_mean_centroid')
+        dists_median = self._dist_from_point(data, 'global_median_centroid')
+        
+        # global_bin - TODO
+        global_bin = None
+        mean_hist = self._distance_histogram(dists_mean,bins=global_bin)
+        median_hist = self._distance_histogram(dists_median,bins=global_bin)
+
+        # compute KL - TODO
+
+        pass
+
 class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     name = "Distance from Point - Peaks"
     identifier = "dist-point-peaks"
@@ -87,7 +126,8 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     }
 
     def __init__(self, metric, point, stats: list[str] = ["mean"]):
-        super().__init__(metric=metric, point=point)
+        super().__init__(metric=metric)
+        self.point = point
         self.stats = stats
 
     def compute(self, data: np.ndarray) -> np.ndarray:
@@ -107,7 +147,8 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
     labels = ["scalar", "distance"]
 
     def __init__(self, metric, point,type='kde'):
-        super().__init__(metric=metric, point=point)
+        super().__init__(metric=metric)
+        self.point=point
         self.type = type
 
     def compute(self, data: np.ndarray) -> np.ndarray:
