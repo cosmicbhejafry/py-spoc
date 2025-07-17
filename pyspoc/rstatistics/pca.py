@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from sklearn.decomposition import PCA
+
 from abc import ABC
 
 from pyspoc import ReducedStatistic
