@@ -20,4 +20,7 @@ README.md.bak
 *.ipynb_checkpoints/
 .envrc
 
+# TODO - CHANGE LATER, BUT IGNORE RIGHT NOW AS IT HAS LOCAL FILE PATH NAMES THAT I DONT WANT TO PUBLISH
+/working_analyses/hjResearch_2025/notebooks/testing_summary_stats/*.yml
+
 notes_todos.md
