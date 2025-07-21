@@ -4,7 +4,7 @@ from pyss import ReducedStatistic
 from typing import Union
 
 
-class MyNewReducedStatistic(ReducedStatistic):
+class Reconstruction_error(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2):
 
@@ -21,7 +21,7 @@ class MyNewReducedStatistic(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "my_new_reducer_name"
+        return "Reconstruction_error"
 
     @property
     def identifier(self) -> str:
