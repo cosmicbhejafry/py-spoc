@@ -8,12 +8,12 @@ from typing import Union
 
 class cell_local(ReducedStatistic):
 
-    def __init__(self, method = 'PCA', reduced_dimensionality = 2, set_p = 1, n_neighbours = 15):
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 1, n_neighbours = 15):
 
         # Calling base class initialiser.
         super().__init__()
 
-        self.set_p = set_p
+        self.l_dist = l_dist
         self.n_neighbours = n_neighbours
         self.method = method
         self.reduced_dimensionality = reduced_dimensionality
@@ -42,13 +42,13 @@ class cell_local(ReducedStatistic):
         scaled_data = scale(log_data)
 
         # Compute nearest neighbours for the original data
-        orig_indices = tl.getNeighbors(log_data, n_neigh = self.n_neighbours, p=self.set_p)
+        orig_indices = tl.getNeighbors(log_data, n_neigh = self.n_neighbours, p=self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
 
         # Recompute nearest neighbours in the dimensionally reduced data
-        reduced_indices = tl.getNeighbors(Z, n_neigh = self.n_neighbours, p=self.set_p)
+        reduced_indices = tl.getNeighbors(Z, n_neigh = self.n_neighbours, p=self.l_dist)
 
         # Compare both sets using the jaccard distance
         jac_distances = tl.getJaccard(orig_indices, reduced_indices)
