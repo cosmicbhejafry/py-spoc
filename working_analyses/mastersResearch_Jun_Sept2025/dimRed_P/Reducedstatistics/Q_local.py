@@ -1,6 +1,6 @@
 import numpy as np
 import umap
-from coranking_metrics import ranking_matrix, coranking_matrix, slice_Q, compute_QNN, compute_LCMC, compute_kmax, compute_Qlocal
+from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, slice_Q, compute_QNN, compute_LCMC, compute_kmax, compute_Qlocal
 from sklearn.manifold import TSNE, Isomap
 from sklearn.decomposition import PCA, NMF
 from sklearn.metrics import pairwise_distances

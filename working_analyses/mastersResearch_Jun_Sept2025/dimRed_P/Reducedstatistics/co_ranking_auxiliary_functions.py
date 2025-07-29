@@ -145,6 +145,12 @@ def compute_LCMC(QNN: np.ndarray) -> np.ndarray:
     # note: QNN[0] = 1 by definition, and baseline is 1/(m-1)
     return QNN - np.arange(1, m+1)/(m-1)
 
+def compute_auc_LCMC(LCMC: np.ndarray) -> float:
+    """
+    AUC of the LCMC (just its average over k).
+    """
+    return np.mean(LCMC)
+
 
 def compute_kmax(LCMC: np.ndarray) -> int:
     """
