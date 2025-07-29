@@ -1,4 +1,6 @@
 import re
+import numpy as np
+from sklearn.metrics import pairwise_distances
 from sklearn.pipeline    import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.manifold     import TSNE, Isomap
