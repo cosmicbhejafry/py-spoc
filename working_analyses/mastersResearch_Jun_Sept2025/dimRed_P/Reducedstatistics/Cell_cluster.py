@@ -15,8 +15,7 @@ class cell_cluster(ReducedStatistic):
         # Calling base class initialiser.
         super().__init__()
 
-        self.set_p = set_p
-        self.n_neighbours = n_neighbours
+        self.l_dist = l_dist
         self.method = method
         self.reduced_dimensionality = reduced_dimensionality
         self.reducer = reducer_reader(self.method)(self.reduced_dimensionality)
@@ -66,13 +65,13 @@ class cell_cluster(ReducedStatistic):
         cluster_labels = gmm.predict(X)
 
         # Compute average pairwise distances between clusters
-        D = rankClus(X, cluster_labels, l_dist)
+        D = rankClus(X, cluster_labels, self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
 
         # Compute average pairwise distances between clusters in the reduced space
-        D_z = rankClus(Z, cluster_labels, l_dist)
+        D_z = rankClus(Z, cluster_labels, self.l_dist)
 
         # Compute ranking and co-ranking matrices in the high- and low- dimensional spaces
         R = ranking_matrix(D)
