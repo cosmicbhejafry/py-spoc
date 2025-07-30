@@ -2,6 +2,9 @@ import numpy as np
 
 from pyspoc.statistic import ReducedStatistic
 from pyspoc.statistics.basic import Covariance
+from abc import ABC
+from pyspoc.dataset import Dataset
+from sklearn.decomposition import PCA
 
 class ReducedCovarianceTest(Covariance, ReducedStatistic):    
         
