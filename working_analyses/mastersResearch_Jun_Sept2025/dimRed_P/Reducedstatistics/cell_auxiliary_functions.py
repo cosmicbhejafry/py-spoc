@@ -1,5 +1,6 @@
 import re
 import numpy as np
+from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import pairwise_distances
 from sklearn.pipeline    import Pipeline
 from sklearn.decomposition import PCA
@@ -69,3 +70,77 @@ def rankClus(embed, labels, met = 'l1'):
         d[i,:] = avg_dists
     
     return d
+
+def get_knn(X, n_neighbors=10):
+    """ Computes the nearest neighbours of every point in a dataset.
+        Arguments:
+            - X (Nxp array): Dataset for which we will compute the nearest neighbours.
+            - n_neighbors (int): Number of neighbours we will consider.
+        Returns:
+            - dist (Nxn_neighbors array): Distances to the nearest neighbours for every point.
+            - ind (Nxn_neighbors array): Indices of the nearest neighbours for every point.
+    """
+    # We use the euclidean distance since this is the default metric for determining neighbours in t-SNE and UMAP
+    nn = NearestNeighbors(n_neighbors=n_neighbors, metric='euclidean')
+    nn.fit(X)
+    dist, idx = nn.kneighbors(X)
+    return dist, idx
+
+
+def max_min_ratio(distances):
+    """ Computes the distance max/min ratio among nearest neighbours.
+        Arguments:
+            - distances (Nxn_neighbors array): Nearest neighbour distances for every point.
+        Returns:
+            - dmax / dmin (N, array): Distance ratio for every point.
+    """
+    dmax = distances.max(axis=1)
+    dmin = distances.min(axis=1)
+    return dmax / dmin
+
+def max_min_stat(amb_dist, amb_inx, Z):
+    """ Computes the distance max/min ratio for the ambient and latent space.
+        Arguments:
+            - amb_dist (Nxn_neighbors array): Nearest neighbour distances for the ambient space.
+            - amb_inx (Nxn_neighbors array): Nearest neighbour indices for the ambient space.
+            - Z (Nxp array): Reduced dataset.
+        Returns:
+            - amb_stat (N, array): Distance ratio for ambient space.
+            - lat_stat (N, array): Distance ratio for latent space.
+    """
+    # Compute distance ratio in ambient space
+    amb_stat = max_min_ratio(amb_dist)
+
+    # Compute distance ratio in latent space, considering the same nearest neighbours that we found in the ambient space
+    N = Z.shape[0]
+    lat_dist = np.empty((N, k), dtype=float)
+    for i in range(N):
+        lat_dist[i] = np.linalg.norm(Z[i] - Z[amb_idx[i]], axis=1)
+    latent_ratio = max_min_ratio(lat_dist)
+
+    return amb_stat, lat_stat
+  
+def var_stat(amb_dist, amb_idx, Z):
+    """
+    Computes the distance variance for the ambient and latent space.
+    Arguments:
+     - amb_dist (N×n_neighbors array): Nearest neighbour distances for the ambient space.
+     - amb_idx  (N×n_neighbors array): Nearest neighbour indices for the ambient space.
+     - Z        (N×p array): Reduced dataset.
+    Returns:
+     - amb_stat (N, array): Distance variance for ambient space.
+     - lat_stat (N, array): Distance variance for latent space.
+    """
+    # Compute variance in ambient space
+    amb_stat = np.var(amb_dist, axis=1)
+
+    # Compute distances in latent space, using same neighbours from ambient
+    N = Z.shape[0]
+    lat_dist = np.empty((N, k), dtype=float)
+    for i in range(N):
+        lat_dist[i] = np.linalg.norm(Z[i] - Z[amb_idx[i]], axis=1)
+
+    # Compute variance in latent space
+    lat_stat = np.var(lat_dist, axis=1)
+
+    return amb_stat, lat_stat
