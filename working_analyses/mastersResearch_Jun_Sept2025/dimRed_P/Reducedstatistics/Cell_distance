@@ -1,7 +1,7 @@
 import numpy as np
 from cell_auxiliary_functions import reducer_reader, get_knn, max_min_stat, var_stat
 from sklearn.preprocessing import scale
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 
 
 class cell_distance(ReducedStatistic):

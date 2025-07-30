@@ -4,7 +4,7 @@ from co_ranking_auxiliary_functions import ranking_matrix, coranking_matrix, com
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 
 class cell_cluster(ReducedStatistic):
 

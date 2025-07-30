@@ -4,7 +4,7 @@ from sklearn.manifold import TSNE, Isomap
 from sklearn.decomposition import PCA, NMF
 from sklearn.metrics import pairwise_distances
 from scipy.stats import pearsonr, spearmanr
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 from typing import Union
 
 

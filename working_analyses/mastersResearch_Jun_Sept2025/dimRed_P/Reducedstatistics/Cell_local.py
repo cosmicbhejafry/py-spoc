@@ -1,7 +1,7 @@
 import numpy as np
 from cell_auxiliary_functions import reducer_reader, get_knn, get_Jaccard
 from sklearn.preprocessing import scale
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 
 
 class cell_local(ReducedStatistic):

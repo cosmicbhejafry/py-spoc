@@ -4,7 +4,7 @@ from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, slic
 from sklearn.manifold import TSNE, Isomap
 from sklearn.decomposition import PCA, NMF
 from sklearn.metrics import pairwise_distances
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 from typing import Union
 
 

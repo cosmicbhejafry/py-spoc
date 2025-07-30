@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA, NMF
-from pyss import ReducedStatistic
+from pyspoc import ReducedStatistic
 from typing import Union
 
 
