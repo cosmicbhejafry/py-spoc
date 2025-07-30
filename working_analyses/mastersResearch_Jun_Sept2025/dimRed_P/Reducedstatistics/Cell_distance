@@ -7,7 +7,7 @@ from typing import Union
 
 class cell_distance(ReducedStatistic):
 
-    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 1, stat = 'max/min'):
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, n_neighbours = 15, l_dist = 1, stat = 'max/min'):
 
         # Calling base class initialiser.
         super().__init__()
