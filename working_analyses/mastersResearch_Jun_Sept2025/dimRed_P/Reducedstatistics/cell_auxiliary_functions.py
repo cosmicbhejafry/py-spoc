@@ -17,8 +17,8 @@ BASE = {
 
 def reducer_reader(name_str):
     """
-    Turn "PCA 50D -> TSNE" or "TSNE" into the corresponding pipeline of funcitons.
-    The outuput f can then be updated as f(ndims, **kw) where the kwargs are passed to the final stage.
+    Turn "PCA 50D -> TSNE" or "TSNE" into the corresponding pipeline of functions.
+    The output f can then be updated as f(ndims, **kw) where the kwargs are passed to the final stage.
     """
     stages = [s.strip() for s in name_str.split('->')]
     info = []
@@ -63,25 +63,26 @@ def rankClus(embed, labels, met = 'l1'):
         avg_dists = [] # Here we will store each row of the final array d
         for j in unique_labels:
             # Now we compute the distance between cluster i and cluster j as the mean distance among their points
-            sub_1 = embed[inLab == unique_labels[i],:]
-            sub_2 = embed[inLab == j,:]
+            sub_1 = embed[labels == unique_labels[i],:]
+            sub_2 = embed[labels == j,:]
             avg_dists += [np.mean(pairwise_distances(sub_1,sub_2,metric=met).flatten().tolist())]
 
         d[i,:] = avg_dists
     
     return d
 
-def get_knn(X, n_neighbors=10):
+def get_knn(X, n_neighbors=10, l_dist = 'euclidean'):
     """ Computes the nearest neighbours of every point in a dataset.
         Arguments:
             - X (Nxp array): Dataset for which we will compute the nearest neighbours.
             - n_neighbors (int): Number of neighbours we will consider.
+            - l_dist (str): Metric to use when computing distances.
         Returns:
             - dist (Nxn_neighbors array): Distances to the nearest neighbours for every point.
             - ind (Nxn_neighbors array): Indices of the nearest neighbours for every point.
     """
     # We use the euclidean distance since this is the default metric for determining neighbours in t-SNE and UMAP
-    nn = NearestNeighbors(n_neighbors=n_neighbors, metric='euclidean')
+    nn = NearestNeighbors(n_neighbors=n_neighbors, metric=l_dist)
     nn.fit(X)
     dist, idx = nn.kneighbors(X)
     return dist, idx
@@ -98,11 +99,11 @@ def max_min_ratio(distances):
     dmin = distances.min(axis=1)
     return dmax / dmin
 
-def max_min_stat(amb_dist, amb_inx, Z):
+def max_min_stat(amb_dist, amb_idx, Z):
     """ Computes the distance max/min ratio for the ambient and latent space.
         Arguments:
             - amb_dist (Nxn_neighbors array): Nearest neighbour distances for the ambient space.
-            - amb_inx (Nxn_neighbors array): Nearest neighbour indices for the ambient space.
+            - amb_idx (Nxn_neighbors array): Nearest neighbour indices for the ambient space.
             - Z (Nxp array): Reduced dataset.
         Returns:
             - amb_stat (N, array): Distance ratio for ambient space.
@@ -113,10 +114,11 @@ def max_min_stat(amb_dist, amb_inx, Z):
 
     # Compute distance ratio in latent space, considering the same nearest neighbours that we found in the ambient space
     N = Z.shape[0]
+    k = amb_dist.shape[1]
     lat_dist = np.empty((N, k), dtype=float)
     for i in range(N):
         lat_dist[i] = np.linalg.norm(Z[i] - Z[amb_idx[i]], axis=1)
-    latent_ratio = max_min_ratio(lat_dist)
+    lat_stat = max_min_ratio(lat_dist)
 
     return amb_stat, lat_stat
   
@@ -136,6 +138,7 @@ def var_stat(amb_dist, amb_idx, Z):
 
     # Compute distances in latent space, using same neighbours from ambient
     N = Z.shape[0]
+    k = amb_dist.shape[1]
     lat_dist = np.empty((N, k), dtype=float)
     for i in range(N):
         lat_dist[i] = np.linalg.norm(Z[i] - Z[amb_idx[i]], axis=1)

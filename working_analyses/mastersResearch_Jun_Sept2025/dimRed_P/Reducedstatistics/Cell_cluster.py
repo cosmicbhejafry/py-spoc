@@ -4,18 +4,18 @@ from cell_auxiliary_functions import reducer_reader, rankClus
 from co_ranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_QNN, compute_LCMC, compute_auc_LCMC
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
+from sklearn.mixture import GaussianMixture
 from pyss import ReducedStatistic
-from typing import Union
-
 
 class cell_cluster(ReducedStatistic):
 
-    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 1):
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 'l1', pca_for_clusters = 50):
 
         # Calling base class initialiser.
         super().__init__()
 
         self.l_dist = l_dist
+        self.pca_for_clusters = pca_for_clusters
         self.method = method
         self.reduced_dimensionality = reduced_dimensionality
         self.reducer = reducer_reader(self.method)(self.reduced_dimensionality)
@@ -34,7 +34,7 @@ class cell_cluster(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # log-normalise data
         log_data = np.log1p(data)
@@ -43,8 +43,8 @@ class cell_cluster(ReducedStatistic):
         scaled_data = scale(log_data)
 
         # If pca_for_clusters is passed, reduce to that amount of principal components before computing the clusters
-        if pca_for_clusters:
-            pca = PCA(n_components=pca_for_clusters)
+        if self.pca_for_clusters:
+            pca = PCA(n_components=self.pca_for_clusters)
             X = pca.fit_transform(scaled_data)   # scaled_data is your preprocessed data
         else:
             X = scaled_data

@@ -1,14 +1,13 @@
 import numpy as np
 import tools as tl
-from cell_auxiliary_functions import reducer_reader
+from cell_auxiliary_functions import reducer_reader, get_knn
 from sklearn.preprocessing import scale
 from pyss import ReducedStatistic
-from typing import Union
 
 
 class cell_local(ReducedStatistic):
 
-    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 1, n_neighbours = 15):
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 'l1', n_neighbours = 15):
 
         # Calling base class initialiser.
         super().__init__()
@@ -33,7 +32,7 @@ class cell_local(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # log-normalise data
         log_data = np.log1p(data)
@@ -42,13 +41,13 @@ class cell_local(ReducedStatistic):
         scaled_data = scale(log_data)
 
         # Compute nearest neighbours for the original data
-        orig_indices = tl.getNeighbors(log_data, n_neigh = self.n_neighbours, p=self.l_dist)
+        _, orig_indices = get_knn(log_data, n_neigh = self.n_neighbours, l_dist=self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
 
         # Recompute nearest neighbours in the dimensionally reduced data
-        reduced_indices = tl.getNeighbors(Z, n_neigh = self.n_neighbours, p=self.l_dist)
+        _, reduced_indices = get_knn(Z, n_neigh = self.n_neighbours, l_dist=self.l_dist)
 
         # Compare both sets using the jaccard distance
         jac_distances = tl.getJaccard(orig_indices, reduced_indices)

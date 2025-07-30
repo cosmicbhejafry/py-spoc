@@ -1,18 +1,17 @@
 import numpy as np
-from cell_auxiliary_functions import reducer_reader, max_min_stat, var_stat
+from cell_auxiliary_functions import reducer_reader, get_knn, max_min_stat, var_stat
 from sklearn.preprocessing import scale
 from pyss import ReducedStatistic
-from typing import Union
 
 
 class cell_distance(ReducedStatistic):
 
-    def __init__(self, method = 'PCA', reduced_dimensionality = 2, n_neighbours = 15, l_dist = 1, stat = 'max/min'):
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, n_neighbours = 15, l_dist = 'l1', stat = 'max/min'):
 
         # Calling base class initialiser.
         super().__init__()
 
-        self.set_p = set_p
+        self.l_dist = l_dist
         self.stat = stat
         self.n_neighbours = n_neighbours
         self.method = method
@@ -40,7 +39,7 @@ class cell_distance(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # log-normalise data
         log_data = np.log1p(data)
@@ -49,7 +48,7 @@ class cell_distance(ReducedStatistic):
         scaled_data = scale(log_data)
 
         # Compute nearest neighbours and distance ratio in ambient space
-        amb_dist, amb_idx = get_knn(log_data, n_neighbors=n_neighbors, include_self=False)
+        amb_dist, amb_idx = get_knn(log_data, n_neighbors=self.n_neighbors, l_dist = self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
