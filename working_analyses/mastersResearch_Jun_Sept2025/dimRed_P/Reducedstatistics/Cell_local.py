@@ -1,6 +1,5 @@
 import numpy as np
-import tools as tl
-from cell_auxiliary_functions import reducer_reader, get_knn
+from cell_auxiliary_functions import reducer_reader, get_knn, get_Jaccard
 from sklearn.preprocessing import scale
 from pyss import ReducedStatistic
 
@@ -50,7 +49,7 @@ class cell_local(ReducedStatistic):
         _, reduced_indices = get_knn(Z, n_neigh = self.n_neighbours, l_dist=self.l_dist)
 
         # Compare both sets using the jaccard distance
-        jac_distances = tl.getJaccard(orig_indices, reduced_indices)
+        jac_distances = get_Jaccard(orig_indices, reduced_indices)
 
         # Take the mean across all samples so as to have just one value
         output = np.mean(jac_distances)

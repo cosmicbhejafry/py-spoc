@@ -44,6 +44,20 @@ def reducer_reader(name_str):
 
     return factory
 
+def get_Jaccard(amb, lat):
+	""" Get jaccard distance of neighbors intersecting with those in ambient space.
+        Arguments:
+            orig : Original/ambient space nearest neighbor indices.
+            new : Latent/Comparison space nearest neighbor indices.
+        Returns:
+            frac : List of Jaccard distances for each sample.
+	"""
+	frac = [0]*lat.shape[0]
+	for i in range(lat.shape[0]):
+		inter = set(amb[i,:]).intersection(lat[i,:])
+		frac[i] = 1 - len(inter)/len(set(amb[i,:]).union(lat[i,:]))
+
+	return frac
 
 def rankClus(embed, labels, met = 'l1'):
     """ Compute average pairwise distances between labeled groups in a latent space.
