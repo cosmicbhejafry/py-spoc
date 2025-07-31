@@ -51,8 +51,8 @@ class Reconstruction_error(ReducedStatistic):
         '''
         assert X.shape == X_reconstructed.shape
 
-        mse = recon_MSE(X, X_reconstructed) # mean square error
-        ams = recon_MSE(X, np.zeros(X.shape)) # mean square of original data matrix
+        mse = self.recon_MSE(X, X_reconstructed) # mean square error
+        ams = self.recon_MSE(X, np.zeros(X.shape)) # mean square of original data matrix
         rmse = mse/ams # relative mean square error
 
         return rmse
@@ -61,7 +61,7 @@ class Reconstruction_error(ReducedStatistic):
         '''
         relative mean squared error
         '''
-        return recon_MSE(X, X_reconstructed) / recon_MSE(X, np.zeros(X.shape))
+        return self.recon_MSE(X, X_reconstructed) / self.recon_MSE(X, np.zeros(X.shape))
 
     def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
