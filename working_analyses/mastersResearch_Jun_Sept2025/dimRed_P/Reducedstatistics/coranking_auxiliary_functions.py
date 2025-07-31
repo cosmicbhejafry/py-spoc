@@ -98,7 +98,7 @@ def compute_continuity(Q_full: np.ndarray) -> np.ndarray:
     """
     C[k] for k = 1..m-1
     """
-    Q = _slice_Q(Q_full)
+    Q = slice_Q(Q_full)
     m = Q.shape[0]
     C = np.zeros(m-1)
     for k in range(m-1):
