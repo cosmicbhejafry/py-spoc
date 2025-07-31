@@ -96,7 +96,7 @@ def get_knn(X, n_neigh=10, l_dist = 'euclidean'):
             - ind (Nxn_neighbors array): Indices of the nearest neighbours for every point.
     """
     # We use the euclidean distance since this is the default metric for determining neighbours in t-SNE and UMAP
-    nn = NearestNeighbors(n_neighbors=n_neighbors, metric=l_dist)
+    nn = NearestNeighbors(n_neighbors=n_neigh, metric=l_dist)
     nn.fit(X)
     dist, idx = nn.kneighbors(X)
     return dist, idx
