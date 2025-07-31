@@ -35,11 +35,8 @@ class Cell_cluster(ReducedStatistic):
 
     def compute(self, data: np.ndarray) -> float:
 
-        # log-normalise data
-        log_data = np.log1p(data)
-
-        # Center and scale log-normalised data
-        scaled_data = scale(log_data)
+        # Center and scale data
+        scaled_data = scale(data)
 
         # If pca_for_clusters is passed, reduce to that amount of principal components before computing the clusters
         if self.pca_for_clusters:

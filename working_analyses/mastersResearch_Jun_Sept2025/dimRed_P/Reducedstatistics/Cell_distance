@@ -41,14 +41,11 @@ class Cell_distance(ReducedStatistic):
 
     def compute(self, data: np.ndarray) -> float:
 
-        # log-normalise data
-        log_data = np.log1p(data)
-
         # Center and scale log-normalised data
-        scaled_data = scale(log_data)
+        scaled_data = scale(data)
 
         # Compute nearest neighbours and distance ratio in ambient space
-        amb_dist, amb_idx = get_knn(log_data, n_neighbors=self.n_neighbors, l_dist = self.l_dist)
+        amb_dist, amb_idx = get_knn(data, n_neighbors=self.n_neighbors, l_dist = self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)

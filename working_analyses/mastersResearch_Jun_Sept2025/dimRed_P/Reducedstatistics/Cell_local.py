@@ -33,14 +33,11 @@ class Cell_local(ReducedStatistic):
 
     def compute(self, data: np.ndarray) -> float:
 
-        # log-normalise data
-        log_data = np.log1p(data)
-
-        # Center and scale log-normalised data
-        scaled_data = scale(log_data)
+        # Center and scals data
+        scaled_data = scale(data)
 
         # Compute nearest neighbours for the original data
-        _, orig_indices = get_knn(log_data, n_neigh = self.n_neighbours, l_dist=self.l_dist)
+        _, orig_indices = get_knn(data, n_neigh = self.n_neighbours, l_dist=self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
