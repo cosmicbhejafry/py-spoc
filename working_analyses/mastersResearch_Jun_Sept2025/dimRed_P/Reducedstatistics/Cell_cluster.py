@@ -39,7 +39,8 @@ class Cell_cluster(ReducedStatistic):
         scaled_data = scale(data)
 
         # If pca_for_clusters is passed, reduce to that amount of principal components before computing the clusters
-        if self.pca_for_clusters:
+        # We also check that the reduced dimensionality is less than the actual one
+        if self.pca_for_clusters and data.shape[1]>pca_for_clusters:
             pca = PCA(n_components=self.pca_for_clusters)
             X = pca.fit_transform(scaled_data)   # scaled_data is your preprocessed data
         else:
