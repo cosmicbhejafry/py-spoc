@@ -33,14 +33,14 @@ class Reconstruction_error(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def recon_MSE(X,X_reconstructed):
+    def recon_MSE(self,X,X_reconstructed):
         '''
         Reconstruction relateive MSE
         '''
         assert X.shape == X_reconstructed.shape
         return np.linalg.norm(X-X_reconstructed, ord='fro')**2/(X.shape[0]*X.shape[1])
 
-    def calculate_recon_error(X, X_reconstructed):
+    def calculate_recon_error(self,X, X_reconstructed):
         '''
         Recontruction errors
         mse : mean squared error between X and X_reconstructed
@@ -57,7 +57,7 @@ class Reconstruction_error(ReducedStatistic):
 
         return rmse
 
-    def recon_rMSE(X, X_reconstructed):
+    def recon_rMSE(self,X, X_reconstructed):
         '''
         relative mean squared error
         '''
