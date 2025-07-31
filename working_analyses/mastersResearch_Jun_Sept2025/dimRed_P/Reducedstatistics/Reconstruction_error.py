@@ -63,7 +63,7 @@ class Reconstruction_error(ReducedStatistic):
         '''
         return self.recon_MSE(X, X_reconstructed) / self.recon_MSE(X, np.zeros(X.shape))
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data and reconstruct the original one from the result
         X = data

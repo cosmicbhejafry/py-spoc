@@ -1,11 +1,8 @@
 import numpy as np
-import umap
-from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, slice_Q, compute_QNN, compute_LCMC, compute_kmax, compute_Qlocal
-from sklearn.manifold import TSNE, Isomap
-from sklearn.decomposition import PCA, NMF
+from cell_auxiliary_functions import reducer_reader
+from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_QNN, compute_LCMC, compute_kmax, compute_Qlocal
 from sklearn.metrics import pairwise_distances
 from pyspoc import ReducedStatistic
-from typing import Union
 
 
 class Q_local(ReducedStatistic):
@@ -17,16 +14,7 @@ class Q_local(ReducedStatistic):
 
         self.method = method
         self.reduced_dimensionality = reduced_dimensionality
-
-        reducer_dict = {
-            'PCA'   : PCA,
-            'NMF'   : NMF,
-            'TSNE'  : TSNE,
-            'Isomap': Isomap,
-            'UMAP'  : umap.UMAP,
-        }
-
-        self.reducer = reducer_dict[method](n_components=self.reduced_dimensionality)
+        self.reducer = reducer_reader(self.method)(self.reduced_dimensionality)
 
     @property
     def name(self) -> str:
@@ -42,7 +30,7 @@ class Q_local(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data
         X = data

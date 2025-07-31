@@ -1,11 +1,11 @@
 import numpy as np
 from cell_auxiliary_functions import reducer_reader
-from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_continuity, compute_auc_C
+from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_QNN, compute_LCMC, compute_auc_LCMC
 from sklearn.metrics import pairwise_distances
 from pyspoc import ReducedStatistic
 
 
-class Continuity(ReducedStatistic):
+class LCMC(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2):
 
@@ -18,7 +18,7 @@ class Continuity(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "Continuity"
+        return "Q_local"
 
     @property
     def identifier(self) -> str:
@@ -45,8 +45,9 @@ class Continuity(ReducedStatistic):
         R_z = ranking_matrix(D_z)
         Q = coranking_matrix(R, R_z)
 
-        # Compute Continuity and take the AUC (average in this case)
-        C = compute_continuity(Q)
-        auc_C = compute_auc_C(C)
-
-        return auc_C
+        # Compute QNN, and LCMC
+        QNN = compute_QNN(Q)
+        LCMC = compute_LCMC(QNN)
+        
+        # Return the average LCMC
+        return compute_auc_LCMC(LCMC)

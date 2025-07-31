@@ -1,11 +1,8 @@
 import numpy as np
-import umap
-from sklearn.manifold import TSNE, Isomap
-from sklearn.decomposition import PCA, NMF
+from cell_auxiliary_functions import reducer_reader
 from sklearn.metrics import pairwise_distances
 from scipy.stats import pearsonr, spearmanr
 from pyspoc import ReducedStatistic
-from typing import Union
 
 
 class Distance_similarity(ReducedStatistic):
@@ -14,20 +11,12 @@ class Distance_similarity(ReducedStatistic):
 
         self.method = method
         self.reduced_dimensionality = reduced_dimensionality
-
-        reducer_dict = {
-            'PCA'   : PCA,
-            'NMF'   : NMF,
-            'TSNE'  : TSNE,
-            'Isomap': Isomap,
-            'UMAP'  : umap.UMAP,
-        }
+        self.reducer = reducer_reader(self.method)(self.reduced_dimensionality)
 
         correlation_dict = {'Pearson': pearsonr,
                             'Spearman': spearmanr}
 
         self.correlation_coefficient = correlation_dict[correlation_coefficient]
-        self.reducer = reducer_dict[method](n_components=self.reduced_dimensionality)
 
         # Calling base class initialiser.
         super().__init__()
@@ -46,7 +35,7 @@ class Distance_similarity(ReducedStatistic):
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data
         X = data
