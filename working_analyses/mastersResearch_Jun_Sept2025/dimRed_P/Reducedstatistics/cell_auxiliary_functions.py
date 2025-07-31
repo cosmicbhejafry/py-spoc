@@ -85,11 +85,11 @@ def rankClus(embed, labels, met = 'l1'):
     
     return d
 
-def get_knn(X, n_neighbors=10, l_dist = 'euclidean'):
+def get_knn(X, n_neigh=10, l_dist = 'euclidean'):
     """ Computes the nearest neighbours of every point in a dataset.
         Arguments:
             - X (Nxp array): Dataset for which we will compute the nearest neighbours.
-            - n_neighbors (int): Number of neighbours we will consider.
+            - n_neigh (int): Number of neighbours we will consider.
             - l_dist (str): Metric to use when computing distances.
         Returns:
             - dist (Nxn_neighbors array): Distances to the nearest neighbours for every point.
