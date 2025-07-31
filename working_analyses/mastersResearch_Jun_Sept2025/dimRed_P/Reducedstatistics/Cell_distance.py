@@ -45,7 +45,7 @@ class Cell_distance(ReducedStatistic):
         scaled_data = scale(data)
 
         # Compute nearest neighbours and distance ratio in ambient space
-        amb_dist, amb_idx = get_knn(data, n_neighbors=self.n_neighbours, l_dist = self.l_dist)
+        amb_dist, amb_idx = get_knn(data, n_neigh=self.n_neighbours, l_dist = self.l_dist)
 
         # Perform dimensionality reduction
         Z = self.reducer.fit_transform(scaled_data)
