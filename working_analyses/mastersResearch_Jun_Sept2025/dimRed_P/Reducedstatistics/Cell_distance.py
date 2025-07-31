@@ -1,0 +1,60 @@
+import numpy as np
+from cell_auxiliary_functions import reducer_reader, get_knn, max_min_stat, var_stat
+from sklearn.preprocessing import scale
+from pyspoc import ReducedStatistic
+
+
+class Cell_distance(ReducedStatistic):
+
+    def __init__(self, method = 'PCA', reduced_dimensionality = 2, n_neighbours = 15, l_dist = 'l1', stat = 'max/min'):
+
+        # Calling base class initialiser.
+        super().__init__()
+
+        self.l_dist = l_dist
+        self.stat = stat
+        self.n_neighbours = n_neighbours
+        self.method = method
+        self.reduced_dimensionality = reduced_dimensionality
+        self.reducer = reducer_reader(self.method)(self.reduced_dimensionality)
+
+        if self.stat == 'max/min':
+            self.stat_func = max_min_stat
+        elif self.stat == 'var':
+            self.stat_func = var_stat
+        else:
+            raise ValueError(f"Unknown stat type: {self.stat}")
+
+    @property
+    def name(self) -> str:
+        return "my_new_reducer_name"
+
+    @property
+    def identifier(self) -> str:
+        return "my_new_reducer_identifier"
+
+    @property
+    def labels(self) -> list[str]:
+        return ["my_new_reducer_label_1",
+                "my_new_reducer_label_2",
+                "my_new_reducer_label_n"]
+
+    def compute(self, data: np.ndarray) -> float:
+
+        # Center and scale log-normalised data
+        scaled_data = scale(data)
+
+        # Compute nearest neighbours and distance ratio in ambient space
+        amb_dist, amb_idx = get_knn(data, n_neigh=self.n_neighbours, l_dist = self.l_dist)
+
+        # Perform dimensionality reduction
+        Z = self.reducer.fit_transform(scaled_data)
+
+        # Compute the statistic in the high and low dimensional spaces
+        amb_stat, lat_stat = self.stat_func(amb_dist, amb_idx, Z)
+
+        # Compare both statistics using the exponential function
+        comp = np.exp(-np.abs(amb_stat - lat_stat) / amb_stat)
+
+        # Return the average across all points
+        return np.mean(comp)
