@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 from pyspoc import ReducedStatistic
 
-class cell_cluster(ReducedStatistic):
+class Cell_cluster(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 'l1', pca_for_clusters = 50):
 

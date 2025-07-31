@@ -4,7 +4,7 @@ from sklearn.preprocessing import scale
 from pyspoc import ReducedStatistic
 
 
-class cell_distance(ReducedStatistic):
+class Cell_distance(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2, n_neighbours = 15, l_dist = 'l1', stat = 'max/min'):
 

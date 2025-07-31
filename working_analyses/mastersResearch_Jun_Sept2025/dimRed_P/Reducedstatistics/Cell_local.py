@@ -4,7 +4,7 @@ from sklearn.preprocessing import scale
 from pyspoc import ReducedStatistic
 
 
-class cell_local(ReducedStatistic):
+class Cell_local(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2, l_dist = 'l1', n_neighbours = 15):
 
