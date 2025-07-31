@@ -1,6 +1,6 @@
 import numpy as np
 from cell_auxiliary_functions import reducer_reader, rankClus
-from co_ranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_QNN, compute_LCMC, compute_auc_LCMC
+from coranking_auxiliary_functions import ranking_matrix, coranking_matrix, compute_QNN, compute_LCMC, compute_auc_LCMC
 from sklearn.preprocessing import scale
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
