@@ -71,6 +71,6 @@ class Reconstruction_error(ReducedStatistic):
         X_reconstructed = self.reducer.inverse_transform(Z)
 
         # Compute the relative mean square error between the original dataset and the reconstructed one
-        rmse = calculate_recon_error(X, X_reconstructed)
+        rmse = self.calculate_recon_error(X, X_reconstructed)
 
         return rmse
