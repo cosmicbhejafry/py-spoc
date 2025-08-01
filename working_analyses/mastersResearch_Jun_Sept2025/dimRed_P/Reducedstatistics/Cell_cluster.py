@@ -48,7 +48,7 @@ class Cell_cluster(ReducedStatistic):
 
         # To pick the number of clusters we iterate from 2 to 30 trying to find the one with the least BIC
         bics = []
-        for k in range(2,30):
+        for k in range(3,30):
             gm = GaussianMixture(n_components=k).fit(X)
             bics.append(gm.bic(X))
         best_K = np.argmin(bics) + 2 # Add 2 since our loop starts at 2
