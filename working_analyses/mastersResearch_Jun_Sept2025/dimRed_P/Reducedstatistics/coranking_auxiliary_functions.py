@@ -147,9 +147,10 @@ def compute_LCMC(QNN: np.ndarray) -> np.ndarray:
 
 def compute_auc_LCMC(LCMC: np.ndarray) -> float:
     """
-    AUC of the LCMC (just its average over k).
+    AUC of the LCMC (averake over k plus correction so that it lies between 0 and 1).
     """
-    return np.mean(LCMC)
+    n = LCMC.shape[0]
+    return np.mean(LCMC) + (n+1)/(2*(n-1))
 
 
 def compute_kmax(LCMC: np.ndarray) -> int:
