@@ -122,11 +122,12 @@ def compute_QNN(Q_full: np.ndarray) -> np.ndarray:
     QNN[k] for k = 0..m-1  (0-th NN is the point itself)
     """
     Q = slice_Q(Q_full)
+    N = Q_full.shape[0]
     m = Q.shape[0]
     QNN = np.zeros(m)
     for k in range(m):
         # Q[0,0] is always m. 0-th nearest neighbor is always the point itself. Exclude Q[0,0]
-        QNN[k] = np.sum(Q[:k+1, :k+1]) / ((k+1) * m)
+        QNN[k] = np.sum(Q[:k+1, :k+1]) / ((k+1) * N)
     return QNN
 
 
