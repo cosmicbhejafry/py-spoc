@@ -1,0 +1,11 @@
+filename,N,F,sample_num,seed,cluster_label_filename,cluster_std
+sample0_seed93586.npy,1000,10,0,93586,cluster_label_sample0_seed93586.npy,1.0
+sample1_seed811551.npy,1000,10,1,811551,cluster_label_sample1_seed811551.npy,1.0
+sample2_seed686367.npy,1000,10,2,686367,cluster_label_sample2_seed686367.npy,1.0
+sample3_seed460197.npy,1000,10,3,460197,cluster_label_sample3_seed460197.npy,1.0
+sample4_seed454049.npy,1000,10,4,454049,cluster_label_sample4_seed454049.npy,1.0
+sample5_seed900305.npy,1000,10,5,900305,cluster_label_sample5_seed900305.npy,1.0
+sample6_seed90120.npy,1000,10,6,90120,cluster_label_sample6_seed90120.npy,1.0
+sample7_seed731243.npy,1000,10,7,731243,cluster_label_sample7_seed731243.npy,1.0
+sample8_seed211256.npy,1000,10,8,211256,cluster_label_sample8_seed211256.npy,1.0
+sample9_seed98752.npy,1000,10,9,98752,cluster_label_sample9_seed98752.npy,1.0
