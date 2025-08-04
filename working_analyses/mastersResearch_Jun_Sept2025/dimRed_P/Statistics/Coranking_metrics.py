@@ -91,4 +91,6 @@ class Coranking_metrics(Statistic):
         Qglobal = compute_Qglobal(QNN, kmax)
         output.append(Qglobal)
 
+        print(output)
+
         return np.array(output)
