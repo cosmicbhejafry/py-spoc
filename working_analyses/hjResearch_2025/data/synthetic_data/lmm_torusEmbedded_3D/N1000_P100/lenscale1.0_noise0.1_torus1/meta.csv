@@ -1,0 +1,11 @@
+filename,N,F,sample_num,seed,latent_dim,noise_variance,seed_dict,gp_kernel,kernel_params
+sample0_seed93586.npy,1000,100,0,93586,3,"{'latent': 999956, 'gp': 746286, 'noise': 231935}","[999956, 746286, 231935]",rbf,{'length_scale': 1.0}
+sample1_seed811551.npy,1000,100,1,811551,3,"{'latent': 376821, 'gp': 1026898, 'noise': 120557}","[376821, 1026898, 120557]",rbf,{'length_scale': 1.0}
+sample2_seed686367.npy,1000,100,2,686367,3,"{'latent': 1045250, 'gp': 573057, 'noise': 547600}","[1045250, 573057, 547600]",rbf,{'length_scale': 1.0}
+sample3_seed460197.npy,1000,100,3,460197,3,"{'latent': 979596, 'gp': 664838, 'noise': 878493}","[979596, 664838, 878493]",rbf,{'length_scale': 1.0}
+sample4_seed454049.npy,1000,100,4,454049,3,"{'latent': 549317, 'gp': 545893, 'noise': 228075}","[549317, 545893, 228075]",rbf,{'length_scale': 1.0}
+sample5_seed900305.npy,1000,100,5,900305,3,"{'latent': 1013550, 'gp': 93959, 'noise': 960456}","[1013550, 93959, 960456]",rbf,{'length_scale': 1.0}
+sample6_seed90120.npy,1000,100,6,90120,3,"{'latent': 489450, 'gp': 988248, 'noise': 259622}","[489450, 988248, 259622]",rbf,{'length_scale': 1.0}
+sample7_seed731243.npy,1000,100,7,731243,3,"{'latent': 990439, 'gp': 732481, 'noise': 626343}","[990439, 732481, 626343]",rbf,{'length_scale': 1.0}
+sample8_seed211256.npy,1000,100,8,211256,3,"{'latent': 400728, 'gp': 932765, 'noise': 678659}","[400728, 932765, 678659]",rbf,{'length_scale': 1.0}
+sample9_seed98752.npy,1000,100,9,98752,3,"{'latent': 583126, 'gp': 868418, 'noise': 223224}","[583126, 868418, 223224]",rbf,{'length_scale': 1.0}

@@ -55,7 +55,7 @@ def get_Jaccard(amb, lat):
 	frac = [0]*lat.shape[0]
 	for i in range(lat.shape[0]):
 		inter = set(amb[i,:]).intersection(lat[i,:])
-		frac[i] = 1 - len(inter)/len(set(amb[i,:]).union(lat[i,:]))
+		frac[i] = len(inter)/len(set(amb[i,:]).union(lat[i,:]))
 
 	return frac
 
