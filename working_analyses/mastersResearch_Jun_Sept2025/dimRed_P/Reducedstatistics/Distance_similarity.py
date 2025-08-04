@@ -45,7 +45,7 @@ class Distance_similarity(ReducedStatistic):
         D  = pairwise_distances(X)
         D_z = pairwise_distances(Z)
 
-        # Residual Variance of the two distance matrices
-        Res_Var = 1 - (self.correlation_coefficient(D.flatten(), D_z.flatten())[0])**2
+        # Correlation the two distance matrices
+        corr = self.correlation_coefficient(D.flatten(), D_z.flatten())[0]**2
 
-        return Res_Var
+        return corr
