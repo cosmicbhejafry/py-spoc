@@ -1,0 +1,11 @@
+filename,N,F,sample_num,seed,transforms_filename,cluster_label_filename,cluster_std_filename,cluster_std
+sample0_seed93586.npy,1000,100,0,93586,transforms_sample0_seed93586.npy,cluster_label_sample0_seed93586.npy,cluster_std_sample0_seed93586.npy,2.0
+sample1_seed811551.npy,1000,100,1,811551,transforms_sample1_seed811551.npy,cluster_label_sample1_seed811551.npy,cluster_std_sample1_seed811551.npy,2.0
+sample2_seed686367.npy,1000,100,2,686367,transforms_sample2_seed686367.npy,cluster_label_sample2_seed686367.npy,cluster_std_sample2_seed686367.npy,2.0
+sample3_seed460197.npy,1000,100,3,460197,transforms_sample3_seed460197.npy,cluster_label_sample3_seed460197.npy,cluster_std_sample3_seed460197.npy,2.0
+sample4_seed454049.npy,1000,100,4,454049,transforms_sample4_seed454049.npy,cluster_label_sample4_seed454049.npy,cluster_std_sample4_seed454049.npy,2.0
+sample5_seed900305.npy,1000,100,5,900305,transforms_sample5_seed900305.npy,cluster_label_sample5_seed900305.npy,cluster_std_sample5_seed900305.npy,2.0
+sample6_seed90120.npy,1000,100,6,90120,transforms_sample6_seed90120.npy,cluster_label_sample6_seed90120.npy,cluster_std_sample6_seed90120.npy,2.0
+sample7_seed731243.npy,1000,100,7,731243,transforms_sample7_seed731243.npy,cluster_label_sample7_seed731243.npy,cluster_std_sample7_seed731243.npy,2.0
+sample8_seed211256.npy,1000,100,8,211256,transforms_sample8_seed211256.npy,cluster_label_sample8_seed211256.npy,cluster_std_sample8_seed211256.npy,2.0
+sample9_seed98752.npy,1000,100,9,98752,transforms_sample9_seed98752.npy,cluster_label_sample9_seed98752.npy,cluster_std_sample9_seed98752.npy,2.0
