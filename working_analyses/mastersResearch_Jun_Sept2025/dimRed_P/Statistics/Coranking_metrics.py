@@ -31,9 +31,15 @@ class Coranking_metrics(Statistic):
 
     @property
     def labels(self) -> list[str]:
-        return ["my_new_reducer_label_1",
-                "my_new_reducer_label_2",
-                "my_new_reducer_label_n"]
+        return [
+        "Distance-Similarity (DS)",
+        "Continuity (AUC)",
+        "Trustworthiness (AUC)",
+        "QNN (AUC)",
+        "LCMC (AUC)",
+        "Q_local",
+        "Q_global",
+    ]
 
     def compute(self, data: np.ndarray) -> float:
 
