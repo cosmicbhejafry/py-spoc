@@ -1,12 +1,12 @@
 import numpy as np
 from cell_auxiliary_functions import reducer_reader
 from sklearn.metrics import pairwise_distances
-from pyspoc import Statistic
+from pyspoc import Reducer
 from scipy.stats import pearsonr, spearmanr
 from working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.coranking_auxiliary_functions import *
 
 
-class Coranking_metrics(Statistic):
+class Coranking_metrics(Reducer):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2, correlation_coefficient = 'Pearson'):
 
@@ -90,7 +90,5 @@ class Coranking_metrics(Statistic):
         # Compute Q_global
         Qglobal = compute_Qglobal(QNN, kmax)
         output.append(Qglobal)
-
-        print(output)
 
         return np.array(output)
