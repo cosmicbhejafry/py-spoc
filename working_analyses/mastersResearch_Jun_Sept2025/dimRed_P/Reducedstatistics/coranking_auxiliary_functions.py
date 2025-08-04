@@ -122,11 +122,12 @@ def compute_QNN(Q_full: np.ndarray) -> np.ndarray:
     QNN[k] for k = 0..m-1  (0-th NN is the point itself)
     """
     Q = slice_Q(Q_full)
+    N = Q_full.shape[0]
     m = Q.shape[0]
     QNN = np.zeros(m)
     for k in range(m):
         # Q[0,0] is always m. 0-th nearest neighbor is always the point itself. Exclude Q[0,0]
-        QNN[k] = np.sum(Q[:k+1, :k+1]) / ((k+1) * m)
+        QNN[k] = np.sum(Q[:k+1, :k+1]) / ((k+1) * N)
     return QNN
 
 
@@ -147,9 +148,10 @@ def compute_LCMC(QNN: np.ndarray) -> np.ndarray:
 
 def compute_auc_LCMC(LCMC: np.ndarray) -> float:
     """
-    AUC of the LCMC (just its average over k).
+    AUC of the LCMC (averake over k plus correction so that it lies between 0 and 1).
     """
-    return np.mean(LCMC)
+    n = LCMC.shape[0]
+    return np.mean(LCMC) + (n+1)/(2*(n-1))
 
 
 def compute_kmax(LCMC: np.ndarray) -> int:

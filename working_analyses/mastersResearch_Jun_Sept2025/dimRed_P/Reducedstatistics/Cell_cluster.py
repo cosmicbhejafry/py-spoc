@@ -51,7 +51,7 @@ class Cell_cluster(ReducedStatistic):
         for k in range(3,30):
             gm = GaussianMixture(n_components=k).fit(X)
             bics.append(gm.bic(X))
-        best_K = np.argmin(bics) + 2 # Add 2 since our loop starts at 2
+        best_K = np.argmin(bics) + 3 # Add 3 since our loop starts at 3
 
         # Then refit gmm with the optimal number of clusters
         gmm = GaussianMixture(

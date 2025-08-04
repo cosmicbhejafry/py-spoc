@@ -105,15 +105,18 @@ def get_knn(X, n_neigh=10, l_dist = 'euclidean'):
     return dist, idx
 
 
-def max_min_ratio(distances):
+def max_min_ratio(distances, eps=1e-12):
     """ Computes the distance max/min ratio among nearest neighbours.
         Arguments:
             - distances (Nxn_neighbors array): Nearest neighbour distances for every point.
+            - eps (float): The closest two points can be. Necessary to avoid dividing by zero.
         Returns:
             - dmax / dmin (N, array): Distance ratio for every point.
     """
     dmax = distances.max(axis=1)
     dmin = distances.min(axis=1)
+    # replace any zero dmin with a tiny epsilon
+    dmin = np.where(dmin > eps, dmin, eps)
     return dmax / dmin
 
 def max_min_stat(amb_dist, amb_idx, Z):
