@@ -79,7 +79,7 @@ class Coranking_metrics(Statistic):
         # Compute Q_local
         kmax = compute_kmax(LCMC)
         Qlocal = compute_Qlocal(QNN, kmax)
-        output.append(Q_local)
+        output.append(Qlocal)
         
         # Compute Q_global
         Qglobal = compute_Qglobal(QNN, kmax)
