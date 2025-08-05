@@ -6,7 +6,7 @@ from scipy.stats import pearsonr, spearmanr
 from working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.coranking_auxiliary_functions import *
 
 
-class Coranking_metrics(ReducedStatistic):
+class All_coranking_metrics(ReducedStatistic):
 
     def __init__(self, method = 'PCA', reduced_dimensionality = 2, correlation_coefficient = 'Pearson'):
 
@@ -23,7 +23,7 @@ class Coranking_metrics(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "Coranking_metrics"
+        return "All_coranking_metrics"
 
     @property
     def identifier(self) -> str:
