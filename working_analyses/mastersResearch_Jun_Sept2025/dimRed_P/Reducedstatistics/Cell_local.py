@@ -19,7 +19,7 @@ class Cell_local(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "my_new_reducer_name"
+        return "Cell_local"
 
     @property
     def identifier(self) -> str:
