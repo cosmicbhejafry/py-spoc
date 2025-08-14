@@ -1,2 +1,4 @@
 dataGen/chain100data/
 dataGen/loop100data/
+PC_LinearDAGs/chain_dags
+PC_LinearDAGs/loop_dags
