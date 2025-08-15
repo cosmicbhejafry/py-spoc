@@ -1,9 +1,9 @@
 import numpy as np
-from working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.cell_auxiliary_functions import reducer_reader
+from pyspoc.working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.cell_auxiliary_functions import reducer_reader
 from sklearn.metrics import pairwise_distances
 from pyspoc import ReducedStatistic
 from scipy.stats import pearsonr, spearmanr
-from working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.coranking_auxiliary_functions import *
+from pyspoc.working_analyses.mastersResearch_Jun_Sept2025.dimRed_P.Reducedstatistics.coranking_auxiliary_functions import *
 
 
 class All_coranking_metrics(ReducedStatistic):
