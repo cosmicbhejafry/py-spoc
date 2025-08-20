@@ -17,7 +17,7 @@ BASE = {
 
 def reducer_reader(name_str):
     """
-    Turn "PCA 50D -> TSNE" or "TSNE" into the corresponding pipeline of functions.
+    Turn "PCA 50D -> t-SNE" or "t-SNE" into the corresponding pipeline of functions.
     The output f can then be updated as f(ndims, **kw) where the kwargs are passed to the final stage.
     """
     stages = [s.strip() for s in name_str.split('->')]
