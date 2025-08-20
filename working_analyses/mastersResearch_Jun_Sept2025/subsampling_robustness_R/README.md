@@ -1,4 +1,3 @@
-
 # Contents
     - [load_data](#function-load_data)
     - [normalise_data](#function-normalize_data)
