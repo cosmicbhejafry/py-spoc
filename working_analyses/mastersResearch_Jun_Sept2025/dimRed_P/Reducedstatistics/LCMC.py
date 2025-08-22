@@ -18,7 +18,7 @@ class LCMC(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "Q_local"
+        return "LCMC"
 
     @property
     def identifier(self) -> str:
