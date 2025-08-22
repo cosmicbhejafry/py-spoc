@@ -18,6 +18,7 @@ from pyspoc.base import Component
 from pyspoc.statistic import Statistic, ReducedStatistic
 from pyspoc.reducer import Reducer
 
+
 class Config:
 
     """
