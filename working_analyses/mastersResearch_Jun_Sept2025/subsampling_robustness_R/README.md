@@ -1,6 +1,29 @@
-# Contents
-    - [load_data](#function-load_data)
-    - [normalise_data](#function-normalize_data)
+# Table of Contents
+
+  - [Function: `load_data`](#function:-`load_data`)
+  - [Function: `normalize_data`](#function:-`normalize_data`)
+  - [Function: `shuffle_data`](#function:-`shuffle_data`)
+  - [Function: `perturb_dataframe`](#function:-`perturb_dataframe`)
+  - [Function: `apply_reducer`](#function:-`apply_reducer`)
+  - [Function: `pyspi_calc`](#function:-`pyspi_calc`)
+  - [Function: `permutation_test`](#function:-`permutation_test`)
+  - [Function: `plot_permutation_distribution`](#function:-`plot_permutation_distribution`)
+  - [Function: `plot_all_permutation_distributions`](#function:-`plot_all_permutation_distributions`)
+  - [Function: `bootstrap_sample_data`](#function:-`bootstrap_sample_data`)
+  - [Function: `pyspi_calc_bootstrap`](#function:-`pyspi_calc_bootstrap`)
+  - [Function: `bootstrap_test`](#function:-`bootstrap_test`)
+  - [Function: `plot_bootstrap_distribution`](#function:-`plot_bootstrap_distribution`)
+  - [Function: `plot_all_bootstrap_distributions`](#function:-`plot_all_bootstrap_distributions`)
+  - [Function: `bootstrap_sample_columns`](#function:-`bootstrap_sample_columns`)
+  - [Function: `pyspi_calc_bootstrap_columns`](#function:-`pyspi_calc_bootstrap_columns`)
+  - [Function: `bootstrap_test_columns`](#function:-`bootstrap_test_columns`)
+  - [Function: `plot_bootstrap_distribution_columns`](#function:-`plot_bootstrap_distribution_columns`)
+  - [Function: `plot_all_bootstrap_distributions_columns`](#function:-`plot_all_bootstrap_distributions_columns`)
+  - [Function: `perturbation_test`](#function:-`perturbation_test`)
+  - [Function: `plot_perturbation_distribution`](#function:-`plot_perturbation_distribution`)
+  - [Function: `plot_all_perturbation_distributions`](#function:-`plot_all_perturbation_distributions`)
+  - [Function: `run_analysis`](#function:-`run_analysis`)
+  - [Function: `n_p_plane_bootstrap_gpr`](#function:-`n_p_plane_bootstrap_gpr`)
 
 ## Function: `load_data`
 
