@@ -5,7 +5,7 @@ from io import StringIO
 import re
 from causallearn.search.ConstraintBased.PC import pc
 
-class pValueSum(ReducedStatistic):
+class logpValueSum(ReducedStatistic):
     """
     Runs the PC algorithm on the dataset and extracts the p values from the conditional independence tests.
     """
@@ -38,5 +38,9 @@ class pValueSum(ReducedStatistic):
         p_values = re.findall(r'p-value\s+([\d\.e-]+)', verbose_output)
         p_values = [float(p) for p in p_values]
 
-        # return np.array(np.sum(p_values))
-        return np.sum(p_values)
+        # Adjust p-values to avoid log(0)
+        p_values = np.array(p_values)
+        p_values[p_values < 1e-6] += 1e-6
+
+        log_p_values = np.log(p_values)
+        return np.sum(log_p_values)
