@@ -29,16 +29,16 @@ class GPLVM_Fit(ReducedStatistic):
                 "my_new_reducer_label_n"]
 
     def _shuffle_rows_per_column(X: np.ndarray, seed: Optional[Union[int, np.random.Generator]] = None, copy: bool = True) -> np.ndarray:
-    """
-    Shuffle rows independently within each column of X.
-    """
-    if X.ndim != 2:
-        raise ValueError("Shuffling error: X must be a 2D array of shape (n, p).")
-    A = np.array(X, copy=copy)
-    rng = seed if isinstance(seed, np.random.Generator) else np.random.default_rng(seed)
-    n, p = A.shape
-    for j in range(p):
-        A[:, j] = A[rng.permutation(n), j]  # shuffle rows within column j
+        """
+        Shuffle rows independently within each column of X.
+        """
+        if X.ndim != 2:
+            raise ValueError("Shuffling error: X must be a 2D array of shape (n, p).")
+        A = np.array(X, copy=copy)
+        rng = seed if isinstance(seed, np.random.Generator) else np.random.default_rng(seed)
+        n, p = A.shape
+        for j in range(p):
+            A[:, j] = A[rng.permutation(n), j]  # shuffle rows within column j
 
     return A
 
