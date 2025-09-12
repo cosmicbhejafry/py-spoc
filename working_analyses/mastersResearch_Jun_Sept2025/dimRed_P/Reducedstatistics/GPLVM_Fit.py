@@ -40,7 +40,7 @@ class GPLVM_Fit(ReducedStatistic):
         for j in range(p):
             A[:, j] = A[rng.permutation(n), j]  # shuffle rows within column j
 
-    return A
+        return A
 
     def compute(self, data: np.ndarray) -> float:
 
