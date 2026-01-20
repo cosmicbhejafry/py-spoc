@@ -17,13 +17,10 @@ class Reducer(Component, ABC):
 
     __cached_results: dict[Statistic, dict[Reducer, np.ndarray]] = dict()
 
-    def __init__(self):
-        super().__init__()
-
     def calculate(self,
                   statistic: Statistic) -> np.ndarray:
 
-        # temporarily uncache results, TODO: fix caching mechanisms        
+        # temporarily uncache results, TODO: fix caching mechanisms
         self.uncache(statistic)
 
         statistic_results = self.__cached_results.get(statistic)

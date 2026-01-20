@@ -24,13 +24,18 @@ class Statistic(Component, ABC):
     Base abstract Statistic class intended for computing a statistic from an entire static dataset (n x p).
     Provides a square matrix (p x p) output subject to further processing by applicable Reducers.
 
-    Required Properties:
-        name (string): Readable name of the statistic.
-        identifier (string): A simpler and minimalist identifier for the statistic.
-        labels (list[str]): A list of labels to describe the type of statistic.
+    Required Properties
+    ----------
+        name : string
+            Readable name of the statistic.
+        identifier : string
+            A simpler and minimalist identifier for the statistic.
+        labels : list[str]
+            A list of labels to describe the type of statistic.
 
-    Contracts:
-        - Input: (n x p) -> Output: (p x p)
+    Contracts
+    ----------
+        Input: (n x p) -> Output: (p x p)
     """
 
     __cached_results: dict[Dataset, dict[Statistic, np.ndarray]] = dict()
@@ -125,8 +130,9 @@ class DynamicStatistic(Statistic, ABC):
     Abstract Statistic class intended for computing dynamic statistics from an entire time series dataset (n x p x t).
     Provides a dynamic square matrix (p x p x t) output subject to further processing by applicable Reducers.
 
-    Contracts:
-        - Input: (n x p x t) -> Output: (p x p x t)
+    Contracts
+    ----------
+        Input: (n x p x t) -> Output: (p x p x t)
     """
 
     def calculate(self, dataset: Dataset) -> np.ndarray:
@@ -168,22 +174,26 @@ class PairwiseStatistic(Statistic):
     IMPORTANT NOTE: Pairwise statistics for time processes are incompatible with dynamic statistics. The former
     provides a statistic across ALL time points whereas the latter provides a statistic for EACH time point.
 
-    Arguments:
-        dim (string): Declares the data axis to perform pairwise comparisons over.
+    Parameters
+    ----------
+        dim : string
+            Declares the data axis to perform pairwise comparisons over.
             For example, if dim="n", computation is applied to all possible observation pairings,
             resulting in n^2 comparisons and an n x n matrix result.
 
-        is_ordered (boolean): Declares whether the statistic requires ordered data (ie: the Wilcoxon signed-rank test).
+        is_ordered : boolean
+            Declares whether the statistic requires ordered data (ie: the Wilcoxon signed-rank test).
             If False, computation is performed on the data as is.
             If True, the data along the dim axis is ordered first before computation.
-
-    Contracts:
-        - Input: (n x p), dim: n -> Output: (n x n)
-        - Input: (n x p), dim: p -> Output: (p x p)
-        - Input: (n x p), dim: t -> Output: None
-        - Input: (n x p x t), dim: n -> Output: (n x n)
-        - Input: (n x p x t), dim: p -> Output: (p x p)
-        - Input: (n x p x t), dim: t -> Output: (t x t)
+    
+    Contracts
+    ----------
+        Input: (n x p), dim: n -> Output: (n x n)
+        Input: (n x p), dim: p -> Output: (p x p)
+        Input: (n x p), dim: t -> Output: None
+        Input: (n x p x t), dim: n -> Output: (n x n)
+        Input: (n x p x t), dim: p -> Output: (p x p)
+        Input: (n x p x t), dim: t -> Output: (t x t)
     """
 
     def __init__(self,
@@ -211,7 +221,7 @@ class PairwiseStatistic(Statistic):
                 data = data.swapaxes(0, 2)
 
             case _:  # Consider adding an error if dim is not n, p, or t
-                data = data
+                pass
 
         return data
 

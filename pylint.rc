@@ -1,0 +1,13 @@
+[MASTER]
+# So Pylint knows where your code lives if needed.
+ignore=venv
+jobs=0
+
+[MESSAGES CONTROL]
+# Start from a quieter baseline and explicitly keep abstract-method.
+disable=C,R,W ; all convention messages
+
+# This line is technically redundant (warnings are enabled by default),
+# but makes intent explicit.
+enable=
+    W0223   ; abstract-method: abstract method not overridden

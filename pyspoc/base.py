@@ -8,12 +8,15 @@ import yaml
 import inspect
 
 from scipy.stats import zscore
-from typing import Iterable, Union, Generator, Any, TYPE_CHECKING
+from types import FunctionType
+from typing import Iterable, Union, Any, Optional, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from textwrap import dedent
 
 if TYPE_CHECKING:
     from pyspoc.config import Config
+    from pyspoc.statistic import Statistic
+    from pyspoc.dataset import Dataset
 
 # GLOBAL SETTINGS
 IGNORE_IMPORT_WARNINGS = False
@@ -39,8 +42,8 @@ class Component(ABC):
         labels = self.__get_property_val(self.labels)
         check_iterable(labels, str)
 
-        self.__cfg: Union[Config, None] = None
-        self.__scheme: Union[str, None] = None
+        self.__cfg: Optional[Config] = None
+        self.__scheme: Optional[str] = None
 
     def __new__(cls, *args, **kwargs):
 
@@ -124,7 +127,7 @@ class Component(ABC):
         pass
 
     @abstractmethod
-    def calculate(self, data: np.ndarray) -> np.ndarray:
+    def calculate(self, data: Union[Dataset, Statistic]) -> np.ndarray:
         pass
 
     def __str__(self):
@@ -183,7 +186,7 @@ def get_fully_qualified_type_name(type_obj: type):
     return module_name + type_obj.__name__
 
 
-def has_required_func_args(func: function) -> bool:
+def has_required_func_args(func: FunctionType) -> bool:
     pars = inspect.signature(func).parameters
 
     for arg_name, par in pars.items():
@@ -211,14 +214,14 @@ def get_obj_init_args(class_obj: type) -> dict[str, Any]:
     for arg in required_args:
         args[arg] = None
     
-    for i, arg in enumerate(optional_args):
-        args[arg] = arg_spec.defaults[i]
+    if arg_spec.defaults:
+        for i, arg in enumerate(optional_args):
+            args[arg] = arg_spec.defaults[i]
 
     # Add keyword arguments
-    has_defaults = arg_spec.kwonlydefaults is not None
-
-    for i, arg in enumerate(arg_spec.kwonlyargs):
-        args[arg] = arg_spec.kwonlydefaults.get(arg) if has_defaults else None
+    if arg_spec.kwonlydefaults:
+        for i, arg in enumerate(arg_spec.kwonlyargs):
+            args[arg] = arg_spec.kwonlydefaults.get(arg)
 
     args.pop("self", None)
     return args
@@ -226,6 +229,10 @@ def get_obj_init_args(class_obj: type) -> dict[str, Any]:
 
 def retrieve_arg_name(var, max_steps: int = 2):
     frame = inspect.currentframe()
+
+    if not frame:
+        return
+
     steps = 0
     var_name = None
 
@@ -242,16 +249,15 @@ def retrieve_arg_name(var, max_steps: int = 2):
 
     return var_name
 
-
 def get_type_name(arg_val):
     return type(arg_val).__name__
 
 
 def check_type(arg_val: object,
                arg_types: Union[type, Iterable[type]],
-               arg_name: str = None,
+               arg_name: Optional[str] = None,
                is_try: bool = False,
-               custom_error_msg: str = None) -> Union[None, bool]:
+               custom_error_msg: Optional[str] = None) -> Optional[bool]:
 
     if not arg_name:
         arg_name = retrieve_arg_name(arg_val)
@@ -278,15 +284,11 @@ def check_type(arg_val: object,
 
     raise TypeError(f"{arg_name} should be one of {type_names} types, received {actual_type}.")
 
-    if is_try:
-        return True
-
-
 def check_iterable(iterable: Iterable,
-                   iterable_type: Union[type, None] = None,
-                   arg_name: str = None,
+                   iterable_type: Optional[type] = None,
+                   arg_name: Optional[str] = None,
                    is_try: bool = False,
-                   custom_error_msg: str = None) -> Union[None, bool]:
+                   custom_error_msg: Optional[str] = None) -> Optional[bool]:
 
     if not arg_name:
         arg_name = retrieve_arg_name(iterable)
@@ -294,14 +296,14 @@ def check_iterable(iterable: Iterable,
     try:
         iterator = iter(iterable)
 
-    except TypeError:
+    except TypeError as e:
         if is_try:
             return False
 
         if custom_error_msg is not None:
-            raise TypeError(custom_error_msg)
+            raise TypeError(custom_error_msg) from e
 
-        raise TypeError(f"{arg_name} should be an iterable type but type {type(iterable)} does not support iteration.")
+        raise TypeError(f"{arg_name} should be an iterable type but type {type(iterable)} does not support iteration.") from e
 
     if not iterable_type:
         if is_try:
@@ -323,10 +325,9 @@ def check_iterable(iterable: Iterable,
     if is_try:
         return True
 
-
 def check_natural_number(arg_value: int,
-                         arg_name: str = None,
-                         is_try: bool = False) -> Union[None, bool]:
+                         arg_name: Optional[str] = None,
+                         is_try: bool = False) -> Optional[bool]:
 
     if not arg_name:
         arg_name = retrieve_arg_name(arg_value)
@@ -379,14 +380,14 @@ def strshort(instr,mlength):
     return outstr
 
 
-def acf(x,mode='positive'):
+def acf(x, mode='positive'):
     """Return the autocorrelation function
     """
     if x.ndim > 1:
         x = np.squeeze(x)
 
     x = zscore(x)
-    acf = np.correlate(x,x,mode='full')
+    acf = np.correlate(x,x,mode='full') # pyright: ignore
     acf = acf / acf[acf.size//2]
 
     if mode == 'positive':
@@ -452,7 +453,7 @@ def convert_mdf_to_ddf(df):
 def is_jpype_jvm_available():
     """Check whether a JVM is accessible via Jpype"""
     try:
-        import jpype as jp
+        import jpype as jp # pyright: ignore[reportMissingImports] # pylint: disable=E0401
         if not jp.isJVMStarted():
             jarloc = (os.path.dirname(os.path.abspath(__file__)) + "/lib/jidt/infodynamics.jar")
             # if JVM not started, start a session
@@ -467,11 +468,11 @@ def is_jpype_jvm_available():
 def is_octave_available():
     """Check whether octave is available"""
     try:
-        from oct2py import Oct2Py
+        from oct2py import Oct2Py # pyright: ignore[reportMissingImports] # pylint: disable=E0401
         oc = Oct2Py()
         oc.exit()
         return True
-    except Exception as e:
+    except Exception as e: # pyright: ignore
         print(f"Octave not available: {e}")
         return False
 
@@ -528,11 +529,11 @@ def filter_spis(keywords, output_name = None, configfile= None):
     try:
         with open(configfile) as f:
             yf = yaml.load(f, Loader=yaml.FullLoader)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Config file '{configfile}' not found.")
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"Config file '{configfile}' not found.") from e
     except Exception as e:
         # handle all other exceptions
-        raise IOError(f"An error occurred while trying to read '{configfile}': {e}")
+        raise IOError(f"An error occurred while trying to read '{configfile}': {e}") from e
 
     # new dictionary to be converted to final YAML
     filtered_subset = {}
