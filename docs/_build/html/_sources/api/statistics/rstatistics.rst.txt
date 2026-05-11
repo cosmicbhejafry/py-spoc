@@ -1,0 +1,53 @@
+rstatistics package
+===================
+
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   rstatistics.external
+
+Submodules
+----------
+
+rstatistics.model\_fits module
+------------------------------
+
+.. automodule:: rstatistics.model_fits
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+rstatistics.norms module
+------------------------
+
+.. automodule:: rstatistics.norms
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+rstatistics.pca module
+----------------------
+
+.. automodule:: rstatistics.pca
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+rstatistics.test module
+-----------------------
+
+.. automodule:: rstatistics.test
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: rstatistics
+   :members:
+   :show-inheritance:
+   :undoc-members:

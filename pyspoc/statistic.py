@@ -5,11 +5,10 @@ import runpy
 import numpy as np
 import copy
 import gc
-import importlib
 import pkgutil
 
 from abc import abstractmethod, ABC
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from pathlib import Path
 
 from pyspoc.base import Component
@@ -38,19 +37,19 @@ class Statistic(Component, ABC):
         Input: (n x p) -> Output: (p x p)
     """
 
-    __cached_results: dict[Dataset, dict[Statistic, np.ndarray]] = dict()
+    _cached_results: dict[Dataset, dict[Statistic, np.ndarray]] = dict()
 
     def __init__(self):
-        self.__cached_result = None
+        self._cached_result = None
         super().__init__()
 
     def calculate(self, dataset: Dataset) -> np.ndarray:
 
-        # temporarily uncache results, TODO: fix caching mechanisms        
+        # temporarily uncache results, TODO: fix caching mechanisms
         self.uncache(dataset)
 
         # Get result from class cache if present.
-        dataset_results = self.__cached_results.get(dataset)
+        dataset_results = self._cached_results.get(dataset)
 
         if dataset_results is not None:
             result = dataset_results.get(self)
@@ -64,34 +63,35 @@ class Statistic(Component, ABC):
         # Take a deep copy of the data.
         data_copy = copy.deepcopy(data)
         result = self.compute(data_copy)
+        result = np.array(result)
 
         # Cache result in the hierarchy.
         if dataset_results is None:
-            self.__cached_results[dataset] = {
+            self._cached_results[dataset] = {
                 self: result
             }
         else:
             dataset_results[self] = result
 
         # Cache result locally.
-        self.__cached_result = result
+        self._cached_result = result
         return result
 
     @classmethod
     def uncache(cls, dataset: Dataset, include_gc: bool = False):
-        cached_dataset_results = cls.__cached_results.get(dataset)
+        cached_dataset_results = cls._cached_results.get(dataset)
 
         if cached_dataset_results:
             for statistic in cached_dataset_results.keys():
                 Reducer.uncache(statistic, include_gc)
 
-            cls.__cached_results[dataset] = dict()
+            cls._cached_results[dataset] = dict()
 
         if include_gc:
             gc.collect()
 
-    def get_result(self) -> Union[None, np.ndarray]:
-        return self.__cached_result
+    def get_result(self) -> np.ndarray | None:
+        return self._cached_result
 
     @classmethod
     def available_statistics(cls):
@@ -140,7 +140,7 @@ class DynamicStatistic(Statistic, ABC):
         # If data is static n x p then just return a static statistic with m x m shape.
         if dataset.data.ndim == 2:
 
-            # temporarily uncache results, TODO: fix caching mechanisms        
+            # temporarily uncache results, TODO: fix caching mechanisms
             self.uncache(dataset)
             return super().calculate(dataset)
 
@@ -200,12 +200,12 @@ class PairwiseStatistic(Statistic):
                  dim: str,
                  is_ordered: bool):
 
-        self.__dim = dim
-        self.__is_ordered = is_ordered
-        self.__check_temporal_compatibility(dim)
+        self._dim = dim
+        self._is_ordered = is_ordered
+        self._check_temporal_compatibility(dim)
         super().__init__()
 
-    def __check_temporal_compatibility(self, dim):
+    def _check_temporal_compatibility(self, dim):
         if isinstance(self, DynamicStatistic) and dim == "t":
             raise TypeError("Temporal Pairwise (Timewise) statistics and Dynamic statistics are incompatible. "
                             "Timewise methods compute a statistic for an entire time series. "
@@ -213,7 +213,7 @@ class PairwiseStatistic(Statistic):
 
     def _reshape_data(self, data: np.ndarray) -> np.ndarray:
 
-        match self.__dim:
+        match self._dim:
             case "p":
                 data = data.swapaxes(0, 1)
 
@@ -228,16 +228,16 @@ class PairwiseStatistic(Statistic):
     @abstractmethod
     def pairwise_compute(self,
                          x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
+                         y: np.ndarray) -> np.ndarray | float:
         pass
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
         """ Compute statistics over all pairwise permutations.
         """
 
         data = self._reshape_data(data)
 
-        if self.__is_ordered:
+        if self._is_ordered:
             data.sort(axis=0)
 
         m = data.shape[0]
@@ -263,7 +263,7 @@ class ReducedStatistic(Statistic, ABC):
     """
 
     def calculate(self, dataset: Dataset) -> np.ndarray:
-        # temporarily uncache results, TODO: fix caching mechanisms        
+        # temporarily uncache results, TODO: fix caching mechanisms
         self.uncache(dataset)
 
         result = super().calculate(dataset)

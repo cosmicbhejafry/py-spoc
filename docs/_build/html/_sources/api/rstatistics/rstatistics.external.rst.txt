@@ -1,0 +1,10 @@
+rstatistics.external package
+============================
+
+Module contents
+---------------
+
+.. automodule:: rstatistics.external
+   :members:
+   :show-inheritance:
+   :undoc-members:

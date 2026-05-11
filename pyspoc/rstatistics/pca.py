@@ -57,7 +57,7 @@ class PCAVarianceExplainedRatio(PCABase):
     def __init__(self, components: list[int]):
         super().__init__(components=components)
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
         pca = self._get_pca(data)
         indices = [i - 1 for i in self._components]
         return pca.explained_variance_ratio_[indices]
@@ -71,9 +71,8 @@ class PCAEigenVectors(PCABase):
     def __init__(self, principal_vectors: list[int]):
         super().__init__(components=principal_vectors)
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
         pca = self._get_pca(data)
         evectors = pca.components_
         indices = [i - 1 for i in self._components]
         return evectors[indices]
-    

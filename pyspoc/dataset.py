@@ -12,8 +12,8 @@ import os
 
 # from scipy.stats import zscore
 # from scipy.signal import detrend
-from sklearn.preprocessing import RobustScaler, StandardScaler
-from typing import Iterable, Union
+from sklearn.preprocessing import StandardScaler
+from typing import Iterable, Union, List
 from time import time
 
 from pyspoc import base
@@ -30,88 +30,93 @@ class Dataset:
     Indicate the arrangement of realisations (n) and variables (p) in a two-character string
     e.g. 'np' for an array with rows representing realisations and columns representing variables.
 
-    Example:
-        >>> # Initialise empty dataset object
-        >>> dataset = Dataset()
-        >>>
-        >>> # Load a prefilled financial dataset
-        >>> data_forex = Dataset.load_dataset("forex")
-        >>>
-        >>> # Create dataset objects with dataset of various sizes
-        >>> d = np.arange(3000).reshape((3, 1000))  # 3 procs.,
-        >>> data_2 = Dataset(d, dim_order='ps')        # 1000 observations
+    Example
+    -----------
 
-    Args:
-        data (array_like, optional):
-            2-dimensional array with raw dataset, defaults to None.
-        dim_order (str, optional):
-            Order of dimensions, accepts two combinations of the characters 'n' and 'p', defaults to 'np'.
-        normalise (bool, optional):
-            If True, dataset is z-scored (normalised) along the realisations dimension, defaults to True.
-        name (str, optional):
-            Name of the dataset
-        var_names (list, optional):
-            List of variable names with length the number of variables, defaults to None.
-        n_realisations_subsample (int, optional):
-            Truncates dataset to this many realisations, defaults to None.
-        n_variables_subsample (int, optional):
-            Truncates dataset to this many variables, defaults to None.
+    .. code-block:: python
+        # Initialise empty dataset object
+        dataset = Dataset()
+    
+        # Load a prefilled financial dataset
+        data_forex = Dataset.load_dataset("forex")
+    
+        # Create dataset objects with dataset of various sizes
+        d = np.arange(3000).reshape((3, 1000)) # 3 procs
+        data_2 = Dataset(d, dim_order='ps') # 1000 observations
+
+    Parameters
+    ------------
+
+    data : numpy.ndarray or pandas.DataFrame or str
+        2-dimensional array with raw dataset.
+    dim_order : str
+        Order of dimensions, accepts two combinations of the characters 'n' and 'p', defaults to 'np'.
+    normalise : bool or None, optional
+        If True, dataset is z-scored (normalised) along the realisations dimension, defaults to True.
+    name : str or None, optional
+        Name of the dataset
+    var_names : Iterable[str] or None, optional
+        List of variable names with length the number of variables, defaults to None.
+    n_realisations_subsample : int or None, optional
+        Truncates dataset to this many realisations, defaults to None.
+    n_variables_subsample : int or None, optional
+        Truncates dataset to this many variables, defaults to None.
     """
 
     def __init__(
             self,
-            data: Union[np.ndarray, pd.DataFrame, str],
+            data: np.ndarray | pd.DataFrame | str,
             dim_order: str = "np",
             normalise: bool = True,
-            name: str = None,
-            var_names: Iterable[str] = None,
-            n_realisations_subsample: int = None,
-            n_variables_subsample: int = None):
+            name: str | None = None,
+            var_names: Iterable[str] | None = None,
+            n_realisations_subsample: int | None  = None,
+            n_variables_subsample: int | None = None):
 
         self.normalise = normalise
         self.name = name
-        self.__dim_order = None
-        self.__n = None
-        self.__n_subsample = None
-        self.__p = None
-        self.__p_subsample = None
-        self.__base_data = None
-        self.__data_type = None
-        self.__data = None
-        self.__var_names = list()
-        self.__set_data(data=data,
-                        dim_order=dim_order,
-                        n_realisations_subsample=n_realisations_subsample,
-                        n_variables_subsample=n_variables_subsample,
-                        var_names=var_names)
+        self._dim_order: str
+        self._n: int
+        self._n_subsample: int | None = None
+        self._p: int
+        self._p_subsample: int | None = None
+        self._base_data: np.ndarray | pd.DataFrame | str
+        self._data_type: type
+        self._data: np.ndarray
+        self._var_names: List[str] = list()
+        self._set_data(data=data,
+                       dim_order=dim_order,
+                       n_realisations_subsample=n_realisations_subsample,
+                       n_variables_subsample=n_variables_subsample,
+                       var_names=var_names)
 
         self.instantiation_time = time()
 
     @property
     def name(self) -> str:
         """Name of the Data object."""
-        return self.__name
+        return self._name
 
     @name.setter
-    def name(self, name: str):
+    def name(self, name: str | None):
         """Set the name of the Data object."""
         if name is None:
             name = ""
 
         base.check_type(name, str)
-        self.__name = name
+        self._name = name
 
     @property
     def data(self) -> np.ndarray:
-        return self.__data
+        return self._data
 
     @property
     def data_type(self) -> type:
-        return self.__data_type
+        return self._data_type
 
     @property
     def dim_order(self) -> str:
-        return self.__dim_order
+        return self._dim_order
 
     @dim_order.setter
     def dim_order(self, dim_order: str):
@@ -120,7 +125,7 @@ class Dataset:
         if len(dim_order) > 2:
             raise RuntimeError("dim_order can not have more than two entries")
 
-        self.__dim_order = dim_order
+        self._dim_order = dim_order
 
     @property
     def normalise(self) -> bool:
@@ -133,14 +138,14 @@ class Dataset:
 
     @property
     def n_realisations(self) -> int:
-        return self.__n
+        return self._n
 
     @property
     def n_realisations_subsample(self) -> int:
-        if not self.__n_subsample:
-            return self.__n
+        if not self._n_subsample:
+            return self._n
 
-        return self.__n_subsample
+        return self._n_subsample
 
     @n_realisations_subsample.setter
     def n_realisations_subsample(self, n_realisations_subsample: int):
@@ -148,18 +153,18 @@ class Dataset:
             base.check_type(n_realisations_subsample, int)
             base.check_natural_number(n_realisations_subsample)
 
-        self.__n_subsample = n_realisations_subsample
+        self._n_subsample = n_realisations_subsample
 
     @property
     def n_variables(self) -> int:
-        return self.__p
+        return self._p
 
     @property
     def n_variables_subsample(self) -> int:
-        if not self.__p_subsample:
-            return self.__p
+        if not self._p_subsample:
+            return self._p
 
-        return self.__p_subsample
+        return self._p_subsample
 
     @n_variables_subsample.setter
     def n_variables_subsample(self, n_variables_subsample: int):
@@ -167,16 +172,16 @@ class Dataset:
             base.check_type(n_variables_subsample, int)
             base.check_natural_number(n_variables_subsample)
 
-        self.__p_subsample = n_variables_subsample
+        self._p_subsample = n_variables_subsample
 
     @property
-    def var_names(self) -> Iterable[str]:
+    def var_names(self) -> List[str]:
         """List of variable names."""
-        return self.__var_names
+        return self._var_names
 
     @property
-    def var_names_subsample(self) -> Iterable[str]:
-        return self.__var_names[:self.__p_subsample]
+    def var_names_subsample(self) -> List[str]:
+        return self._var_names[:self._p_subsample]
 
     def to_numpy(self,
                  realisation: int = None,
@@ -202,12 +207,12 @@ class Dataset:
         elif isinstance(data, pd.DataFrame):
             return data.to_numpy()
         elif isinstance(data, str):
-            return Dataset.__load_data(data)
+            return Dataset._load_data(data)
         else:
             raise TypeError(f"Unknown data type: {type(data)}")
 
     @staticmethod
-    def __load_data(path: str) -> np.ndarray:
+    def _load_data(path: str) -> np.ndarray:
         ext = os.path.splitext(path)[1]
         if ext == ".npy":
             return np.load(path)
@@ -218,7 +223,7 @@ class Dataset:
         else:
             raise TypeError(f"Unknown filename extension: {ext}")
 
-    def __set_data(self,
+    def _set_data(self,
                    data: Union[np.ndarray, pd.DataFrame, str],
                    dim_order: str = "np",
                    n_realisations_subsample: int = None,
@@ -247,7 +252,15 @@ class Dataset:
                 of variables (p).
         """
 
-        new_data = copy.deepcopy(data)
+        if isinstance(data, np.ndarray):
+            new_data = copy.deepcopy(data)
+        elif isinstance(data, pd.DataFrame):
+            new_data = copy.deepcopy(data)
+        elif isinstance(data, str):
+            new_data = self._load_data(data)
+        else:
+            raise TypeError("data must be a numpy.ndarray, pandas.DataFrame, or str")
+
         self.dim_order = dim_order
         self.n_realisations_subsample = n_realisations_subsample
         self.n_variables_subsample = n_variables_subsample
@@ -263,7 +276,7 @@ class Dataset:
 
         name = self.name
         new_data = self.convert_to_numpy(new_data)
-        new_data = self.__reorder_data(new_data, dim_order)
+        new_data = self._reorder_data(new_data, dim_order)
         #data = np.atleast_3d(data)
         nans = np.isnan(new_data)
 
@@ -272,34 +285,34 @@ class Dataset:
                 f"Dataset {name} contains non-numerics (NaNs) in variables: {np.unique(np.where(nans)[0])}."
             )
 
-        self.__base_data = new_data
-        self.__data_type = type(new_data[0, 0])
-        self.__set_data_dim(new_data)
+        self._base_data = new_data
+        self._data_type = type(new_data[0, 0])
+        self._set_data_dim(new_data)
         new_data = self.__subsample_data(new_data)
 
         if self.normalise:
-            new_data = self.__normalise_data(new_data)
+            new_data = self._normalise_data(new_data)
 
-        self.__data = new_data
+        self._data = new_data
 
         if var_names is not None:
             base.check_iterable(var_names)
             var_names_list = list(var_names)
             base.check_type(var_names_list[0], str)
-            self.__var_names = var_names
+            self._var_names = var_names_list
         else:
-            if isinstance(self.__base_data, pd.DataFrame):
-                self.__var_names = self.__base_data.columns
+            if isinstance(self._base_data, pd.DataFrame):
+                self._var_names = self._base_data.columns
             else:
-                self.__var_names = [f"var-{i}" for i in range(self.n_variables)]
+                self._var_names = [f"var-{i}" for i in range(self.n_variables)]
 
-        self.__message(
+        self._message(
             f'Dataset "{name}" now has properties: {self.n_realisations} realisations, '
             f'{self.n_variables} variables.')
 
     def __subsample_data(self, data: np.ndarray) -> np.ndarray:
-        n_realisations = self.__n_subsample
-        n_variables = self.__p_subsample
+        n_realisations = self._n_subsample
+        n_variables = self._p_subsample
         subsampled_dataset = data
 
         if n_realisations is not None:
@@ -311,8 +324,8 @@ class Dataset:
         return subsampled_dataset
 
     @staticmethod
-    def __normalise_data(data: np.ndarray) -> np.ndarray:
-        # TODO: FIX / CHOOSE 
+    def _normalise_data(data: np.ndarray) -> np.ndarray:
+        # TODO: FIX / CHOOSE
         # print("Normalising the dataset using zscores \n")
         # data = zscore(data, axis=0, nan_policy="omit", ddof=1)
         # try:
@@ -336,7 +349,7 @@ class Dataset:
             print(f"Error with RobustScaling: {err}")
 
     @staticmethod
-    def __message(message: str):
+    def _message(message: str):
         if settings.verbose:
             print(message)
 
@@ -356,7 +369,7 @@ class Dataset:
                 Index to add new variable column. When not specified, variable will be appended.
         """
 
-        var_names = self.__var_names
+        var_names = self._var_names
         if var_name:
             base.check_type(var_name, str)
             if var_name in var_names:
@@ -379,9 +392,9 @@ class Dataset:
         var_data = np.expand_dims(var_data, axis=1)
 
         if self.normalise:
-            var_data = self.__normalise_data(var_data)
+            var_data = self._normalise_data(var_data)
 
-        data = copy.deepcopy(self.__base_data)
+        data = copy.deepcopy(self._base_data)
 
         if var_index == self.n_variables + 1:
             data = np.append(data, var_data, axis=1)
@@ -389,20 +402,20 @@ class Dataset:
             if not var_name:
                 var_name = f"var-{var_index}"
 
-            self.__var_names.append(var_name)
+            self._var_names.append(var_name)
         else:
             data = np.hstack((data[:, :var_index], var_data, data[:, var_index:]))
 
             if not var_name:
                 var_name = f"var-{var_index}"
-                self.__var_names = [*var_names[:var_index],
+                self._var_names = [*var_names[:var_index],
                                     var_name,
                                     *[f"var-{j}" for j in range(var_index + 1, self.n_variables + 1)]]
 
-        self.__base_data = data
-        self.__set_data_dim(data)
-        self.__data = self.__subsample_data(data)
-        self.__message(f"Variable {var_name} added at position {var_index} to data {self.name} successfully.")
+        self._base_data = data
+        self._set_data_dim(data)
+        self._data = self.__subsample_data(data)
+        self._message(f"Variable {var_name} added at position {var_index} to data {self.name} successfully.")
         self.uncache()
 
     def remove_variable(self,
@@ -413,7 +426,7 @@ class Dataset:
         base.check_type(var_indices_list[0], int)
 
         try:
-            data = copy.deepcopy(self.__base_data)
+            data = copy.deepcopy(self._base_data)
             data = np.delete(data, var_indices_list, axis=1)
 
         except IndexError:
@@ -422,14 +435,14 @@ class Dataset:
                 f" data with size {self.n_variables}.")
             return
 
-        self.__base_data = data
-        self.__set_data_dim(data)
-        self.__data = self.__subsample_data(data)
-        self.__message(f"Variables removed from the data {self.name} successfully.")
-        self.__set_data_dim(self.__data)
+        self._base_data = data
+        self._set_data_dim(data)
+        self._data = self.__subsample_data(data)
+        self._message(f"Variables removed from the data {self.name} successfully.")
+        self._set_data_dim(self._data)
 
     @staticmethod
-    def __reorder_data(data: np.ndarray,
+    def _reorder_data(data: np.ndarray,
                        dim_order: str):
 
         """Reorder dataset dimensions n realisations in p variables."""
@@ -440,12 +453,12 @@ class Dataset:
 
         return data
 
-    def __set_data_dim(self,
+    def _set_data_dim(self,
                        data: np.ndarray):
 
         """Set the dataset size."""
-        self.__n = data.shape[0]
-        self.__p = data.shape[1]
+        self._n = data.shape[0]
+        self._p = data.shape[1]
 
     def uncache(self, include_gc: bool = False):
         Statistic.uncache(self, include_gc)

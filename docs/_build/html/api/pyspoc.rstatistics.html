@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>pyspoc.rstatistics package &#8212; pyspoc 2.0.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=b08954a9" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=27fed22d" />
+    <script src="../_static/documentation_options.js?v=51b770b3"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="pyspoc.rstatistics.external package" href="pyspoc.rstatistics.external.html" />
+    <link rel="prev" title="pyspoc.reducers.external package" href="pyspoc.reducers.external.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="pyspoc-rstatistics-package">
+<h1>pyspoc.rstatistics package<a class="headerlink" href="#pyspoc-rstatistics-package" title="Link to this heading">¶</a></h1>
+<section id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Link to this heading">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pyspoc.rstatistics.external.html">pyspoc.rstatistics.external package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pyspoc.rstatistics.external.html#module-pyspoc.rstatistics.external">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-pyspoc.rstatistics.model_fits">
+<span id="pyspoc-rstatistics-model-fits-module"></span><h2>pyspoc.rstatistics.model_fits module<a class="headerlink" href="#module-pyspoc.rstatistics.model_fits" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-pyspoc.rstatistics.norms">
+<span id="pyspoc-rstatistics-norms-module"></span><h2>pyspoc.rstatistics.norms module<a class="headerlink" href="#module-pyspoc.rstatistics.norms" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EffectiveRank">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">EffectiveRank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.norms.EffectiveRank" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.reducer.Reducer" title="pyspoc.reducer.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<p>Effective matrix rank based on Shannon entropy of matrix singular value distribution
+proposed by <a class="footnote-reference brackets" href="#id2" id="id1" role="doc-noteref"><span class="fn-bracket">[</span>1<span class="fn-bracket">]</span></a>.</p>
+<section id="definition">
+<h3>Definition<a class="headerlink" href="#definition" title="Link to this heading">¶</a></h3>
+<p>Let <code class="docutils literal notranslate"><span class="pre">A</span></code> be a complex-valued, nonzero matrix of shape <code class="docutils literal notranslate"><span class="pre">(M,</span> <span class="pre">N)</span></code> with
+singular value decomposition</p>
+<div class="math notranslate nohighlight">
+\[A = U D V,\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">U</span></code> and <code class="docutils literal notranslate"><span class="pre">V</span></code> are unitary matrices, and <code class="docutils literal notranslate"><span class="pre">D</span></code> is an <code class="docutils literal notranslate"><span class="pre">M</span> <span class="pre">x</span> <span class="pre">N</span></code>
+diagonal matrix containing the nonnegative singular values</p>
+<div class="math notranslate nohighlight">
+\[\sigma_1 \geq \sigma_2 \geq \cdots \geq \sigma_Q \geq 0,\]</div>
+<p>with</p>
+<div class="math notranslate nohighlight">
+\[Q = \min \{M, N\}.\]</div>
+<p>Define the singular value distribution by</p>
+<div class="math notranslate nohighlight">
+\[p_k = \frac{\sigma_k}{\|\sigma\|_1}, \qquad k = 1, 2, \ldots, Q,\]</div>
+<p>where</p>
+<div class="math notranslate nohighlight">
+\[\|\sigma\|_1 = \sum_{k=1}^{Q} |\sigma_k|.\]</div>
+</section>
+<section id="formula">
+<h3>Formula<a class="headerlink" href="#formula" title="Link to this heading">¶</a></h3>
+<p>The effective rank of <code class="docutils literal notranslate"><span class="pre">A</span></code> is defined as</p>
+<div class="math notranslate nohighlight">
+\[\operatorname{erank}(A) = \exp\{ H(p_1, p_2, \ldots, p_Q) \},\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">H</span></code> is the Shannon entropy</p>
+<div class="math notranslate nohighlight">
+\[H(p_1, p_2, \ldots, p_Q) = - \sum_{k=1}^{Q} p_k \log p_k.\]</div>
+<p>All logarithms are natural logarithms, and the convention
+<code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">log</span> <span class="pre">0</span> <span class="pre">=</span> <span class="pre">0</span></code> is used.</p>
+<p class="rubric">References</p>
+<aside class="footnote-list brackets">
+<aside class="footnote brackets" id="id2" role="doc-footnote">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">1</a><span class="fn-bracket">]</span></span>
+<p>Roy, O. and Vetterli, M. (2007). The effective rank: A measure of
+effective dimensionality. In <em>15th European Signal Processing Conference</em>,
+606-610.</p>
+</aside>
+</aside>
+</section>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EntryWiseMatrixNorm">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">EntryWiseMatrixNorm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.norms.EntryWiseMatrixNorm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.reducer.Reducer" title="pyspoc.reducer.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EntryWiseMatrixNorm.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.EntryWiseMatrixNorm.compute" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the reduction method on the statistical data provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></a>) – A numpy array generated by a Statistic.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reduction of the statistic as either a vector or scalar value.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.array</span></code> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EntryWiseMatrixNorm.identifier">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.EntryWiseMatrixNorm.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EntryWiseMatrixNorm.labels">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.EntryWiseMatrixNorm.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.EntryWiseMatrixNorm.name">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.EntryWiseMatrixNorm.name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.Norm">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">Norm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.norms.Norm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.reducer.Reducer" title="pyspoc.reducer.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.Norm.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.Norm.compute" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the reduction method on the statistical data provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></a>) – A numpy array generated by a Statistic.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reduction of the statistic as either a vector or scalar value.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.array</span></code> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.Norm.identifier">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.Norm.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.Norm.labels">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.Norm.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.SchattenNorm">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">SchattenNorm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.norms.SchattenNorm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.reducer.Reducer" title="pyspoc.reducer.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.SchattenNorm.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.SchattenNorm.compute" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the reduction method on the statistical data provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></a>) – A numpy array generated by a Statistic.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reduction of the statistic as either a vector or scalar value.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.array</span></code> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.SchattenNorm.identifier">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.SchattenNorm.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.SchattenNorm.labels">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.SchattenNorm.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.SchattenNorm.name">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.SchattenNorm.name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.StableRank">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">StableRank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.norms.StableRank" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.reducer.Reducer" title="pyspoc.reducer.Reducer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Reducer</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.StableRank.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.StableRank.compute" title="Link to this definition">¶</a></dt>
+<dd><p>Compute the reduction method on the statistical data provided.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.ndarray</span></code></a>) – A numpy array generated by a Statistic.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Reduction of the statistic as either a vector or scalar value.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">numpy.array</span></code> or <a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">float</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.StableRank.identifier">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.StableRank.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.StableRank.labels">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#pyspoc.rstatistics.norms.StableRank.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.norms.StableRank.name">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#pyspoc.rstatistics.norms.StableRank.name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-pyspoc.rstatistics.pca">
+<span id="pyspoc-rstatistics-pca-module"></span><h2>pyspoc.rstatistics.pca module<a class="headerlink" href="#module-pyspoc.rstatistics.pca" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCABase">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">PCABase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCABase" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCABase.calculate">
+<span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pyspoc.html#pyspoc.dataset.Dataset" title="pyspoc.dataset.Dataset"><span class="pre">Dataset</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCABase.calculate" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAEigenVectors">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">PCAEigenVectors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAEigenVectors" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyspoc.rstatistics.pca.PCABase" title="pyspoc.rstatistics.pca.PCABase"><code class="xref py py-class docutils literal notranslate"><span class="pre">PCABase</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAEigenVectors.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAEigenVectors.compute" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAEigenVectors.identifier">
+<span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'pca-eig'</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAEigenVectors.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAEigenVectors.labels">
+<span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['vector',</span> <span class="pre">'linear']</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAEigenVectors.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAEigenVectors.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Principal</span> <span class="pre">Components</span> <span class="pre">Analysis</span> <span class="pre">-</span> <span class="pre">Eigen</span> <span class="pre">Vectors'</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAEigenVectors.name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAVarianceExplainedRatio">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">PCAVarianceExplainedRatio</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAVarianceExplainedRatio" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#pyspoc.rstatistics.pca.PCABase" title="pyspoc.rstatistics.pca.PCABase"><code class="xref py py-class docutils literal notranslate"><span class="pre">PCABase</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.compute" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.identifier">
+<span class="sig-name descname"><span class="pre">identifier</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'pca-var'</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.identifier" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.labels">
+<span class="sig-name descname"><span class="pre">labels</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">['scalar',</span> <span class="pre">'linear']</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.labels" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Principal</span> <span class="pre">Components</span> <span class="pre">Analysis</span> <span class="pre">-</span> <span class="pre">Variance</span> <span class="pre">Explained</span> <span class="pre">Ratio'</span></span><a class="headerlink" href="#pyspoc.rstatistics.pca.PCAVarianceExplainedRatio.name" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-pyspoc.rstatistics.test">
+<span id="pyspoc-rstatistics-test-module"></span><h2>pyspoc.rstatistics.test module<a class="headerlink" href="#module-pyspoc.rstatistics.test" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.test.PCABase">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">PCABase</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.test.PCABase" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a>, <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.test.PCABase.calculate">
+<span class="sig-name descname"><span class="pre">calculate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="pyspoc.html#pyspoc.dataset.Dataset" title="pyspoc.dataset.Dataset"><span class="pre">Dataset</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.test.PCABase.calculate" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.test.ReducedCovarianceTest">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ReducedCovarianceTest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.test.ReducedCovarianceTest" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="pyspoc.statistics.html#pyspoc.statistics.basic.Covariance" title="pyspoc.statistics.basic.Covariance"><code class="xref py py-class docutils literal notranslate"><span class="pre">Covariance</span></code></a>, <a class="reference internal" href="pyspoc.html#pyspoc.statistic.ReducedStatistic" title="pyspoc.statistic.ReducedStatistic"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReducedStatistic</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="pyspoc.rstatistics.test.ReducedCovarianceTest.compute">
+<span class="sig-name descname"><span class="pre">compute</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.4)"><span class="pre">ndarray</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#pyspoc.rstatistics.test.ReducedCovarianceTest.compute" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-pyspoc.rstatistics">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-pyspoc.rstatistics" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">pyspoc</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">pyspoc</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="pyspoc.html">pyspoc package</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">pyspoc</a><ul>
+  <li><a href="pyspoc.html">pyspoc package</a><ul>
+      <li>Previous: <a href="pyspoc.reducers.external.html" title="previous chapter">pyspoc.reducers.external package</a></li>
+      <li>Next: <a href="pyspoc.rstatistics.external.html" title="next chapter">pyspoc.rstatistics.external package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Garry Cotton, Hetvi Jethwani.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.0</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/pyspoc.rstatistics.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

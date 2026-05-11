@@ -1,5 +1,5 @@
 from __future__ import annotations
-#
+
 import numpy as np
 import warnings
 import pandas as pd
@@ -9,7 +9,7 @@ import inspect
 
 from scipy.stats import zscore
 from types import FunctionType
-from typing import Iterable, Union, Any, Optional, TYPE_CHECKING
+from typing import Iterable, Any, Optional, TYPE_CHECKING, Dict
 from abc import ABC, abstractmethod
 from textwrap import dedent
 
@@ -36,14 +36,15 @@ class Component(ABC):
 
     def __init__(self):
 
-        name = self.__get_property_val(self.name)
+        name = self._get_property_val(self.name)
         check_type(name, str)
 
-        labels = self.__get_property_val(self.labels)
+        labels = self._get_property_val(self.labels)
         check_iterable(labels, str)
 
-        self.__cfg: Optional[Config] = None
-        self.__scheme: Optional[str] = None
+        self._cfg: Optional[Config] = None
+        self._scheme: Optional[str] = None
+        self._params: Dict
 
     def __new__(cls, *args, **kwargs):
 
@@ -74,31 +75,30 @@ class Component(ABC):
             arg_dict[kwarg_name] = kwarg
 
         instance = super().__new__(cls)
-        instance.__params = arg_dict
+        instance._params = arg_dict
         return instance
 
     def set_config(self, cfg: Config):
-        self.__cfg = cfg
+        self._cfg = cfg
 
     @property
     def cfg(self):
-        return self.__cfg
+        return self._cfg
 
     def set_scheme(self, scheme: str):
-        self.__scheme = scheme
+        self._scheme = scheme
 
     @property
     def scheme(self):
-        return self.__scheme
+        return self._scheme
 
     @property
     def params(self) -> dict:
-        return self.__params
+        return self._params
 
     @property
-    @abstractmethod
     def name(self) -> str:
-        pass
+        return self.__class__.__name__
 
     @property
     @abstractmethod
@@ -111,7 +111,7 @@ class Component(ABC):
         pass
 
     @staticmethod
-    def __get_property_val(prop: Any) -> Any:
+    def _get_property_val(prop: Any) -> Any:
         while callable(prop):
             prop = prop()
 
@@ -123,11 +123,11 @@ class Component(ABC):
         pass
 
     @abstractmethod
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
         pass
 
     @abstractmethod
-    def calculate(self, data: Union[Dataset, Statistic]) -> np.ndarray:
+    def calculate(self, data: Dataset | Statistic) -> np.ndarray:
         pass
 
     def __str__(self):
@@ -146,10 +146,9 @@ class Component(ABC):
 
     @classmethod
     def __info__(cls):
-        self_type = type(cls)
-        full_name = get_fully_qualified_type_name(self_type)
+        full_name = get_fully_qualified_type_name(cls)
         component_type_name = cls._get_component_type().__name__
-        args = get_obj_init_args(self_type)
+        args = get_obj_init_args(cls)
         required_args = list()
         optional_args = dict()
 
@@ -162,7 +161,6 @@ class Component(ABC):
         return dedent(
             f"""
             {component_type_name}: {full_name}
-            Name: {cls.name}
             Required Parameters: {required_args}
             Optional Parameters: {optional_args}
             """)
@@ -237,8 +235,8 @@ def retrieve_arg_name(var, max_steps: int = 2):
     var_name = None
 
     while steps < max_steps:
-        frame = frame.f_back
-        local_vars = frame.f_locals.items()
+        frame = frame.f_back # type: ignore
+        local_vars = frame.f_locals.items() # type: ignore
         var_names = [var_name for var_name, var_val in local_vars if var_val is var]
         steps += 1
 
@@ -254,7 +252,7 @@ def get_type_name(arg_val):
 
 
 def check_type(arg_val: object,
-               arg_types: Union[type, Iterable[type]],
+               arg_types: type | Iterable[type],
                arg_name: Optional[str] = None,
                is_try: bool = False,
                custom_error_msg: Optional[str] = None) -> Optional[bool]:
@@ -267,7 +265,7 @@ def check_type(arg_val: object,
     
     type_names = list()
 
-    for arg_type in arg_types:    
+    for arg_type in arg_types:
         type_name = arg_type.__name__
         type_names.append(type_name)
     
@@ -303,7 +301,8 @@ def check_iterable(iterable: Iterable,
         if custom_error_msg is not None:
             raise TypeError(custom_error_msg) from e
 
-        raise TypeError(f"{arg_name} should be an iterable type but type {type(iterable)} does not support iteration.") from e
+        raise TypeError(f"{arg_name} should be an iterable type but type {type(iterable)} "
+                        "does not support iteration.") from e
 
     if not iterable_type:
         if is_try:
@@ -312,7 +311,10 @@ def check_iterable(iterable: Iterable,
         return
 
     element = iterator.__next__()
-    is_correct_type = check_type(arg_name=arg_name, arg_types=iterable_type, arg_val=element, is_try=True)
+    is_correct_type = check_type(arg_name=arg_name,
+                                 arg_types=iterable_type,
+                                 arg_val=element,
+                                 is_try=True)
 
     if not is_correct_type:
         if is_try:
@@ -320,7 +322,8 @@ def check_iterable(iterable: Iterable,
 
         expected_type = iterable_type.__name__
         actual_type = get_type_name(element)
-        raise TypeError(f"{arg_name} should be an Iterable[{expected_type}] type but got Iterable[{actual_type}]")
+        raise TypeError(f"{arg_name} should be an Iterable[{expected_type}] "
+                        f"type but got Iterable[{actual_type}]")
 
     if is_try:
         return True
@@ -446,7 +449,10 @@ def standardise(a, dimension=0, df=1):
 
 
 def convert_mdf_to_ddf(df):
-    ddf = pd.pivot_table(data=df.stack(dropna=False).reset_index(),index='Dataset',columns=['SPI-1', 'SPI-2'],dropna=False).T.droplevel(0)
+    ddf = pd.pivot_table(data=df.stack(dropna=False).reset_index(),
+                         index='Dataset',
+                         columns=['SPI-1', 'SPI-2'],
+                         dropna=False).T.droplevel(0)
     return ddf
 
 
@@ -498,8 +504,10 @@ def filter_spis(keywords, output_name = None, configfile= None):
 
     Args:
         keywords (list): A list of keywords (as strings) to filter the YAML.
-        output_name (str, optional): The desired name for the output file. Defaults to a random name. 
-        configfile (str, optional): The path to the input YAML file. Defaults to the `config.yaml' in the pyspi dir. 
+        output_name (str, optional): The desired name for the output file.
+            Defaults to a random name.
+        configfile (str, optional): The path to the input YAML file. Defaults to the `config.yaml'
+            in the pyspi dir.
 
     Raises:
         ValueError: If `keywords` is not a list or if no SPIs match the keywords.
@@ -521,7 +529,8 @@ def filter_spis(keywords, output_name = None, configfile= None):
         if not os.path.isfile(default_config):
             raise FileNotFoundError(f"Default 'config.yaml' file not found in {script_dir}.")
         configfile = default_config
-        source_file_info = f"Default 'config.yaml' file from {script_dir} was used as the source file."
+        source_file_info = f"Default 'config.yaml' file from {script_dir} " + \
+            "was used as the source file."
     else:
         source_file_info = f"User-specified config file '{configfile}' was used as the source file."
 
@@ -627,4 +636,3 @@ def inspect_calc_results(calc):
         for i, spi in enumerate(ss_results['Partial NaNs']):
             print(f"{i+1}. {spi}")
         print(single_line_60 + "\n")
-    

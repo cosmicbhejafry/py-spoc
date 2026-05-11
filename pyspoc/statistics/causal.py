@@ -32,7 +32,7 @@ class AdditiveNoiseModel(PairwiseStatistic):
 
     anm_score = corrected_anm_score
 
-    def pairwise_compute(self, x, y):
+    def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
         return self.anm_score(x, y)
 
 
@@ -45,8 +45,8 @@ class ConditionalDistributionSimilarity(PairwiseStatistic):
     def __init__(self):
         super().__init__(dim="p", is_ordered=False)
 
-    def pairwise_compute(self, x: np.ndarray, y: np.ndarray):
-        return CDS().cds_score(x, y)
+    def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
+        return float(CDS().cds_score(x, y))
 
 
 class RegressionErrorCausalInference(PairwiseStatistic):
@@ -58,7 +58,7 @@ class RegressionErrorCausalInference(PairwiseStatistic):
     def __init__(self):
         super().__init__(dim="p", is_ordered=False)
 
-    def pairwise_compute(self, x: np.ndarray, y: np.ndarray):
+    def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
         return RECI().b_fit_score(x, y)
 
 
@@ -71,5 +71,5 @@ class InformationGeometricConditionalIndependence(PairwiseStatistic):
     def __init__(self, dim: str):
         super().__init__(dim=dim, is_ordered=False)
 
-    def pairwise_compute(self, x: np.ndarray, y: np.ndarray):
+    def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
         return IGCI().predict_proba((x, y))

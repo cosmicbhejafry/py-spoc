@@ -6,12 +6,13 @@ dist
 *.bkp
 .DS_Store
 .vscode
+.venv
+.pytest_cache
 build
 octave-workspace
 readme.html
 venv
 img
-tests
 pyspoc/statistics/wip
 README.md.bak
 

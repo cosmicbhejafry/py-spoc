@@ -98,7 +98,7 @@ class HellerHellerGorfine(PairwiseStatistic):
                          y: np.ndarray) -> Union[np.ndarray, float]:
 
         stat = HHG().statistic(x, y)
-        return stat
+        return stat # type: ignore
 
 
 class DistanceCorrelation(PairwiseStatistic):
@@ -165,9 +165,9 @@ class MultiscaleGraphCorrelation(PairwiseStatistic):
 class GromovWasserstainTau(PairwiseStatistic):
     """Gromov-Wasserstain distance (GWTau)"""
 
-    name = "Gromov-Wasserstain Distance"
-    identifier = "gwtau"
-    labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
+    __name = "Gromov-Wasserstain Distance"
+    __identifier = "gwtau"
+    __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
 
     def __init__(self):
         super().__init__(dim="p",
@@ -182,7 +182,7 @@ class GromovWasserstainTau(PairwiseStatistic):
     @staticmethod
     def wass_sorted(x1, x2):
         x1 = np.sort(x1)[::-1]  # sort in descending order
-        x2 = np.sort(x2)[::-1] 
+        x2 = np.sort(x2)[::-1]
 
         if len(x1) == len(x2):
             res = np.sqrt(np.mean((x1 - x2) ** 2))

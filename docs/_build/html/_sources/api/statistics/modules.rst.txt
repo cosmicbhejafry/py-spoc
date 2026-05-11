@@ -1,0 +1,7 @@
+rstatistics
+===========
+
+.. toctree::
+   :maxdepth: 4
+
+   rstatistics
