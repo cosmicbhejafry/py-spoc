@@ -16,6 +16,7 @@ from pyspoc.reducer import Reducer
 
 if TYPE_CHECKING:
     from pyspoc.dataset import Dataset
+    
 
 class Statistic(Component, ABC):
 

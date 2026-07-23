@@ -55,6 +55,8 @@ dev = [
   "mypy",
   "coverage",
   "pre-commit",
+  "ruff",
+  "watchfiles"
 ]
 
 doc = [
@@ -65,8 +67,7 @@ doc = [
 notebooks = [
   "jupyter",
   "ipykernel",
-  "matplotlib",
-  "nb_conda_kernels",
+  "matplotlib",  
   "plotly",
 ]
 
@@ -82,13 +83,17 @@ all = [
   "jupyter",
   "ipykernel",
   "matplotlib",
-  "nb_conda_kernels",
   "plotly",
+  "ruff"
+]
+
+extended = [
+  "torch"
 ]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests"]
+testpaths = ["tests","benchmarks"]
 addopts = "-ra"
 
 [tool.pytest-benchmark]
@@ -98,8 +103,8 @@ sort = "mean"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-select = ["E", "F", "W"]
-ignore = ["W293", "E722"]
+lint.select = ["E", "F", "W"]
+lint.ignore = ["W293", "E722"]
 
 # optionally:   "nbstripout"
 

@@ -26,6 +26,33 @@ PYSS_GITHUB_ISSUES_URL = "https://github.com/cosmicbhejafry/py-spoc/issues/"
 CUSTOM_COMPONENTS_URL = "https://github.com/cosmicbhejafry/py-spoc/blob/main/README.md"
 STATISTIC_FILTERING_URL = ""
 
+# ---------------------------------------------------------------------------
+# Implementation note
+# ---------------------------------------------------------------------------
+#
+# `Component` is the base object for all main
+#
+# All core numerical algorithms have been moved into standalone functions in
+# `func`. This separation follows the common scientific-computing pattern of
+# isolating pure computational kernels from the object-oriented API layer.
+#
+# The benefits of this design are:
+#
+#   * Stateless kernels are easier to unit test in isolation.
+#   * Computational code can be accelerated independently (e.g. via Numba).
+#   * The class remains responsible only for configuration and orchestration.
+#   * Algorithmic logic is not tightly coupled to object state.
+#
+# In practice this class is responsible for:
+#
+#   * storing configuration parameters (e.g. q, tolerances)
+#   * validating inputs and managing object state
+#   * dispatching calls to the appropriate function in `func`
+#
+# The `func` module therefore contains the functional core of the algorithm,
+# while this class provides the public stateful interface.
+# ---------------------------------------------------------------------------
+
 class Component(ABC):
 
     """
@@ -45,6 +72,7 @@ class Component(ABC):
         self._cfg: Optional[Config] = None
         self._scheme: Optional[str] = None
         self._params: Dict
+        self._cache = dict()
 
     def __new__(cls, *args, **kwargs):
 

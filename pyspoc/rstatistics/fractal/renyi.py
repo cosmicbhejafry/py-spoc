@@ -1,12 +1,12 @@
 import numpy as np
-import warnings
 
-from types import FunctionType
+from numba import njit
+from typing import Literal, Iterable
 
-from pyspoc import ReducedStatistic
+from pyspoc.rstatistics.fractal.base import FractalMeasureBase
 
-from . import func as f
-from . import func_numba as fnumba
+from . import funcs_numba as fnb
+from . import failback_loader as fload
 
 # ---------------------------------------------------------------------------
 # Implementation note
@@ -37,7 +37,7 @@ from . import func_numba as fnumba
 # ---------------------------------------------------------------------------
 
 
-class GeneralizedEntropy(ReducedStatistic):
+class RenyiEntropy(FractalMeasureBase):
 
     """
     Generalized fractal dimension estimator using Rényi entropy over box-counting
@@ -48,6 +48,7 @@ class GeneralizedEntropy(ReducedStatistic):
     computes the entropy of the induced natural density at each scale. A scaling
     region is then identified and used to estimate the generalized fractal
     dimension.
+
 
     Definition
     ----------------------------
@@ -92,31 +93,34 @@ class GeneralizedEntropy(ReducedStatistic):
     linear scaling region in a plot of :math:`H_q(\\varepsilon)` against
     :math:`-\\log(\\varepsilon)`.
 
+
     Parameters
     ----------
     q : float, default=0
         Rényi entropy order. Special cases include :math:`q = 0` for box-counting
         entropy and :math:`q \\to 1` for Shannon entropy.
 
-    adj_r2_tol : float, default=0.02
+    adj_r2_tol : float, default=0.01, requires: >0, <=1
         Minimum proportional improvement in adjusted :math:`R^2` required to
         accept an additional linear segment during piecewise regression model
         selection.
 
-    elbow_tol : float, default=0.15
+    elbow_tol : float, default=0.15, requires: >0, <=1
         Proportional tolerance used to identify outer segments as elbows. If the
-        slope of an outer segment is below this tolerance times the average slope
+        slope of an outer segment is below this tolerance multiplied by the average slope
         of the inner segments, that outer segment is removed.
 
-    deshmukh_reg_proportion : float, default=0.25
+    deshmukh_reg_proportion : float, default=0.25, requires: >0, <=1
         Minimum relative subinterval length used when constructing the ensemble of
         linear regressions over the retained scaling region.
+
 
     Returns
     -------
     np.ndarray
         Estimated generalized fractal dimension. For static input data this is
         returned as a scalar-like NumPy value.
+
 
     Notes
     -----
@@ -125,6 +129,7 @@ class GeneralizedEntropy(ReducedStatistic):
     The final estimate depends on the quality of the observed scaling region and
     may be sensitive to sample size, scale selection, and the elbow-detection
     tolerances.
+
 
     Elbow detection
     ---------------
@@ -143,9 +148,10 @@ class GeneralizedEntropy(ReducedStatistic):
     discretization, or departures from the main scaling regime.
 
     After trimming, the final fractal dimension estimate is obtained based on the method
-    defined in Deshmukh et al. (2021), which involves fitting an ensemble of
-    linear regressions computed over subintervals of the retained scaling region.
-    These slope estimates are then aggregated using a mode-weighted averaging procedure.
+    defined in [3], which involves fitting an ensemble of linear regressions computed
+    over subintervals of the retained scaling region. These slope estimates are then
+    aggregated using a mode-weighted averaging procedure.
+
 
     References
     ----------
@@ -158,28 +164,34 @@ class GeneralizedEntropy(ReducedStatistic):
     .. [2] Datseris et al. (2023). Estimating fractal dimensions: A comparative review
         and open source implementations. Chaos.
 
+    .. [3] V. Deshmukh, E. Bradley, J. Garland, and J. D. Meiss (2021). Toward automated
+        extraction and characterization of scaling regions in dynamical systems. Chaos.
+
     """
 
-    _name = "Generalized Entropy"
-    _identifier = "nde"
+    _name = "Rényi Generalized Entropy"
+    _identifier = "rge"
     _labels = ["fractal"]
-    _NAN_RETURN_WARNING = "No scaling could be determined for the provided dataset. " \
-        "Returning NaN result."
     _SHANNON_ENTROPY_TOL = 1e-6
 
     def __init__(self,
                  q: float = 0,
-                 adj_r2_tol: float = 0.02,
-                 elbow_tol: float = 0.15,
+                 adj_r2_thresh: float = 0.005,
+                 elbow_thresh: float = 0.25,
                  deshmukh_reg_proportion: float = 0.25,
-                 debug_numba: bool = False):
-        
+                 use_adaptive_scaling: bool = True,
+                 scale_method: Literal["datseries", "log-10"] = "datseries",
+                 scale_length: int = 50,
+                 debug_numba: Iterable[Literal["ignore", "warn", "raise", "bounds"]] = "ignore"):
+                
         self._q = q
-        self._deshmukh_reg_proportion = deshmukh_reg_proportion
-        self._adj_r2_tol = adj_r2_tol
-        self._elbow_tol = elbow_tol
-        self._debug_numba = debug_numba
-        super().__init__()
+        super().__init__(adj_r2_thresh=adj_r2_thresh,
+                         elbow_thresh=elbow_thresh,
+                         deshmukh_reg_proportion=deshmukh_reg_proportion,
+                         use_adaptive_scaling=use_adaptive_scaling,
+                         scale_method=scale_method,
+                         scale_length=scale_length,
+                         debug_numba=debug_numba)
 
     @property
     def name(self) -> str:
@@ -197,86 +209,173 @@ class GeneralizedEntropy(ReducedStatistic):
     def q(self) -> float:
         return self._q
     
-    @property
-    def adj_r2_tol(self) -> float:
-        return self._adj_r2_tol
-    
-    @property
-    def elbow_tol(self) -> float:
-        return self._elbow_tol
+    def _compute_density_estimate(
+            self,
+            data: np.ndarray,
+            scales: np.ndarray) -> np.ndarray:
 
-    @property
-    def deshmukh_reg_proportion(self) -> float:
-        return self._deshmukh_reg_proportion
-        
-    def _fallback_execute(self,
-                          func: FunctionType,
-                          fallback_func: FunctionType,
-                          *args,
-                          **kwargs):
-        try:
-            result = func(*args, **kwargs)
+        """
+        Compute Renyi entropy according to the formula
+
+        :math:`H_q = \\frac{1}{1 - q} log (\\sum_{i=1}^M p_i^q)`
+
+        for :math:`M` non-overlapping boxes covering the set of points and
+        :math:`p_i` are the proportion of points within that box.
+
+        :math:`q` is specified as an instance property, defined on instantiation.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            Array of points (n, p).
             
-            if self._debug_numba:
-                print(f"Numba ran {func.__name__} successfully.")
+        scales : np.ndarray
+            Array of box scales to compute the density over.
+            
+        Returns
+        ----------
+                
+        np.ndarray
+            Array of density estimates at different scales.
+        """
 
-            return result
-        except:
-            if self._debug_numba:
-                print(f"Numba failed to run {func.__name__}.")
+        return _get_renyi_entropy(
+            self.q, data, scales, self._SHANNON_ENTROPY_TOL)
+    
 
-            return fallback_func(*args, **kwargs)
+@njit
+def _get_renyi_entropy_numba(
+        q: float,
+        data: np.ndarray,
+        scales: np.ndarray,
+        shannon_entropy_tol: float = 1e-6) -> np.ndarray:
+    
+    """
+    Numba implementation of the Rényi entropy according to the formula
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    :math:`H_q = \\frac{1}{1 - q} log (\\sum_{i=1}^M p_i^q)`
 
-        nan_array = np.array(np.nan)
+    for :math:`M` non-overlapping boxes covering the set of points and
+    :math:`p_i` are the proportion of points within that box.
+    
+    Parameters
+    ----------
+    q : float
+        Rényi entropy order. Special cases include :math:`q = 0` for box-counting
+        entropy and :math:`q \\to 1` for Shannon entropy.
+            
+    data : np.ndarray
+        Array of points (n, p).
         
-        scales = self._fallback_execute(
-            fnumba._get_default_init_scale,
-            f._get_default_init_scale,
-            data
-        )
+    scales : np.ndarray
+        Array of box scales to compute the density over.
 
-        # Return NaN array if no scales found.
-        if scales is None:
-            warnings.warn(self._NAN_RETURN_WARNING)
-            return nan_array
+    shannon_entropy_tol : float, default = 1e-6
+        Defines tolerance level for judging q = 0.
+        Specifically, if abs(q) < shannon_entropy_tol, take q = 0.
+        With q = 0, Rényi reverts to box-counting measure.
         
-        # Fractal estimator.
-        H = self._fallback_execute(
-            fnumba._get_renyi_entropy,
-            f._get_renyi_entropy,
-            self.q,
-            data,
-            scales,
-            self._SHANNON_ENTROPY_TOL
-        )
+    Returns
+    ----------
+            
+    np.ndarray
+        Array of density estimates at different scales.
+    """
+    
+    # Initialising.
+    n_scales = scales.shape[0]
+    H = np.empty(shape=n_scales, dtype=np.float64)
 
-        # Return NaN array if no result.
-        if H is None:
-            warnings.warn(self._NAN_RETURN_WARNING)
-            return nan_array
-        
-        neg_log_scales = -np.log(scales)
-        best_fit = f._get_best_parsimonous_model_fit(neg_log_scales,
-                                                     H,
-                                                     self.adj_r2_tol)
-        
-        alphas, breakpoints = f._get_pieces(best_fit,
-                                            neg_log_scales)
+    for k in range(n_scales):
+        s = scales[k]
 
-        trimmed_scales, trimmed_H = self._fallback_execute(
-            fnumba._trim_elbows,
-            f._trim_elbows,
-            alphas,
-            breakpoints,
-            neg_log_scales,
-            H,
-            self.elbow_tol)
-       
-        slopes, weights = f._compute_slope_ensemble(trimmed_scales,
-                                                    trimmed_H,
-                                                    self.deshmukh_reg_proportion)
+        # Get boxes containing each point (already sorted thanks to sorted data).
+        box_ids = np.floor(data / s).astype(np.int32)
         
-        fd = f._return_modal_average(slopes, weights)
-        return fd
+        
+        hashes = fnb._get_row_hashes_numba(box_ids)
+
+
+        cnts = fnb._get_box_tallies_numba(box_ids, hashes)
+
+
+        cnts = cnts[cnts > 0]
+
+
+        if q == 0:
+            H[k] = np.log(cnts.shape[0])
+            continue
+
+        probs = cnts / cnts.sum()
+
+        if abs(q-1) < shannon_entropy_tol:
+            H[k] = -np.sum(probs * np.log(probs))
+            continue
+
+        H[k] = np.log(np.sum(probs ** q)) / (1 - q)
+
+    return H
+
+
+@fload._py_failback(_get_renyi_entropy_numba)
+def _get_renyi_entropy(
+        q: float,
+        data : np.ndarray,
+        scales: np.ndarray,
+        shannon_entropy_tol: float = 1e-6) -> np.ndarray:
+    
+    """
+    Python implementation of the Rényi entropy.
+
+    Rényi entropy is computed according to the formula:
+
+    :math:`H_q = \\frac{1}{1 - q} log (\\sum_{i=1}^M p_i^q)`
+
+    for :math:`M` non-overlapping boxes covering the set of points and
+    :math:`p_i` are the proportion of points within that box.
+
+    Parameters
+    ----------
+    q : float
+        Rényi entropy order. Special cases include :math:`q = 0` for box-counting
+        entropy and :math:`q \\to 1` for Shannon entropy.
+            
+    data : np.ndarray
+        Array of points (n, p).
+        
+    scales : np.ndarray
+        Array of box scales to compute the density over.
+
+    shannon_entropy_tol : float, default = 1e-6
+        Defines tolerance level for judging q = 0.
+        Specifically, if abs(q) < shannon_entropy_tol, take q = 0.
+        With q = 0, Rényi reverts to box-counting measure.
+        
+    Returns
+    ----------
+            
+    np.ndarray
+        Array of density estimates at different scales.
+    """
+
+    n_scales = scales.shape[0]
+    H = np.empty(shape=n_scales)
+
+    for k in range(H.shape[0]):
+        s = scales[k]
+        box_ids = np.floor(data / s).astype(np.int32)
+        _, cnts = np.unique(box_ids, axis=0, return_counts=True)
+
+        if q == 0:
+            H[k] = np.log(cnts.shape[0])
+            continue
+
+        probs = cnts / cnts.sum()
+
+        if abs(q - 1) < shannon_entropy_tol:
+            H[k] = -np.sum(probs * np.log(probs))
+            continue
+
+        H[k] = np.log(np.sum(probs ** q)) / (1 - q)
+
+    return H
