@@ -5,21 +5,21 @@ import numpy as np
 import math
 
 from torch.utils.data import DataLoader, TensorDataset
-from typing import Union, Literal, Optional, Iterable, Any
+from typing import Union, Literal, Optional, Any
 from datetime import datetime
 
-from .module import OrthogonalPCAE
-from . import func as f
+from ._module import OrthogonalPCAE
+from . import _func as f
 from pyspoc._caching._cls import CachedEstimatorMixin
+from pyspoc._argchecking import RuntimeTypeCheckedMixin
 
 
-class OrthogonalPCAEEstimator(CachedEstimatorMixin):
+class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
 
     def __init__(
             self,
             batch_size: int,
-            components: Union[int, Iterable[int]],
-            max_bottleneck_dim: Optional[int] = None,
+            max_bottleneck_dim: Optional[int],
             train_steps: int = 10000,
             burn_in_steps_prop: float = 0.1,
             alpha: float = 0.1,
@@ -36,8 +36,6 @@ class OrthogonalPCAEEstimator(CachedEstimatorMixin):
         self.optimal_model_ = None
         self.attached_dataset_ = None
         self.optimal_loss_ = math.inf
-        self._components = tuple(range(1, components+1)) if isinstance(components, int) \
-            else tuple(components)
         self.alpha = alpha
         self.train_steps = train_steps
         self.burn_in = burn_in_steps_prop
@@ -57,40 +55,6 @@ class OrthogonalPCAEEstimator(CachedEstimatorMixin):
             else "cpu"
         )
 
-    @property
-    def components(self) -> tuple[int, ...]:
-        return self._components
-    
-    @classmethod
-    def get_or_create(
-        cls: type[OrthogonalPCAEEstimator],
-        data: np.ndarray,
-        *args,
-        **kwargs) -> OrthogonalPCAEEstimator:
-        
-        cached_list = super()._get_cached(data, args, kwargs)
-
-        if not cached_list:
-            return cls(*args, **kwargs)
-
-        estimator_args = cls._bind_init_args(args, kwargs)
-        components = estimator_args.get("components")
-
-        if not components:
-            return cls(*args, **kwargs)
-
-        if isinstance(components, int):
-            components = tuple(range(1, components + 1))
-
-        for cached_obj in cached_list:
-            cached_obj_components = cached_obj.components
-            missing = set(components).difference(cached_obj_components)
-
-            if not missing:
-                return cached_obj
-
-        return cls(*args, **kwargs)
-
     @CachedEstimatorMixin._updates_lru
     def compute(self, data: np.ndarray) -> dict[str, Any]:
         
@@ -105,11 +69,6 @@ class OrthogonalPCAEEstimator(CachedEstimatorMixin):
         p = data.shape[1]
         self.batch_size = min(self.batch_size, n)
         
-        if self.max_bottleneck_dim is None:
-            self.max_bottleneck_dim = p
-        else:
-            self.max_bottleneck_dim = min(p, self.max_bottleneck_dim, n)
-
         # Compute number of training epochs from training steps and batch size
         self.train_epochs_ = self._get_train_epochs(n)
 
@@ -281,7 +240,7 @@ class OrthogonalPCAEEstimator(CachedEstimatorMixin):
         return tensor_X_recon.cpu().numpy()
         
         
-    def _transform(self, X_tabular):
+    def _transform(self, X_tabular: Union[np.ndarray, torch.Tensor]):
         """Inference step: Extract the ordered bottleneck coordinates."""
         if self.model_ is None:
             raise ValueError("Internal model has not yet been trained. Call compute() first.")

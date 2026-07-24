@@ -7,8 +7,8 @@ from typing import Literal
 from numba import types, jit_module
 from numba.typed import Dict, List
 
-from pyspoc import settings
-from .failback_loader import _install_numba_funcs
+from pyspoc.settings import settings
+from .fallback_loader import _install_numba_funcs
 
 list_type = types.ListType(types.int64)
 
@@ -491,12 +491,15 @@ def _simple_linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, floa
 # ---------------------------------------------------------------------
 
 if not globals().get("__skip_jit_compile__", False):
+    # Compilation options are captured when jit_module() runs, so resolve one
+    # consistent settings snapshot before passing them to Numba.
+    current_settings = settings.current
     jit_module(
         nopython=True,
-        cache=settings.enable_numba_caching,
-        boundscheck=settings.enable_numba_boundschecking,
-        error_model=settings.numba_error_model,
-        fastmath=settings.numba_fastmath
+        cache=current_settings.numba_caching,
+        boundscheck=current_settings.numba_boundschecking,
+        error_model=current_settings.numba_error_model,
+        fastmath=current_settings.numba_fastmath
     )
 
 # ---------------------------------------------------------------------
@@ -504,4 +507,4 @@ if not globals().get("__skip_jit_compile__", False):
 # ---------------------------------------------------------------------
 
 if not globals().get("__internal_copy__", False):
-   _install_numba_funcs(sys.modules[__name__], settings.enable_numba_failback)
+   _install_numba_funcs(sys.modules[__name__])

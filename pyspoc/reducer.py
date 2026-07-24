@@ -7,7 +7,7 @@ import gc
 from abc import ABC
 from typing import TYPE_CHECKING
 
-from pyspoc.base import Component
+from pyspoc._base import Component
 
 if TYPE_CHECKING:
     from pyspoc.statistic import Statistic

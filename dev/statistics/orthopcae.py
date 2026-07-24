@@ -3,17 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from pyspoc.statistics.dimreduce.orthopcae import estimator
+from pyspoc.statistics.dimreduce.orthopcae import _estimator
 
 #data = np.load("/home/gsc225/Projects/hcda/py-spoc/pyspoc/data/cml.npy")
 data = np.load("/home/gsc225/Projects/hcda/py-spoc/pyspoc/data/forex.npy")
 #data = np.random.normal(loc=3, scale=1, size=(10000,25))
 #data = np.random.random(size=(10000,25))
 #%%
-test = estimator.OrthogonalPCAEEstimator.get_or_create(data=data, batch_size=100, components=5)
+test = _estimator.OrthogonalPCAEEstimator.get_or_create(data=data, batch_size=100, components=5)
 test.compute
 # %%
-opcae = estimator.OrthogonalPCAEEstimator(256,
+opcae = _estimator.OrthogonalPCAEEstimator(256,
                                           components=5,
                                           alpha=0.02,
                                           burn_in_steps_prop=0.2,
@@ -96,7 +96,7 @@ test = [1,2,3]
 # %%
 import numpy as np
 data = np.load("/home/gsc225/Projects/hcda/py-spoc/pyspoc/data/forex.npy")
-from pyspoc.rstatistics.dimreduce.orthopcae import (
+from pyspoc.rstatistics.dimreduce.orthopcae.rstatistics import (
     OrthogonalPCAEVarianceElbow,
     OrthogonalPCAEVarianceExplained)
 

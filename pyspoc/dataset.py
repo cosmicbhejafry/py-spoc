@@ -15,10 +15,11 @@ import os
 from sklearn.preprocessing import StandardScaler
 from typing import Iterable, Union, List
 from time import time
+from typeguard import check_type
 
-from pyspoc import base
-from pyspoc import settings
+from pyspoc import (_base, _argchecking)
 from pyspoc.statistic import Statistic
+from pyspoc.settings import settings
 
 
 class Dataset:
@@ -103,7 +104,7 @@ class Dataset:
         if name is None:
             name = ""
 
-        base.check_type(name, str)
+        check_type(name, str)
         self._name = name
 
     @property
@@ -120,7 +121,7 @@ class Dataset:
 
     @dim_order.setter
     def dim_order(self, dim_order: str):
-        base.check_type(dim_order, str)
+        check_type(dim_order, str)
 
         if len(dim_order) > 2:
             raise RuntimeError("dim_order can not have more than two entries")
@@ -133,7 +134,7 @@ class Dataset:
 
     @normalise.setter
     def normalise(self, normalise: bool):
-        base.check_type(normalise, bool)
+        check_type(normalise, bool)
         self.__normalise = normalise
 
     @property
@@ -150,8 +151,8 @@ class Dataset:
     @n_realisations_subsample.setter
     def n_realisations_subsample(self, n_realisations_subsample: int):
         if n_realisations_subsample is not None:
-            base.check_type(n_realisations_subsample, int)
-            base.check_natural_number(n_realisations_subsample)
+            check_type(n_realisations_subsample, int)
+            _argchecking.check_natural_number(n_realisations_subsample)
 
         self._n_subsample = n_realisations_subsample
 
@@ -169,8 +170,8 @@ class Dataset:
     @n_variables_subsample.setter
     def n_variables_subsample(self, n_variables_subsample: int):
         if n_variables_subsample is not None:
-            base.check_type(n_variables_subsample, int)
-            base.check_natural_number(n_variables_subsample)
+            check_type(n_variables_subsample, int)
+            _argchecking.check_natural_number(n_variables_subsample)
 
         self._p_subsample = n_variables_subsample
 
@@ -272,7 +273,7 @@ class Dataset:
             )
 
         if not self.name:
-            self.name = base.retrieve_arg_name(new_data, max_steps=3)
+            self.name = _base.retrieve_arg_name(new_data, max_steps=3)
 
         name = self.name
         new_data = self.convert_to_numpy(new_data)
@@ -282,7 +283,8 @@ class Dataset:
 
         if nans.any():
             raise ValueError(
-                f"Dataset {name} contains non-numerics (NaNs) in variables: {np.unique(np.where(nans)[0])}."
+                f"Dataset {name} contains non-numerics (NaNs) in variables: "
+                f"{np.unique(np.where(nans)[0])}."
             )
 
         self._base_data = new_data
@@ -296,9 +298,8 @@ class Dataset:
         self._data = new_data
 
         if var_names is not None:
-            base.check_iterable(var_names)
-            var_names_list = list(var_names)
-            base.check_type(var_names_list[0], str)
+            check_type(var_names, Iterable[str])
+            var_names_list = list(set(var_names))
             self._var_names = var_names_list
         else:
             if isinstance(self._base_data, pd.DataFrame):
@@ -350,7 +351,7 @@ class Dataset:
 
     @staticmethod
     def _message(message: str):
-        if settings.verbose:
+        if settings.current.verbose:
             print(message)
 
     def add_variable(self,
@@ -371,23 +372,23 @@ class Dataset:
 
         var_names = self._var_names
         if var_name:
-            base.check_type(var_name, str)
+            check_type(var_name, str)
             if var_name in var_names:
                 raise ValueError(f"Variable {var_name} already exists in the data.")
 
         if var_index:
-            base.check_type(var_index, int)
+            check_type(var_index, int)
         else:
             var_index = self.n_variables + 1
 
-        base.check_type(var_data, np.ndarray)
+        check_type(var_data, np.ndarray)
         var_data = np.squeeze(var_data)
 
         if var_data.ndim != 1:
             raise TypeError("Data must be a 1D numpy array.")
 
         var_data_type = type(var_data[0, 0])
-        base.check_type(var_data_type, self.data_type)
+        check_type(var_data_type, self.data_type)
 
         var_data = np.expand_dims(var_data, axis=1)
 
@@ -415,15 +416,15 @@ class Dataset:
         self._base_data = data
         self._set_data_dim(data)
         self._data = self.__subsample_data(data)
-        self._message(f"Variable {var_name} added at position {var_index} to data {self.name} successfully.")
+        self._message(f"Variable {var_name} added at position {var_index} "
+                      f"to data {self.name} successfully.")
         self.uncache()
 
     def remove_variable(self,
                         var_indices: Iterable[int]):
 
-        base.check_iterable(var_indices)
+        check_type(var_indices, Iterable[int])
         var_indices_list = list(var_indices)
-        base.check_type(var_indices_list[0], int)
 
         try:
             data = copy.deepcopy(self._base_data)

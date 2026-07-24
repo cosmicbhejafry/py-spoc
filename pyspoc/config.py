@@ -7,14 +7,14 @@ import re
 import inspect
 import importlib
 import json
-import pyspoc.base as pyb
+import pyspoc._base as pyb
 
 from typing import Iterable, Generator, cast
 from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
 
-from pyspoc.base import Component
+from pyspoc._base import Component
 from pyspoc.statistic import Statistic, ReducedStatistic
 from pyspoc.reducer import Reducer
 

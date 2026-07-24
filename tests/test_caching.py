@@ -16,11 +16,23 @@ class FailingEquality:
 
 
 class VerboseAgnosticEstimator(CachedEstimatorMixin):
-    _arg_comparison_ignore_list = ["verbose"]
-
     def __init__(self, alpha: float, verbose: bool = False):
         self.alpha = alpha
         self.verbose = verbose
+
+    @classmethod
+    def _canonicalize_cache_args(cls, estimator_kwargs):
+        canonical_args = super()._canonicalize_cache_args(estimator_kwargs)
+        canonical_args.pop("verbose", None)
+        return canonical_args
+
+
+class CoarseCandidateEstimator(CachedEstimatorMixin):
+    @classmethod
+    def _get_candidate_args(cls, estimator_kwargs):
+        candidate_args = super()._get_candidate_args(estimator_kwargs)
+        candidate_args.pop("components", None)
+        return candidate_args
 
 
 def test_is_arg_match_accepts_equal_python_values():
@@ -69,7 +81,7 @@ def test_is_arg_match_accepts_identical_objects_without_equality():
     )
 
 
-def test_comparison_ignored_arguments_do_not_affect_hash_or_exact_match():
+def test_canonicalized_arguments_do_not_affect_hash_or_exact_match():
     quiet_args = {"alpha": 0.1, "verbose": False}
     verbose_args = {"alpha": 0.1, "verbose": True}
 
@@ -78,6 +90,20 @@ def test_comparison_ignored_arguments_do_not_affect_hash_or_exact_match():
         == VerboseAgnosticEstimator._get_args_hash(verbose_args)
     )
     assert VerboseAgnosticEstimator._is_arg_match(quiet_args, verbose_args)
+
+
+def test_candidate_arguments_can_be_coarser_than_exact_comparison():
+    small_request = {"alpha": 0.1, "components": (1, 2)}
+    large_request = {"alpha": 0.1, "components": (1, 2, 3)}
+
+    assert (
+        CoarseCandidateEstimator._get_args_hash(small_request)
+        == CoarseCandidateEstimator._get_args_hash(large_request)
+    )
+    assert not CoarseCandidateEstimator._is_arg_match(
+        small_request,
+        large_request,
+    )
 
 
 def test_default_cache_request_match_checks_arguments_and_data():

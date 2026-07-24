@@ -86,7 +86,7 @@ class OrthogonalPCAE(nn.Module):
         return x_recon
     
 
-    def get_orthogonality_loss(self):
+    def get_orthogonality_loss(self) -> torch.Tensor:
         """
         Penalises weight correlation in the projection layer.
         Forces the bottleneck directions to be mutually orthogonal.

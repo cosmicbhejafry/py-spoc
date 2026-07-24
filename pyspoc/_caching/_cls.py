@@ -34,7 +34,7 @@ PYSPOC_ATTACHED_DATA_ATTRIBUTE = "_pyspoc_attached_dataset"
 
 
 class CachedEstimatorMixin:
-    """Provide opt-in, constructor-aware caching for estimator instances.
+    """Provide configurable, constructor-aware caching for estimator instances.
 
     Every subclass constructor is wrapped automatically by
     :meth:`__init_subclass__`. The wrapper binds positional and keyword
@@ -53,23 +53,15 @@ class CachedEstimatorMixin:
     therefore removed automatically when it has no other strong references.
     Estimator instances must support weak references and hashing to be stored.
 
-    Subclasses that need a more specialized definition of equivalence may use
-    :meth:`_get_cached` as the initial candidate lookup and apply additional
-    checks before returning an estimator.
+    Subclasses customize cache identity by canonicalizing constructor
+    arguments, selecting a coarse set of arguments for candidate hashing, or
+    overriding the final cache-request matching hook.
 
-    Attributes
+    Internal Attributes
     ----------
-    _hash_arg_ignore_list : list[str], optional
-        Constructor argument names excluded from preliminary hashing. Ignored
-        arguments still participate in exact comparison. The default is an
-        empty list.
-    _arg_comparison_ignore_list : list[str], optional
-        Constructor argument names excluded from both preliminary hashing and
-        exact argument comparison. Use this for arguments, such as verbosity,
-        that do not affect estimator equivalence. The default is an empty list.
     _cache_limit : int, optional
         Maximum number of live estimator instances across all cache buckets.
-        The default is ``10``.
+        The default is ``25``.
     _pyspoc_cache : dict[int, weakref.WeakSet[CachedEstimatorMixin]], optional
         Mapping from preliminary argument hashes to weak candidate sets. The
         default is an empty dictionary.
@@ -80,9 +72,7 @@ class CachedEstimatorMixin:
     Call :meth:`get_or_create` when cache resolution is required.
     """
 
-    _hash_arg_ignore_list = []
-    _arg_comparison_ignore_list = []
-    _cache_limit = 10
+    _cache_limit = 25
     _pyspoc_cache = dict()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -140,8 +130,59 @@ class CachedEstimatorMixin:
             Hash of the retained argument values. This hash selects candidate
             estimators only and is not treated as proof of equivalence.
         """
-        hash_args = cls._get_hashables(kwargs)
+        candidate_args = cls._get_candidate_args(kwargs)
+        hash_args = cls._get_hashables(candidate_args)
         return hash(tuple(hash_args.values()))
+
+
+    @classmethod
+    def _canonicalize_cache_args(
+            cls,
+            estimator_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Return constructor arguments used for ordinary cache equivalence.
+
+        Subclasses may remove arguments that do not affect the fitted
+        estimator, such as verbosity or debugging arguments, and normalize
+        equivalent representations to a common value. The returned mapping
+        is used by exact argument comparison.
+
+        Parameters
+        ----------
+        estimator_kwargs : dict[str, Any]
+            Complete normalized constructor argument mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Canonical argument mapping. The base implementation returns a
+            shallow copy without changing any arguments.
+        """
+        return estimator_kwargs.copy()
+
+
+    @classmethod
+    def _get_candidate_args(
+            cls,
+            estimator_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Return arguments used to group potential cache matches.
+
+        The candidate mapping may be coarser than the final definition of
+        equivalence. Subclasses should omit arguments here when differing
+        values must reach :meth:`_matches_cache_request` for model-specific or
+        asymmetric comparison.
+
+        Parameters
+        ----------
+        estimator_kwargs : dict[str, Any]
+            Complete normalized constructor argument mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Arguments from which the preliminary candidate hash is produced.
+            The base implementation uses the canonical equivalence arguments.
+        """
+        return cls._canonicalize_cache_args(estimator_kwargs)
 
 
     @classmethod
@@ -472,9 +513,9 @@ class CachedEstimatorMixin:
 
         Notes
         -----
-        Arguments handled specially by an override must also be excluded from
-        preliminary hashing through ``_hash_arg_ignore_list`` so requests with
-        differing values can reach this hook.
+        An override that compares an argument specially should also override
+        :meth:`_get_candidate_args` when differing values for that argument
+        need to reach this hook.
         """
         # The hash is only a candidate filter: collisions and omitted or
         # unhashable values can place unequal requests in the same bucket.
@@ -517,6 +558,45 @@ class CachedEstimatorMixin:
             return False
 
         return np.array_equal(attached_dataset, data)
+
+
+    @classmethod
+    def _is_arg_match(
+            cls,
+            args: dict[str, Any],
+            reference_args: dict[str, Any]) -> bool:
+        
+        """
+        Compare two complete normalized constructor mappings.
+
+        Parameters
+        ----------
+        args : dict[str, Any]
+            Constructor arguments recorded on a cached estimator.
+        reference_args : dict[str, Any]
+            Constructor arguments for the current cache request.
+
+        Returns
+        -------
+        bool
+            ``True`` if both mappings contain the same names and equal values;
+            otherwise ``False``.
+        """
+        # Apply subclass normalization and omission rules consistently to the
+        # cached arguments and the current request.
+        canonical_args = cls._canonicalize_cache_args(args)
+        canonical_reference_args = cls._canonicalize_cache_args(reference_args)
+
+        if canonical_args.keys() != canonical_reference_args.keys():
+            return False
+
+        for arg_name, arg in canonical_args.items():
+            reference_arg = canonical_reference_args[arg_name]
+
+            if not cls._is_arg_value_match(arg, reference_arg):
+                return False
+
+        return True
 
 
     @classmethod
@@ -581,7 +661,7 @@ class CachedEstimatorMixin:
             return bool(is_equal)
 
         return False
-    
+        
 
     @staticmethod
     def _are_tensors_equal(arg: Any, reference_arg: Any) -> bool | None:
@@ -626,48 +706,7 @@ class CachedEstimatorMixin:
             #and arg.device == reference_arg.device
             and torch.equal(arg, reference_arg)
         )
-
-
-    @classmethod
-    def _is_arg_match(
-            cls,
-            args: dict[str, Any],
-            reference_args: dict[str, Any]) -> bool:
-        
-        """
-        Compare two complete normalized constructor mappings.
-
-        Parameters
-        ----------
-        args : dict[str, Any]
-            Constructor arguments recorded on a cached estimator.
-        reference_args : dict[str, Any]
-            Constructor arguments for the current cache request.
-
-        Returns
-        -------
-        bool
-            ``True`` if both mappings contain the same names and equal values;
-            otherwise ``False``.
-        """
-        # A differing parameter set cannot describe the same constructor call.
-        ignored_args = set(cls._arg_comparison_ignore_list)
-        args_keys = set(args).difference(ignored_args)
-        reference_keys = set(reference_args).difference(ignored_args)
-
-        if args_keys != reference_keys:
-            return False
-
-        for arg_name, arg in args.items():
-            if arg_name in ignored_args:
-                continue
-
-            reference_arg = reference_args[arg_name]
-
-            if not cls._is_arg_value_match(arg, reference_arg):
-                return False
-
-        return True
+    
 
     @classmethod
     def _get_hashables(cls, estimator_kwargs: dict[str, Any]):
@@ -681,20 +720,11 @@ class CachedEstimatorMixin:
         Returns
         -------
         dict[str, Any]
-            Ordered subset containing values that are not explicitly ignored
-            and can be hashed successfully.
+            Ordered subset containing values that can be hashed successfully.
         """
         hashable_kwargs = dict()
 
         for arg_name, arg in estimator_kwargs.items():
-            # Subclasses may omit expensive or intentionally variable values
-            # from the preliminary hash without omitting exact comparison.
-            if (
-                arg_name in cls._hash_arg_ignore_list
-                or arg_name in cls._arg_comparison_ignore_list
-            ):
-                continue
-
             # The protocol check is a cheap first pass; the actual hash call
             # below handles objects that advertise hashing but reject it.
             if not isinstance(arg, Hashable):

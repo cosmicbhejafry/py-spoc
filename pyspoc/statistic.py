@@ -11,7 +11,7 @@ from abc import abstractmethod, ABC
 from typing import TYPE_CHECKING
 from pathlib import Path
 
-from pyspoc.base import Component
+from pyspoc._base import Component
 from pyspoc.reducer import Reducer
 
 if TYPE_CHECKING:

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import re
 
-from pyspoc.base import Component
+from pyspoc._base import Component
 
 
 class DummyComponent(Component):

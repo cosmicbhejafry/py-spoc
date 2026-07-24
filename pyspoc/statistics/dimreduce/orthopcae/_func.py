@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .estimator import OrthogonalPCAEEstimator
-    from .module import OrthogonalPCAE
+    from ._estimator import OrthogonalPCAEEstimator
+    from ._module import OrthogonalPCAE
 
 
 def train_adaptive_orthogonal_pcae(
@@ -141,7 +141,7 @@ def extract_pcae_scree_data(
     """
     model.eval()
     loss_fn = nn.MSELoss()
-    
+    elbow_dim = 0
     dimensions = list(range(1, model.max_bottleneck + 1))
     loss_distribution = []
     
@@ -162,11 +162,19 @@ def extract_pcae_scree_data(
             
     # Calculate pseudo "Variance Explained" percentage
     # R^2 style: (Baseline Error - Bottleneck Error) / Baseline Error
-    variance_explained = np.array([max(0.0, (baseline_mse - mse)) / baseline_mse
-                          for mse in loss_distribution])
     
-    # Locate the optimal elbow point using standard knee-detection
-    elbow_dim = find_elbow_point(dimensions, loss_distribution)
+    if np.isclose(baseline_mse, 0.0):
+        variance_explained = np.zeros(
+            len(loss_distribution),
+            dtype=float,
+        )
+    else:
+        variance_explained = np.array([
+            max(0.0, baseline_mse - mse) / baseline_mse
+            for mse in loss_distribution
+        ])
+        # Locate the optimal elbow point using standard knee-detection
+        elbow_dim = _find_elbow_point(dimensions, loss_distribution)
     
     return {
         "dimensions": dimensions,
@@ -176,8 +184,16 @@ def extract_pcae_scree_data(
         "baseline_loss": baseline_mse
     }
 
-def find_elbow_point(x, y):
+def _find_elbow_point(x: list[int], y: list[float]) -> int:
     """Standard maximum distance geometric elbow detector."""
+    n_points = min(len(x), len(y))
+
+    if n_points == 0:
+        raise ValueError("Cannot find elbow point in empty data.")
+
+    if n_points <= 2:
+        return x[-1]
+
     coords = np.vstack((x, y)).T
     first_pt, last_pt = coords[0], coords[-1]
     line_vec = last_pt - first_pt
@@ -191,7 +207,7 @@ def find_elbow_point(x, y):
     return x[np.argmax(distances)]
 
 
-def inspect_bottleneck_weights(estimator: OrthogonalPCAEEstimator):
+def _inspect_bottleneck_weights(estimator: OrthogonalPCAEEstimator):
     """
     Extracts and profiles the learned projection weights of the bottleneck.
     Analogous to inspecting PCA component loading magnitudes.

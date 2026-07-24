@@ -1,10 +1,11 @@
-from typing import Any, Union
-from numpy import ndarray
+import numpy as np
 
-from pyspoc.statistics.dimreduce.orthopcae.statistic import OrthogonalPCAEStatistic
+from typing import Any
+
+from ._base import OrthogonalPCAEReducedStatistic
 
 
-class OrthogonalPCAEVarianceExplained(OrthogonalPCAEStatistic):
+class OrthogonalPCAEVarianceExplained(OrthogonalPCAEReducedStatistic):
         
     _name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
     _identifier = "opcae-var"
@@ -22,11 +23,14 @@ class OrthogonalPCAEVarianceExplained(OrthogonalPCAEStatistic):
     def identifier(self) -> str:
         return self._identifier
 
-    def _get_result(self, results: dict[str, Any]) -> Union[ndarray, float]:
-        return results["pseudo_variance_explained"]
+    def _get_result(self, results: dict[str, Any], components: tuple[int, ...]
+                    ) -> np.ndarray | float:
+       var_explained = results["pseudo_variance_explained"]
+       indices = np.asarray(components, dtype=int) - 1
+       return var_explained[indices]
 
 
-class OrthogonalPCAEVarianceElbow(OrthogonalPCAEStatistic):
+class OrthogonalPCAEVarianceElbow(OrthogonalPCAEReducedStatistic):
         
     _name = "Orthogonal Principal Component Autoencoder Variance Explained Elbow"
     _identifier = "opcae-var-elbow"
@@ -44,7 +48,8 @@ class OrthogonalPCAEVarianceElbow(OrthogonalPCAEStatistic):
     def identifier(self) -> str:
         return self._identifier
 
-    def _get_result(self, results: dict[str, Any]) -> Union[ndarray, float]:
+    def _get_result(self, results: dict[str, Any], components: tuple[int, ...]
+                    ) -> np.ndarray | float:
         return results["optimal_bottleneck_dimension"]
     
 
