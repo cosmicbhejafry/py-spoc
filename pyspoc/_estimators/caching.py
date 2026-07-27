@@ -19,6 +19,7 @@ from collections.abc import Hashable
 from weakref import WeakSet
 from datetime import datetime
 from functools import wraps
+from threading import RLock
 
 
 _T_cache_enabled = TypeVar("_T_cache_enabled", bound="CachedEstimatorMixin")
@@ -73,7 +74,8 @@ class CachedEstimatorMixin:
     """
 
     _cache_limit = 25
-    _pyspoc_cache = dict()
+    _pyspoc_cache: dict[int, WeakSet[CachedEstimatorMixin]] = dict()
+    _pyspoc_cache_lock = RLock()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Wrap a subclass constructor to record normalized arguments.
@@ -91,6 +93,10 @@ class CachedEstimatorMixin:
             not return a value.
         """
         super().__init_subclass__(**kwargs)
+
+        # Every estimator subclass receives independent cache state.
+        cls._pyspoc_cache = dict()
+        cls._pyspoc_cache_lock = RLock()
 
         original_init = cls.__init__
 
@@ -111,8 +117,52 @@ class CachedEstimatorMixin:
 
             original_init(self, *args, **kwargs)
 
+            self._initialize_estimator_state()
+
         setattr(wrapped_init, PYSPOC_CACHE_WRAPPED_ATTRIBUTE, True)
         cls.__init__ = wrapped_init
+
+    def _initialize_estimator_state(self):
+        """Initialize instance state provided by estimator mixins."""
+        pass
+
+    @classmethod
+    def get_or_create(
+            cls: type[_T_cache_enabled],
+            data: np.ndarray,
+            *args,
+            **kwargs) -> _T_cache_enabled:
+        """Return an equivalent cached estimator or construct a new one.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Dataset against which cached candidates are compared.
+        *args : Any, optional
+            Positional arguments forwarded to the subclass constructor. The
+            default is no positional arguments.
+        **kwargs : Any, optional
+            Keyword arguments forwarded to the subclass constructor. The
+            default is no keyword arguments.
+
+        Returns
+        -------
+        T_cache_enabled
+            Existing matching instance when available; otherwise a newly
+            constructed and cached instance of ``cls``.
+        """
+
+        with cls._pyspoc_cache_lock:
+            # Use the dataset and normalized constructor call to find candidates.
+            cached = cls._get_cached(data, args, kwargs)
+
+            # Normal construction cannot replace an instance, so cache resolution
+            # belongs in this factory method rather than in ``__init__``.
+            if not cached:
+                return cls._instantiate(data, args, kwargs)
+
+            # The base implementation treats every exact match as interchangeable.
+            return cached[0]
 
 
     @classmethod
@@ -228,12 +278,14 @@ class CachedEstimatorMixin:
             Mapping of constructor hashes to weak candidate sets. A new empty
             cache is installed if the stored cache is missing or invalid.
         """
-        cache = getattr(cls, PYSPOC_CACHE_ATTRIBUTE, None)
 
-        if not isinstance(cache, dict):
-            cache = cls._reset_cache()
+        with cls._pyspoc_cache_lock:
+            cache = getattr(cls, PYSPOC_CACHE_ATTRIBUTE, None)
 
-        return cache
+            if not isinstance(cache, dict):
+                cache = cls._reset_cache()
+
+            return cache
 
     @classmethod
     def _update_cache(cls, estimator: CachedEstimatorMixin
@@ -258,17 +310,18 @@ class CachedEstimatorMixin:
         if hash is None:
             return
         
-        cache = cls._get_cache()
-        estimators = cache.get(hash)
+        with cls._pyspoc_cache_lock:
+            cache = cls._get_cache()
+            estimators = cache.get(hash)
 
-        # Create a weak bucket for the first estimator with this hash. WeakSet
-        # requires its contents to support weak references and hashing.
-        if not isinstance(estimators, WeakSet):
-            cache[hash] = WeakSet([estimator])
-        else:
-            cache[hash].add(estimator)
+            # Create a weak bucket for the first estimator with this hash. WeakSet
+            # requires its contents to support weak references and hashing.
+            if not isinstance(estimators, WeakSet):
+                cache[hash] = WeakSet([estimator])
+            else:
+                cache[hash].add(estimator)
 
-        return cache
+            return cache
 
             
     @classmethod
@@ -280,9 +333,11 @@ class CachedEstimatorMixin:
         dict[int, weakref.WeakSet[CachedEstimatorMixin]]
             Newly installed empty cache.
         """
-        cache = dict()
-        setattr(cls, PYSPOC_CACHE_ATTRIBUTE, cache)
-        return cache
+
+        with cls._pyspoc_cache_lock:
+            cache = dict()
+            setattr(cls, PYSPOC_CACHE_ATTRIBUTE, cache)
+            return cache
 
 
     def _get_init_args(self) -> dict[str, Any]:
@@ -342,14 +397,14 @@ class CachedEstimatorMixin:
         ----------
         dataset : numpy.ndarray
             Dataset to associate with this estimator. The array is stored by
-            reference; it is not copied.
+            as a copy of the original.
 
         Returns
         -------
         None
             The dataset is stored on the estimator in place.
         """
-        setattr(self, PYSPOC_ATTACHED_DATA_ATTRIBUTE, dataset)
+        setattr(self, PYSPOC_ATTACHED_DATA_ATTRIBUTE, dataset.copy())
 
 
     def _get_lru(self) -> float:
@@ -384,41 +439,7 @@ class CachedEstimatorMixin:
         setattr(self, PYSPOC_LRU_ATTRIBUTE, lru)
         
 
-    @classmethod
-    def get_or_create(
-            cls: type[_T_cache_enabled],
-            data: np.ndarray,
-            *args,
-            **kwargs) -> _T_cache_enabled:
-        """Return an equivalent cached estimator or construct a new one.
-
-        Parameters
-        ----------
-        data : numpy.ndarray
-            Dataset against which cached candidates are compared.
-        *args : Any, optional
-            Positional arguments forwarded to the subclass constructor. The
-            default is no positional arguments.
-        **kwargs : Any, optional
-            Keyword arguments forwarded to the subclass constructor. The
-            default is no keyword arguments.
-
-        Returns
-        -------
-        T_cache_enabled
-            Existing matching instance when available; otherwise a newly
-            constructed and cached instance of ``cls``.
-        """
-        # Use the dataset and normalized constructor call to find candidates.
-        cached = cls._get_cached(data, args, kwargs)
-
-        # Normal construction cannot replace an instance, so cache resolution
-        # belongs in this factory method rather than in ``__init__``.
-        if not cached:
-            return cls._instantiate(data, args, kwargs)
-
-        # The base implementation treats every exact match as interchangeable.
-        return cached[0]
+    
 
     @classmethod
     def _get_cached(cls: type[_T_cache_enabled],
@@ -449,37 +470,36 @@ class CachedEstimatorMixin:
 
         # Normalize the requested call exactly as it would be normalized when
         # a new estimator is constructed.
-        estimator_args = cls._bind_init_args(args, kwargs)
-        estimator_hash = cls._get_args_hash(estimator_args)
-        cache = cls._get_cache()
 
-        # Hash lookup cheaply reduces the number of estimators that require
-        # potentially expensive argument and array comparisons.
-        objs = cache.get(estimator_hash)
+        with cls._pyspoc_cache_lock:
+            estimator_args = cls._bind_init_args(args, kwargs)
+            estimator_hash = cls._get_args_hash(estimator_args)
+            cache = cls._get_cache()
 
-        if objs is None:
-            return
+            # Hash lookup cheaply reduces the number of estimators that require
+            # potentially expensive argument and array comparisons.
+            objs = cache.get(estimator_hash)
 
-        matched_objs = list()
+            if objs is None:
+                return
 
-        # WeakSet iteration yields only estimators that are still alive.
-        for obj in objs:
-            # Buckets can be inherited or shared, so enforce the requested
-            # estimator class before performing detailed comparisons.
-            if not isinstance(obj, cls):
-                continue
+            matched_objs = list()
 
-            # Delegate detailed equivalence to an overridable hook so
-            # subclasses can implement asymmetric or model-specific matching.
-            if not cls._matches_cache_request(obj, estimator_args, data):
-                continue
+            # WeakSet iteration yields only estimators that are still alive.
+            for obj in objs:
+                # Buckets can be inherited or shared, so enforce the requested
+                # estimator class before performing detailed comparisons.
+                if not isinstance(obj, cls):
+                    continue
 
-            matched_objs.append(obj)
+                # Delegate detailed equivalence to an overridable hook so
+                # subclasses can implement asymmetric or model-specific matching.
+                if not cls._matches_cache_request(obj, estimator_args, data):
+                    continue
 
-        if not matched_objs:
-            return
+                matched_objs.append(obj)
 
-        return matched_objs
+            return matched_objs or None
 
 
     @classmethod
@@ -557,7 +577,7 @@ class CachedEstimatorMixin:
         if attached_dataset.dtype != data.dtype:
             return False
 
-        return np.array_equal(attached_dataset, data)
+        return np.array_equal(attached_dataset, data, equal_nan=True)
 
 
     @classmethod
@@ -792,51 +812,53 @@ class CachedEstimatorMixin:
         """
         size = 0
         cached_estimators: list[CachedEstimatorMixin] = list()
-        cache = cls._update_cache(estimator)
 
-        if cache is None:
-            raise RuntimeError("Estimator hash not found during cache maintenance.")
+        with cls._pyspoc_cache_lock:
+            cache = cls._update_cache(estimator)
 
-        # Materialize the currently live objects so their total can be bounded
-        # and they remain alive for the duration of this maintenance pass.
-        for cached_hash, estimators in tuple(cache.items()):
-            n_est = len(estimators)
+            if cache is None:
+                raise RuntimeError("Estimator hash not found during cache maintenance.")
 
-            if n_est == 0:
-                cache.pop(cached_hash, None)
-                continue
+            # Materialize the currently live objects so their total can be bounded
+            # and they remain alive for the duration of this maintenance pass.
+            for cached_hash, estimators in tuple(cache.items()):
+                n_est = len(estimators)
 
-            cached_estimators.extend(estimators)
-            size += n_est
+                if n_est == 0:
+                    cache.pop(cached_hash, None)
+                    continue
 
-        excess = size - cls._cache_limit
+                cached_estimators.extend(estimators)
+                size += n_est
 
-        if excess <= 0:
-            return
+            excess = size - cls._cache_limit
 
-        # Newest estimators sort first; removal proceeds from the oldest end.
-        cached_estimators.sort(
-            key=lambda x: x._get_lru(),
-            reverse=True)
+            if excess <= 0:
+                return
 
-        for i in range(excess):
-            lru_estimator = cached_estimators.pop()
-            lru_hash = lru_estimator._get_hash()
+            # Newest estimators sort first; removal proceeds from the oldest end.
+            cached_estimators.sort(
+                key=lambda x: x._get_lru(),
+                reverse=True)
 
-            if lru_hash is None:
-                continue
+            for i in range(excess):
+                lru_estimator = cached_estimators.pop()
+                lru_hash = lru_estimator._get_hash()
 
-            estimator_set = cache.get(lru_hash)
+                if lru_hash is None:
+                    continue
 
-            if estimator_set is None:
-                raise RuntimeError(f"Estimator cache for hash {lru_hash} "
-                                   "not found during cache maintenance.")
+                estimator_set = cache.get(lru_hash)
 
-            # WeakSet removal uses the estimator's hash/equality semantics.
-            estimator_set.remove(lru_estimator)
+                if estimator_set is None:
+                    raise RuntimeError(f"Estimator cache for hash {lru_hash} "
+                                    "not found during cache maintenance.")
 
-            if not estimator_set:
-                cache.pop(lru_hash, None)
+                # WeakSet removal uses the estimator's hash/equality semantics.
+                estimator_set.remove(lru_estimator)
+
+                if not estimator_set:
+                    cache.pop(lru_hash, None)
 
     @staticmethod
     def _updates_lru(func: Callable[Concatenate[_T_cache_enabled, _P], _R]

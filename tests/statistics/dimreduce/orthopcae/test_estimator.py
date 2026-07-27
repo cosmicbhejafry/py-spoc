@@ -50,7 +50,9 @@ def test_get_or_create_reuses_equivalent_orthopcae_estimator() -> None:
     )
 
     assert second is first
-    assert first._get_attached_dataset() is data
+    attached_data = first._get_attached_dataset()
+    assert attached_data is not data
+    np.testing.assert_array_equal(attached_data, data)
 
 
 def test_prepare_data_casts_numpy_arrays_to_contiguous_float32(
@@ -164,17 +166,24 @@ def test_compute_constructs_trains_and_extracts_statistics(
     extract = Mock(return_value=expected)
     monkeypatch.setattr(estimator_module, "OrthogonalPCAE", model_factory)
     monkeypatch.setattr(estimator, "_train", train)
-    monkeypatch.setattr(estimator, "_compute_statistics", extract)
+    monkeypatch.setattr(estimator, "_compute_fitted", extract)
 
     result = estimator.compute(data)
 
     assert result is expected
-    assert estimator.attached_dataset_ is data
+    attached_data = estimator._get_attached_dataset()
+    assert attached_data is not data
+    np.testing.assert_array_equal(attached_data, data)
+    assert estimator._pyspoc_is_fitted
     assert estimator.batch_size == 3
     assert estimator.train_epochs_ == 12
     assert estimator.burn_in_epochs_ == 2
     assert estimator.model_ is model
-    model_factory.assert_called_once_with(2, 2)
+    model_factory.assert_called_once_with(
+        2,
+        2,
+        random_seed=estimator.random_seed,
+    )
     model.to.assert_called_once_with(estimator.device)
     train.assert_called_once_with(data, 12)
     extract.assert_called_once_with(data)
@@ -185,18 +194,52 @@ def test_compute_reuses_fitted_optimal_model_without_retraining(
         estimator: OrthogonalPCAEEstimator,
         monkeypatch: pytest.MonkeyPatch) -> None:
     """An estimator with an optimal model should only extract new results."""
+    data = np.ones((3, 2), dtype=np.float32)
+    estimator._pyspoc_is_fitted = True
+    estimator._set_attached_dataset(data)
     estimator.optimal_model_ = Mock()
     train = Mock()
     expected = {"optimal_bottleneck_dimension": 2}
     extract = Mock(return_value=expected)
     monkeypatch.setattr(estimator, "_train", train)
-    monkeypatch.setattr(estimator, "_compute_statistics", extract)
-    data = np.ones((3, 2), dtype=np.float32)
+    monkeypatch.setattr(estimator, "_compute_fitted", extract)
 
     result = estimator.compute(data)
 
     assert result is expected
-    assert estimator.attached_dataset_ is data
+    attached_data = estimator._get_attached_dataset()
+    assert attached_data is not data
+    np.testing.assert_array_equal(attached_data, data)
+    train.assert_not_called()
+    extract.assert_called_once_with(data)
+
+
+def test_compute_rechecks_fitted_state_after_acquiring_training_lock(
+        estimator: OrthogonalPCAEEstimator,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """A caller that loses the fitting race should not train again."""
+    data = np.ones((3, 2), dtype=np.float32)
+    estimator._set_attached_dataset(data)
+    train = Mock()
+    expected = {"optimal_bottleneck_dimension": 2}
+    extract = Mock(return_value=expected)
+
+    class FittingRaceLock:
+        """Simulate another thread completing fitting before lock acquisition."""
+
+        def __enter__(self) -> None:
+            estimator._pyspoc_is_fitted = True
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    estimator._pyspoc_fitting_lock = FittingRaceLock()  # type: ignore[assignment]
+    monkeypatch.setattr(estimator, "_train", train)
+    monkeypatch.setattr(estimator, "_compute_fitted", extract)
+
+    result = estimator.compute(data)
+
+    assert result is expected
     train.assert_not_called()
     extract.assert_called_once_with(data)
 
@@ -238,6 +281,7 @@ def test_train_accumulates_histories_and_records_better_model(
     assert estimator.optimal_model_ is optimal
     assert estimator.optimal_epoch_ == 1
     assert estimator.optimal_loss_ == pytest.approx(1.4)
+    assert not estimator._pyspoc_is_fitted
     train_func.assert_called_once_with(
         estimator.model_,
         loader,

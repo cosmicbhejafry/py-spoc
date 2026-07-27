@@ -1,13 +1,25 @@
 import torch
 import torch.nn as nn
-import numpy as np
+import math
+
 
 class OrthogonalPCAE(nn.Module):
-    def __init__(self, input_dim: int, max_bottleneck_dim: int):
+    def __init__(
+            self,
+            input_dim: int,
+            max_bottleneck_dim: int,
+            random_seed: int | None):
+
         super().__init__()
                 
         self.max_bottleneck = max_bottleneck_dim
         self.residual_dim = max_bottleneck_dim - 1
+        self._rng = torch.Generator(device="cpu")
+
+        if random_seed is None:
+            self._rng.seed()
+        else:
+            self._rng.manual_seed(random_seed)
 
         self.mask_pool = self._get_refreshed_mask_pool()
         
@@ -39,31 +51,54 @@ class OrthogonalPCAE(nn.Module):
             nn.Linear(64, input_dim)
         )
 
-    def _get_refreshed_mask_pool(self) -> np.ndarray:
-        return np.random.choice(self.max_bottleneck,
-                                self.max_bottleneck,
-                                replace=False) + 1
+        self._reset_parameters()
+
+    def _get_refreshed_mask_pool(self) -> torch.Tensor:
+        return torch.randperm(
+            self.max_bottleneck,
+            generator=self._rng
+        ) + 1
 
 
     def _pop_mask_idx(self) -> int:
-        idx = self.mask_pool[0]
+        idx = self.mask_pool[0].item()
         self.mask_pool = self.mask_pool[1:]
-        return idx
+        return int(idx)
 
 
-    def forward(self, x, *, active_dim=None, mask=False):
-        
-        x_mean = x.mean(axis=0, keepdim=True).expand_as(x)
-        
+    def _reset_parameters(self):
+        for module in self.modules():
+            if not isinstance(module, nn.Linear):
+                continue
+
+            nn.init.kaiming_uniform_(
+                module.weight,
+                a=math.sqrt(5),
+                generator=self._rng,
+            )
+
+            if module.bias is not None:
+                fan_in = module.weight.shape[1]
+                bound = 1 / math.sqrt(fan_in)
+
+                nn.init.uniform_(
+                    module.bias,
+                    -bound,
+                    bound,
+                    generator=self._rng,
+                )
+
+
+    def forward(self, x: torch.Tensor, *, active_dim=None, mask=False):
+        x_mean = x.mean(dim=0, keepdim=True).expand_as(x)
         z_mean = self.enc_mean(x_mean)
-        
         z_residual = self.encoder(x)
                
         if active_dim is None:
         
             if self.training and mask:
                 # Stochastic step: pick a random bottleneck upper bound
-                if self.mask_pool.size == 0:
+                if self.mask_pool.numel() == 0:
                     self.mask_pool = self._get_refreshed_mask_pool()
 
                 active_dim = self._pop_mask_idx()
@@ -73,7 +108,6 @@ class OrthogonalPCAE(nn.Module):
 
         else:
             active_dim = min(max(1, active_dim), self.max_bottleneck)
-
 
         if active_dim < self.max_bottleneck:
             # Functional masking (safe for backpropagation)

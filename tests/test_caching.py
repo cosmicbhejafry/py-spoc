@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import time
+
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import numpy as np
 
-from pyspoc._caching._cls import CachedEstimatorMixin
+from pyspoc._estimators.caching import CachedEstimatorMixin
 
 
 class AmbiguousEquality:
@@ -33,6 +38,14 @@ class CoarseCandidateEstimator(CachedEstimatorMixin):
         candidate_args = super()._get_candidate_args(estimator_kwargs)
         candidate_args.pop("components", None)
         return candidate_args
+
+
+class SlowEstimator(CachedEstimatorMixin):
+    """Estimator with deliberately slow construction for concurrency tests."""
+
+    def __init__(self, alpha: float):
+        time.sleep(0.02)
+        self.alpha = alpha
 
 
 def test_is_arg_match_accepts_equal_python_values():
@@ -126,3 +139,23 @@ def test_default_cache_request_match_checks_arguments_and_data():
         {"alpha": 0.1, "verbose": False},
         np.array([[1.0, 3.0]]),
     )
+
+
+def test_get_or_create_is_atomic_across_threads():
+    """Concurrent equivalent requests should resolve to one estimator."""
+    SlowEstimator._reset_cache()
+    data = np.array([[1.0, 2.0]])
+    worker_count = 8
+    start = Barrier(worker_count)
+
+    def resolve_estimator() -> SlowEstimator:
+        start.wait()
+        return SlowEstimator.get_or_create(data, alpha=0.1)
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        estimators = list(executor.map(
+            lambda _: resolve_estimator(),
+            range(worker_count),
+        ))
+
+    assert all(estimator is estimators[0] for estimator in estimators[1:])

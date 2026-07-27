@@ -10,7 +10,6 @@ from ._mixin import OrthogonalPCAEMixin
 class OrthogonalPCAEStatistic(OrthogonalPCAEMixin, Statistic, ABC):
 
     def compute(self, data: np.ndarray) -> np.ndarray | float:
-
         resolved_parameters = self._resolve_parameters(data)
         results = self._compute_estimator_output(data, resolved_parameters)
         return self._get_result(results, resolved_parameters.components)

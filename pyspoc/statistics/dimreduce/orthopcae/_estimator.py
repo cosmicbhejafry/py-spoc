@@ -6,15 +6,16 @@ import math
 
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Union, Literal, Optional, Any
-from datetime import datetime
 
 from ._module import OrthogonalPCAE
 from . import _func as f
-from pyspoc._caching._cls import CachedEstimatorMixin
+from pyspoc._estimators.fitting import LazyFittedCachedEstimatorMixin
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 
 
-class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
+class OrthogonalPCAEEstimator(
+    RuntimeTypeCheckedMixin,
+    LazyFittedCachedEstimatorMixin[dict[str, Any]]):
 
     def __init__(
             self,
@@ -24,29 +25,32 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
             burn_in_steps_prop: float = 0.1,
             alpha: float = 0.1,
             compute_model_type: Literal["current", "optimal"] = "optimal",
-            shuffle: bool = True):
-        
+            shuffle: bool = True,
+            random_seed: int | None = None):
+
         """The user-facing API wrapper for the library."""
-                        
-        self.model_ = None
-        self.train_epochs_ = None
-        self.mean_ = None
-        self.scale_ = None
-        self.optimal_epoch_ = None
-        self.optimal_model_ = None
-        self.attached_dataset_ = None
-        self.optimal_loss_ = math.inf
-        self.alpha = alpha
+
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.random_seed = random_seed
         self.train_steps = train_steps
         self.burn_in = burn_in_steps_prop
         self.max_bottleneck_dim = max_bottleneck_dim
         self.compute_model_type = compute_model_type
+        self.alpha = alpha
+
         self.current_epoch = 0
         self.lambda_history = []
         self.recon_loss_history = []
         self.ortho_loss_history = []
-        self.batch_size = batch_size
-        self.shuffle = shuffle
+
+        # Set the DataLoader rng
+        self._loader_rng = torch.Generator(device="cpu")
+
+        if random_seed is not None:
+            self._loader_rng.manual_seed(random_seed)
+        else:
+            self._loader_rng.seed()
         
         # Determine the best hardware accelerator available
         self.device = torch.device(
@@ -55,32 +59,32 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
             else "cpu"
         )
 
-    @CachedEstimatorMixin._updates_lru
-    def compute(self, data: np.ndarray) -> dict[str, Any]:
-        
-        self.attached_dataset_ = data
-        
-        if self.optimal_model_ is not None:
-            # Return the stats
-            return self._compute_statistics(data)
-        
-        # Handle edge cases for batch and bottleneck sizes.
-        n = data.shape[0]
-        p = data.shape[1]
+        self.model_ = None
+        self.train_epochs_ = None
+        self.mean_ = None
+        self.scale_ = None
+        self.optimal_epoch_ = None
+        self.optimal_model_ = None
+        self.optimal_loss_ = math.inf
+
+
+    def _fit_estimator(self, data: np.ndarray):
+        n, p = data.shape
+
         self.batch_size = min(self.batch_size, n)
-        
-        # Compute number of training epochs from training steps and batch size
         self.train_epochs_ = self._get_train_epochs(n)
+        self.burn_in_epochs_ = int(
+            np.ceil(self.train_epochs_ * self.burn_in)
+        )
 
-        # Compute burn in epochs from burn in proportion
-        self.burn_in_epochs_ = int(np.ceil(self.train_epochs_ * self.burn_in))
+        self.model_ = OrthogonalPCAE(
+            p,
+            self.max_bottleneck_dim,
+            random_seed=self.random_seed,
+        ).to(self.device)
 
-        # Instantiate the internal neural network
-        self.model_ = OrthogonalPCAE(p, self.max_bottleneck_dim).to(self.device)
         self._train(data, self.train_epochs_)
-        self.last_active = datetime.now()
-        return self._compute_statistics(data)
-    
+
 
     def _normalize_data(
             self,
@@ -92,9 +96,12 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
             X_tensor = X
         
         # Get normalization metrics for data
-        self.mean_ = X_tensor.mean(dim=0)
-        self.scale_ = X_tensor.std(dim=0)
-        self.scale_[self.scale_ == 0.0] = 1.0
+        if self.mean_ is None:
+            self.mean_ = X_tensor.mean(dim=0)
+
+        if self.scale_ is None:
+            self.scale_ = X_tensor.std(dim=0)
+            self.scale_[self.scale_ == 0.0] = 1.0
 
         # Normalize and prepare
         X_scaled = (X_tensor - self.mean_) / self.scale_
@@ -136,7 +143,7 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
         tensor_X = torch.from_numpy(X)
 
         return tensor_X
-    
+
 
     def _prepare_loader(self, tensor_X: torch.Tensor) -> DataLoader:
         
@@ -153,6 +160,7 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
             batch_size=self.batch_size,
             shuffle=self.shuffle,
             drop_last=drop_last,
+            generator=self._loader_rng,
             pin_memory=(self.device.type == "cuda") # Speeds up CPU-to-GPU data transfers
         )
         
@@ -250,7 +258,7 @@ class OrthogonalPCAEEstimator(RuntimeTypeCheckedMixin, CachedEstimatorMixin):
         ...
 
         
-    def _compute_statistics(
+    def _compute_fitted(
             self,
             X_tabular: Union[np.ndarray, torch.Tensor]) -> dict[str, Any]:
         

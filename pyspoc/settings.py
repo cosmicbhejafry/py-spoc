@@ -26,6 +26,9 @@ class SettingsValues:
         setting.
     verbose : bool, default=False
         Whether supported operations should emit additional diagnostics.
+    random_seed : int, default=0
+        Library-wide random seed used by statistics with non-deterministic
+        solvers.
     numba_error_model : {"numpy", "python"}, default="numpy"
         Error model supplied when compiling supported Numba functions.
     numba_fastmath : bool, default=False
@@ -50,6 +53,7 @@ class SettingsValues:
 
     max_cache_results: int = 10
     verbose: bool = False
+    random_state: int = 0
 
     numba_error_model: NumbaErrorModel = "numpy"
     numba_fastmath: bool = False
