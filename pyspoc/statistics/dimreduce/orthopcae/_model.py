@@ -2,30 +2,27 @@ import torch
 import torch.nn as nn
 import math
 
+from pyspoc._random.torch import make_torch_generator
+
 
 class OrthogonalPCAE(nn.Module):
     def __init__(
             self,
             input_dim: int,
             max_bottleneck_dim: int,
-            random_seed: int | None):
+            random_seed: int):
 
         super().__init__()
-                
+
         self.max_bottleneck = max_bottleneck_dim
         self.residual_dim = max_bottleneck_dim - 1
-        self._rng = torch.Generator(device="cpu")
-
-        if random_seed is None:
-            self._rng.seed()
-        else:
-            self._rng.manual_seed(random_seed)
+        self._rng = make_torch_generator(random_seed)
 
         self.mask_pool = self._get_refreshed_mask_pool()
-        
+
         self.encoder_bn = nn.BatchNorm1d(64)
         self.decoder_bn = nn.BatchNorm1d(64)
-        
+
         # Stream A: Purely Linear Mean/Intercept Tracker (1 Node)
         self.enc_mean = nn.Linear(input_dim, max_bottleneck_dim, bias=False)
 
@@ -36,14 +33,14 @@ class OrthogonalPCAE(nn.Module):
 
         # The project layer must be saved explicitly to calculate orthogonality
         self.enc_project = nn.Linear(64, max_bottleneck_dim, bias=False)
-               
+
         self.encoder = nn.Sequential(
             self.enc_hidden,
             self.encoder_bn,
             nn.Tanh(),
             self.enc_project
         )
-        
+
         self.decoder = nn.Sequential(
             nn.Linear(max_bottleneck_dim, 64),
             self.decoder_bn,
@@ -53,11 +50,19 @@ class OrthogonalPCAE(nn.Module):
 
         self._reset_parameters()
 
+
+    def get_device(self) -> torch.device:
+        return next(self.parameters()).device
+
+
+    def get_dtype(self) -> torch.dtype:
+        return next(self.parameters()).dtype
+
+
     def _get_refreshed_mask_pool(self) -> torch.Tensor:
         return torch.randperm(
             self.max_bottleneck,
-            generator=self._rng
-        ) + 1
+            generator=self._rng) + 1
 
 
     def _pop_mask_idx(self) -> int:
@@ -74,8 +79,7 @@ class OrthogonalPCAE(nn.Module):
             nn.init.kaiming_uniform_(
                 module.weight,
                 a=math.sqrt(5),
-                generator=self._rng,
-            )
+                generator=self._rng)
 
             if module.bias is not None:
                 fan_in = module.weight.shape[1]
@@ -85,17 +89,16 @@ class OrthogonalPCAE(nn.Module):
                     module.bias,
                     -bound,
                     bound,
-                    generator=self._rng,
-                )
+                    generator=self._rng)
 
 
     def forward(self, x: torch.Tensor, *, active_dim=None, mask=False):
         x_mean = x.mean(dim=0, keepdim=True).expand_as(x)
         z_mean = self.enc_mean(x_mean)
         z_residual = self.encoder(x)
-               
+
         if active_dim is None:
-        
+
             if self.training and mask:
                 # Stochastic step: pick a random bottleneck upper bound
                 if self.mask_pool.numel() == 0:
@@ -114,11 +117,13 @@ class OrthogonalPCAE(nn.Module):
             mask = torch.zeros_like(z_residual)
             mask[:, :active_dim] = 1.0
             z_residual = z_residual * mask
-                    
+
         z = z_residual + z_mean
         x_recon = self.decoder(z)
         return x_recon
-    
+
+
+
 
     def get_orthogonality_loss(self) -> torch.Tensor:
         """
@@ -126,13 +131,17 @@ class OrthogonalPCAE(nn.Module):
         Forces the bottleneck directions to be mutually orthogonal.
         """
         W = self.enc_project.weight  # Shape: (max_bottleneck_dim, 64)
-        
+
         # Compute correlation/covariance structure of the weights
         # Product shape: (max_bottleneck_dim, max_bottleneck_dim)
         W_XT = torch.matmul(W, W.t())
-        
+
         # Create an identity matrix of the same size
-        identity = torch.eye(self.max_bottleneck, device=W.device)
-        
+        identity = torch.eye(
+            self.max_bottleneck,
+            device=W.device,
+            dtype=W.dtype,
+        )
+
         # Penalise deviations from the identity matrix (Frobenius norm)
         return torch.norm(W_XT - identity, p='fro')

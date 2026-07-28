@@ -6,11 +6,15 @@ import torch.nn as nn
 import math
 
 from torch.utils.data import DataLoader
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pyspoc._base import copy_array
+from ._state import OrthogonalPCAEFittedState
+
 
 if TYPE_CHECKING:
     from ._estimator import OrthogonalPCAEEstimator
-    from ._module import OrthogonalPCAE
+    from ._model import OrthogonalPCAE
 
 
 def train_adaptive_orthogonal_pcae(
@@ -134,15 +138,17 @@ def train_adaptive_orthogonal_pcae(
 
 def extract_pcae_scree_data(
         model: OrthogonalPCAE,
-        data_tensor: torch.Tensor) -> dict[str, Any]:
+        data: np.ndarray,
+        ) -> OrthogonalPCAEFittedState:
     """
     Computes a progressive reconstruction loss distribution.
     Analogous to PCA's cumulative variance explained curve.
     """
-    model.eval()
     loss_fn = nn.MSELoss()
-    elbow_dim = 0
     dimensions = list(range(1, model.max_bottleneck + 1))
+    device = model.get_device()
+    dtype = model.get_dtype()
+    data_tensor = torch.from_numpy(data).to(dtype).to(device)
     loss_distribution = []
     
     with torch.no_grad():
@@ -173,28 +179,36 @@ def extract_pcae_scree_data(
             max(0.0, baseline_mse - mse) / baseline_mse
             for mse in loss_distribution
         ])
-        # Locate the optimal elbow point using standard knee-detection
-        elbow_dim = _find_elbow_point(dimensions, loss_distribution)
     
-    return {
-        "dimensions": dimensions,
-        "reconstruction_loss": loss_distribution,
-        "pseudo_variance_explained": variance_explained,
-        "optimal_bottleneck_dimension": int(elbow_dim),
-        "baseline_loss": baseline_mse
-    }
+    return OrthogonalPCAEFittedState(
+        variance_explained = copy_array(variance_explained),
+        dimensions = copy_array(dimensions),
+        reconstruction_loss = copy_array(loss_distribution),
+        baseline_loss = baseline_mse)
 
-def _find_elbow_point(x: list[int], y: list[float]) -> int:
+
+def find_elbow_point(
+        model: OrthogonalPCAE,
+        data_tensor: torch.Tensor,
+        components: tuple[int, ...]) -> int:
     """Standard maximum distance geometric elbow detector."""
-    n_points = min(len(x), len(y))
+
+    fitted_state = extract_pcae_scree_data(model, data_tensor)
+    indices = np.asarray(components, dtype=int) - 1
+    selected_dims, selected_var_expl = \
+        fitted_state.dimensions[indices], fitted_state.variance_explained[indices]
+    n_points = min(selected_dims.shape[0], selected_var_expl.shape[0])
 
     if n_points == 0:
         raise ValueError("Cannot find elbow point in empty data.")
 
     if n_points <= 2:
-        return x[-1]
+        return int(selected_dims[np.argmax(selected_var_expl)])
 
-    coords = np.vstack((x, y)).T
+    if np.all(np.isclose(selected_var_expl, 0.0)):
+        return 0
+
+    coords = np.vstack((selected_dims, selected_var_expl)).T
     first_pt, last_pt = coords[0], coords[-1]
     line_vec = last_pt - first_pt
     line_vec_norm = line_vec / np.linalg.norm(line_vec)
@@ -204,7 +218,7 @@ def _find_elbow_point(x: list[int], y: list[float]) -> int:
     vec_to_line = vec_from_first - np.outer(scalar_product, line_vec_norm)
     
     distances = np.linalg.norm(vec_to_line, axis=1)
-    return x[np.argmax(distances)]
+    return int(selected_dims[np.argmax(distances)])
 
 
 def _inspect_bottleneck_weights(estimator: OrthogonalPCAEEstimator):
@@ -214,14 +228,14 @@ def _inspect_bottleneck_weights(estimator: OrthogonalPCAEEstimator):
     """
     # Put model into evaluation mode to freeze any runtime states
 
-    if estimator.model_ is None:
+    if estimator._model_ is None:
         raise ValueError("The estimator has not been fitted yet. Call compute() first.")
 
-    estimator.model_.eval()
+    estimator._model_.eval()
     
     # Extract the raw projection weights from the GPU/CPU
     # Shape: (max_bottleneck_dim, 64)
-    W = estimator.model_.enc_project.weight.detach().cpu()
+    W = estimator._model_.enc_project.weight.detach().cpu()
     
     max_bottleneck = W.shape[0]
     

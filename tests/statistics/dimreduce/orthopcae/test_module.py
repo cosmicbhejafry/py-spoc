@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from pyspoc.statistics.dimreduce.orthopcae._module import OrthogonalPCAE
+from pyspoc.statistics.dimreduce.orthopcae._model import OrthogonalPCAE
 
 
 def test_initialization_constructs_expected_layer_shapes() -> None:

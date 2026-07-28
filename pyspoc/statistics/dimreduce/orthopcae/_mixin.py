@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import logging
 import numpy as np
 
-from typing import Union, Iterable, Optional, Literal, Any
+from typing import Union, Iterable, Optional
 from abc import ABC
 from dataclasses import dataclass
 
 from pyspoc import _argchecking
 from pyspoc.settings import settings
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
+from pyspoc._random import RandomSeedMixin
 from ._estimator import OrthogonalPCAEEstimator
 
 
@@ -22,7 +25,10 @@ class ResolvedOrthogonalPCAEParameters:
     max_bottleneck_dim: int
 
 
-class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
+class OrthogonalPCAEMixin(
+    RuntimeTypeCheckedMixin,
+    RandomSeedMixin,
+    ABC):
 
     def __init__(
         self,
@@ -31,9 +37,9 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
         train_steps: int = 10000,
         burn_in_steps_prop: float = 0.1,
         alpha: float = 0.1,
-        compute_model_type: Literal["current", "optimal"] = "optimal",
         max_bottleneck_dim: Optional[int] = None,
-        shuffle: bool = True):
+        shuffle: bool = True,
+        random_seed: int | None = None):
 
         self._batch_size = _argchecking.check_natural_number(
             batch_size,
@@ -80,7 +86,6 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
             alpha,
             arg_name="alpha",
         )
-        self._compute_model_type = compute_model_type
         self._max_bottleneck_dim = max_bottleneck_dim
         self._shuffle = shuffle
         self._estimator_ = None
@@ -90,7 +95,8 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
     def _compute_estimator_output(
             self,
             data: np.ndarray,
-            resolved_parameters: ResolvedOrthogonalPCAEParameters) -> dict[str, Any]:
+            resolved_parameters: ResolvedOrthogonalPCAEParameters
+        ) -> OrthogonalPCAEEstimator:
         
         self._estimator_ = OrthogonalPCAEEstimator.get_or_create(
             data=data,
@@ -99,11 +105,11 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
             train_steps=self._train_steps,
             burn_in_steps_prop=self._burn_in_steps_prop,
             alpha=self._alpha,
-            compute_model_type=self._compute_model_type,
-            shuffle=self._shuffle)
+            shuffle=self._shuffle,
+            random_seed=self.random_seed)
         
-        results = self._estimator_.compute(data)
-        return results
+        self._estimator_.fit(data)
+        return self._estimator_
     
 
     def _resolve_parameters(self, data: np.ndarray) -> ResolvedOrthogonalPCAEParameters:
@@ -155,4 +161,3 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, ABC):
             components=effective_components,
             max_bottleneck_dim=effective_max_bottleneck_dim
         )
-

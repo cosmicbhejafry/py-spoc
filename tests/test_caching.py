@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gc
 import time
+import weakref
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -8,6 +10,8 @@ from threading import Barrier
 import numpy as np
 
 from pyspoc._estimators.caching import CachedEstimatorMixin
+from pyspoc._random import RandomSeedMixin
+from pyspoc.settings import settings
 
 
 class AmbiguousEquality:
@@ -45,6 +49,19 @@ class SlowEstimator(CachedEstimatorMixin):
 
     def __init__(self, alpha: float):
         time.sleep(0.02)
+        self.alpha = alpha
+
+
+class PositionalSeedEstimator(RandomSeedMixin, CachedEstimatorMixin):
+    """Cached estimator combining a positional-only argument and seed."""
+
+    _freeze_random_seed = True
+
+    def __init__(
+            self,
+            alpha: float,
+            /,
+            random_seed: int | None = None):
         self.alpha = alpha
 
 
@@ -159,3 +176,68 @@ def test_get_or_create_is_atomic_across_threads():
         ))
 
     assert all(estimator is estimators[0] for estimator in estimators[1:])
+
+
+def test_cache_resolution_preserves_positional_only_parameters():
+    """Resolved defaults should not convert positional-only values to kwargs."""
+    PositionalSeedEstimator._reset_cache()
+    data = np.array([[1.0, 2.0]])
+
+    with settings.override(random_seed=59):
+        implicit = PositionalSeedEstimator.get_or_create(data, 0.1)
+
+    explicit = PositionalSeedEstimator.get_or_create(
+        data,
+        0.1,
+        random_seed=59,
+    )
+    different = PositionalSeedEstimator.get_or_create(
+        data,
+        0.1,
+        random_seed=61,
+    )
+
+    assert implicit.alpha == 0.1
+    assert implicit.random_seed == 59
+    assert explicit is implicit
+    assert different is not implicit
+
+
+def test_cache_retains_estimator_without_external_strong_reference():
+    """The cache should own estimators after their requesting Statistic dies."""
+    VerboseAgnosticEstimator._reset_cache()
+    data = np.array([[1.0, 2.0]])
+    estimator = VerboseAgnosticEstimator.get_or_create(data, alpha=0.1)
+    estimator_reference = weakref.ref(estimator)
+
+    del estimator
+    gc.collect()
+
+    retained = estimator_reference()
+    assert retained is not None
+    assert (
+        VerboseAgnosticEstimator.get_or_create(data, alpha=0.1)
+        is retained
+    )
+
+
+def test_cache_capacity_uses_current_settings_limit():
+    """Insertion should evict the least-recently-used entry at the set limit."""
+    VerboseAgnosticEstimator._reset_cache()
+    data = np.array([[1.0, 2.0]])
+
+    with settings.override(max_cache_results=2):
+        first = VerboseAgnosticEstimator.get_or_create(data, alpha=0.1)
+        second = VerboseAgnosticEstimator.get_or_create(data, alpha=0.2)
+        third = VerboseAgnosticEstimator.get_or_create(data, alpha=0.3)
+
+        cached_estimators = {
+            estimator
+            for bucket in VerboseAgnosticEstimator._get_cache().values()
+            for estimator in bucket
+        }
+
+    assert len(cached_estimators) == 2
+    assert first not in cached_estimators
+    assert second in cached_estimators
+    assert third in cached_estimators

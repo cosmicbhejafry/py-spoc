@@ -2,8 +2,8 @@
 
 The module provides :class:`CachedEstimatorMixin`, which records normalized
 constructor arguments and uses them, together with an attached NumPy dataset,
-to find equivalent estimator instances. Cache buckets contain weak references
-so that caching does not by itself extend an estimator's lifetime.
+to find equivalent estimator instances. Cache buckets retain strong references
+until explicit reset or bounded LRU eviction.
 """
 
 # TODO: Implement verbose warnings.
@@ -16,10 +16,12 @@ import sys
 
 from typing import Any, ParamSpec, TypeVar, Union, Callable, Concatenate
 from collections.abc import Hashable
-from weakref import WeakSet
 from datetime import datetime
 from functools import wraps
 from threading import RLock
+
+from pyspoc._initialization import AutoInitializedMixin
+from pyspoc.settings import settings
 
 
 _T_cache_enabled = TypeVar("_T_cache_enabled", bound="CachedEstimatorMixin")
@@ -27,14 +29,13 @@ _P = ParamSpec("_P")
 _R = TypeVar("_R")
 
 PYSPOC_CACHE_ATTRIBUTE = "_pyspoc_cache"
-PYSPOC_CACHE_WRAPPED_ATTRIBUTE = "_pyspoc_cache_wrapped"
 PYSPOC_INIT_ARGS_ATTRIBUTE = "_pyspoc_init_arguments"
 PYSPOC_HASH_ATTRIBUTE = "_pyspoc_hash"
 PYSPOC_LRU_ATTRIBUTE = "_pyspoc_lru"
 PYSPOC_ATTACHED_DATA_ATTRIBUTE = "_pyspoc_attached_dataset"
 
 
-class CachedEstimatorMixin:
+class CachedEstimatorMixin(AutoInitializedMixin):
     """Provide configurable, constructor-aware caching for estimator instances.
 
     Every subclass constructor is wrapped automatically by
@@ -50,9 +51,11 @@ class CachedEstimatorMixin:
     argument mappings and attached NumPy arrays. Dataset comparison includes
     shape, dtype, and element values.
 
-    Cache buckets are :class:`weakref.WeakSet` instances. A cached estimator is
-    therefore removed automatically when it has no other strong references.
-    Estimator instances must support weak references and hashing to be stored.
+    Cache buckets are ordinary :class:`set` instances that retain estimators
+    strongly. Retention allows sequential Statistics to reuse one fitted
+    estimator even when the Statistic that created it has been discarded.
+    Least-recently-used entries are evicted when the cache exceeds
+    ``settings.current.max_cache_results``.
 
     Subclasses customize cache identity by canonicalizing constructor
     arguments, selecting a coarse set of arguments for candidate hashing, or
@@ -60,11 +63,8 @@ class CachedEstimatorMixin:
 
     Internal Attributes
     ----------
-    _cache_limit : int, optional
-        Maximum number of live estimator instances across all cache buckets.
-        The default is ``25``.
-    _pyspoc_cache : dict[int, weakref.WeakSet[CachedEstimatorMixin]], optional
-        Mapping from preliminary argument hashes to weak candidate sets. The
+    _pyspoc_cache : dict[int, set[CachedEstimatorMixin]], optional
+        Mapping from preliminary argument hashes to strong candidate sets. The
         default is an empty dictionary.
 
     Notes
@@ -73,8 +73,7 @@ class CachedEstimatorMixin:
     Call :meth:`get_or_create` when cache resolution is required.
     """
 
-    _cache_limit = 25
-    _pyspoc_cache: dict[int, WeakSet[CachedEstimatorMixin]] = dict()
+    _pyspoc_cache: dict[int, set[CachedEstimatorMixin]] = dict()
     _pyspoc_cache_lock = RLock()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -98,33 +97,20 @@ class CachedEstimatorMixin:
         cls._pyspoc_cache = dict()
         cls._pyspoc_cache_lock = RLock()
 
-        original_init = cls.__init__
+    def _before_component_init(
+            self,
+            init_args: dict[str, Any]) -> None:
+        """Record normalized constructor state before initialization."""
+        super()._before_component_init(init_args)
 
-        # Avoid wrapping the same __init__ repeatedly.
-        if getattr(original_init, PYSPOC_CACHE_WRAPPED_ATTRIBUTE, False):
-            return
+        setattr(
+            self,
+            PYSPOC_INIT_ARGS_ATTRIBUTE,
+            init_args.copy(),
+        )
 
-        @wraps(original_init)
-        def wrapped_init(self: CachedEstimatorMixin, *args: Any, **kwargs: Any) -> None:
-            arguments = self._bind_init_args(args, kwargs)
-
-            # Store normalized constructor arguments for later exact comparison.
-            setattr(self, PYSPOC_INIT_ARGS_ATTRIBUTE, arguments)
-
-            # Store a hashable key for inexpensive preliminary lookup.
-            estimator_hash = cls._get_args_hash(arguments)
-            self._set_hash(estimator_hash)
-
-            original_init(self, *args, **kwargs)
-
-            self._initialize_estimator_state()
-
-        setattr(wrapped_init, PYSPOC_CACHE_WRAPPED_ATTRIBUTE, True)
-        cls.__init__ = wrapped_init
-
-    def _initialize_estimator_state(self):
-        """Initialize instance state provided by estimator mixins."""
-        pass
+        estimator_hash = type(self)._get_args_hash(init_args)
+        self._set_hash(estimator_hash)
 
     @classmethod
     def get_or_create(
@@ -151,15 +137,18 @@ class CachedEstimatorMixin:
             Existing matching instance when available; otherwise a newly
             constructed and cached instance of ``cls``.
         """
+        call_args, call_kwargs, estimator_args = (
+            cls._resolve_cache_init_call(args, kwargs)
+        )
 
         with cls._pyspoc_cache_lock:
             # Use the dataset and normalized constructor call to find candidates.
-            cached = cls._get_cached(data, args, kwargs)
+            cached = cls._get_cached(data, estimator_args)
 
             # Normal construction cannot replace an instance, so cache resolution
             # belongs in this factory method rather than in ``__init__``.
             if not cached:
-                return cls._instantiate(data, args, kwargs)
+                return cls._instantiate(data, call_args, call_kwargs)
 
             # The base implementation treats every exact match as interchangeable.
             return cached[0]
@@ -236,6 +225,64 @@ class CachedEstimatorMixin:
 
 
     @classmethod
+    def _resolve_cache_init_args(
+            cls,
+            init_args: dict[str, Any]) -> dict[str, Any]:
+        """Resolve dynamic constructor defaults before cache lookup.
+
+        Parameters
+        ----------
+        init_args : dict[str, Any]
+            Normalized constructor arguments, including declared defaults.
+
+        Returns
+        -------
+        dict[str, Any]
+            Resolved arguments used for cache identity and construction. The
+            returned mapping must contain exactly the supplied argument names.
+
+        Notes
+        -----
+        Subclass and mixin overrides should call ``super()`` so independent
+        argument-resolution policies compose through the method-resolution
+        order.
+        """
+        return init_args.copy()
+
+
+    @classmethod
+    def _bind_init_call(
+            cls,
+            args,
+            kwargs) -> inspect.BoundArguments:
+        """Bind a constructor call while preserving parameter kinds.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments intended for the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments intended for the subclass constructor.
+
+        Returns
+        -------
+        inspect.BoundArguments
+            Bound constructor call with declared defaults applied. Positional-
+            only, variadic positional, keyword-only, and variadic keyword
+            parameters retain their signature-defined calling semantics.
+
+        Raises
+        ------
+        TypeError
+            If the supplied arguments cannot be bound to the constructor.
+        """
+        init_signature = inspect.signature(cls.__init__)
+        bound = init_signature.bind(None, *args, **kwargs)
+        bound.apply_defaults()
+        return bound
+
+
+    @classmethod
     def _bind_init_args(cls, args, kwargs) -> dict[str, Any]:
         """Normalize arguments against the subclass constructor signature.
 
@@ -257,25 +304,72 @@ class CachedEstimatorMixin:
         TypeError
             If the supplied arguments cannot be bound to the constructor.
         """
-        init = cls.__init__
-        init_signature = inspect.signature(init)
-        bound = init_signature.bind(None, *args, **kwargs)
-        bound.apply_defaults()
-
+        bound = cls._bind_init_call(args, kwargs)
         arguments = dict(bound.arguments)
         arguments.pop("self", None)
-
         return arguments
+
+
+    @classmethod
+    def _resolve_cache_init_call(
+            cls,
+            args,
+            kwargs) -> tuple[tuple[Any, ...], dict[str, Any], dict[str, Any]]:
+        """Resolve a constructor call and reconstruct its valid call form.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments intended for the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments intended for the subclass constructor.
+
+        Returns
+        -------
+        tuple[tuple[Any, ...], dict[str, Any], dict[str, Any]]
+            Resolved positional arguments, resolved keyword arguments, and the
+            complete normalized argument mapping used for cache identity.
+
+        Raises
+        ------
+        TypeError
+            If the original call cannot be bound to the constructor.
+        ValueError
+            If an argument resolver adds or removes constructor parameters.
+        """
+        bound = cls._bind_init_call(args, kwargs)
+        init_args = dict(bound.arguments)
+        init_args.pop("self", None)
+        resolved_args = cls._resolve_cache_init_args(init_args)
+
+        if resolved_args.keys() != init_args.keys():
+            raise ValueError(
+                "Resolved cache constructor arguments must preserve every "
+                "constructor parameter name."
+            )
+
+        # Update the BoundArguments object so it can reconstruct a valid call
+        # without converting positional-only parameters into keywords.
+        for arg_name, arg_value in resolved_args.items():
+            bound.arguments[arg_name] = arg_value
+
+        call_args = bound.args
+
+        # ``self`` was represented by the placeholder supplied during binding.
+        if call_args and call_args[0] is None:
+            call_args = call_args[1:]
+
+        return tuple(call_args), dict(bound.kwargs), resolved_args
     
 
     @classmethod
-    def _get_cache(cls) -> dict[int, WeakSet[CachedEstimatorMixin]]:
+    def _get_cache(cls) -> dict[int, set[CachedEstimatorMixin]]:
         """Return the cache associated with the estimator subclass.
 
         Returns
         -------
-        dict[int, weakref.WeakSet[CachedEstimatorMixin]]
-            Mapping of constructor hashes to weak candidate sets. A new empty
+        dict[int, set[CachedEstimatorMixin]]
+            Mapping of constructor hashes to strong candidate sets. A new empty
             cache is installed if the stored cache is missing or invalid.
         """
 
@@ -289,7 +383,7 @@ class CachedEstimatorMixin:
 
     @classmethod
     def _update_cache(cls, estimator: CachedEstimatorMixin
-        ) -> dict[int, WeakSet[CachedEstimatorMixin]] | None:
+        ) -> dict[int, set[CachedEstimatorMixin]] | None:
 
         """Add an estimator to the candidate bucket for a hash.
 
@@ -298,7 +392,7 @@ class CachedEstimatorMixin:
         hash : int
             Preliminary constructor-argument hash identifying the bucket.
         estimator : CachedEstimatorMixin
-            Live estimator instance to store weakly.
+            Live estimator instance to retain strongly.
 
         Returns
         -------
@@ -314,10 +408,9 @@ class CachedEstimatorMixin:
             cache = cls._get_cache()
             estimators = cache.get(hash)
 
-            # Create a weak bucket for the first estimator with this hash. WeakSet
-            # requires its contents to support weak references and hashing.
-            if not isinstance(estimators, WeakSet):
-                cache[hash] = WeakSet([estimator])
+            # Create a strong bucket for the first estimator with this hash.
+            if not isinstance(estimators, set):
+                cache[hash] = {estimator}
             else:
                 cache[hash].add(estimator)
 
@@ -325,12 +418,12 @@ class CachedEstimatorMixin:
 
             
     @classmethod
-    def _reset_cache(cls) -> dict[int, WeakSet[CachedEstimatorMixin]]:
+    def _reset_cache(cls) -> dict[int, set[CachedEstimatorMixin]]:
         """Replace the subclass cache with an empty mapping.
 
         Returns
         -------
-        dict[int, weakref.WeakSet[CachedEstimatorMixin]]
+        dict[int, set[CachedEstimatorMixin]]
             Newly installed empty cache.
         """
 
@@ -444,8 +537,8 @@ class CachedEstimatorMixin:
     @classmethod
     def _get_cached(cls: type[_T_cache_enabled],
                     data: np.ndarray,
-                    args,
-                    kwargs) -> Union[list[_T_cache_enabled], None]:
+                    estimator_args: dict[str, Any]
+                    ) -> Union[list[_T_cache_enabled], None]:
         """Return all candidates matching the arguments and dataset.
 
         The constructor hash is only a preliminary filter. Each candidate must
@@ -456,10 +549,8 @@ class CachedEstimatorMixin:
         ----------
         data : numpy.ndarray
             Dataset to compare with each candidate's attached dataset.
-        args : tuple[Any, ...]
-            Positional arguments intended for the subclass constructor.
-        kwargs : dict[str, Any]
-            Keyword arguments intended for the subclass constructor.
+        estimator_args : dict[str, Any]
+            Resolved, normalized constructor arguments for the request.
 
         Returns
         -------
@@ -468,11 +559,7 @@ class CachedEstimatorMixin:
             hash bucket is absent or contains no exact matches.
         """
 
-        # Normalize the requested call exactly as it would be normalized when
-        # a new estimator is constructed.
-
         with cls._pyspoc_cache_lock:
-            estimator_args = cls._bind_init_args(args, kwargs)
             estimator_hash = cls._get_args_hash(estimator_args)
             cache = cls._get_cache()
 
@@ -485,7 +572,6 @@ class CachedEstimatorMixin:
 
             matched_objs = list()
 
-            # WeakSet iteration yields only estimators that are still alive.
             for obj in objs:
                 # Buckets can be inherited or shared, so enforce the requested
                 # estimator class before performing detailed comparisons.
@@ -801,8 +887,9 @@ class CachedEstimatorMixin:
         Returns
         -------
         None
-            The cache is updated in place. At most ``_cache_limit`` live
-            estimator references remain after maintenance.
+            The cache is updated in place. At most
+            ``settings.current.max_cache_results`` estimator references remain
+            after maintenance.
 
         Raises
         ------
@@ -831,7 +918,7 @@ class CachedEstimatorMixin:
                 cached_estimators.extend(estimators)
                 size += n_est
 
-            excess = size - cls._cache_limit
+            excess = size - settings.current.max_cache_results
 
             if excess <= 0:
                 return
@@ -854,7 +941,7 @@ class CachedEstimatorMixin:
                     raise RuntimeError(f"Estimator cache for hash {lru_hash} "
                                     "not found during cache maintenance.")
 
-                # WeakSet removal uses the estimator's hash/equality semantics.
+                # Set removal uses the estimator's hash/equality semantics.
                 estimator_set.remove(lru_estimator)
 
                 if not estimator_set:

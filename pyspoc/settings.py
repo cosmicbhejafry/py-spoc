@@ -29,6 +29,10 @@ class SettingsValues:
     random_seed : int, default=0
         Library-wide random seed used by statistics with non-deterministic
         solvers.
+    torch_estimator_inference_device: {"cpu", "training}, default="cpu"
+        Device to store cached PyTorch estimators on for later inference.
+        The "training" setting means that estimators remain stored on
+        the device used for training.
     numba_error_model : {"numpy", "python"}, default="numpy"
         Error model supplied when compiling supported Numba functions.
     numba_fastmath : bool, default=False
@@ -53,7 +57,8 @@ class SettingsValues:
 
     max_cache_results: int = 10
     verbose: bool = False
-    random_state: int = 0
+    random_seed: int = 0
+    torch_estimator_inference_device: Literal["cpu", "training"] = "cpu"
 
     numba_error_model: NumbaErrorModel = "numpy"
     numba_fastmath: bool = False

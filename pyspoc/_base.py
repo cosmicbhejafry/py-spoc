@@ -9,22 +9,32 @@ import inspect
 
 from scipy.stats import zscore
 from types import FunctionType
-from typing import Iterable, Any, Optional, TYPE_CHECKING, Dict
+from typing import Iterable, Any, Optional, Dict, TypeVar, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from textwrap import dedent
+from numbers import Number
+from copy import deepcopy
+from typeguard import typechecked
+
 
 if TYPE_CHECKING:
     from pyspoc.config import Config
     from pyspoc.statistic import Statistic
     from pyspoc.dataset import Dataset
+    import torch
+
+
+T = TypeVar("T")
 
 # GLOBAL SETTINGS
+# TODO: Move this to settings.
 IGNORE_IMPORT_WARNINGS = False
 
 # URLs
 PYSS_GITHUB_ISSUES_URL = "https://github.com/cosmicbhejafry/py-spoc/issues/"
 CUSTOM_COMPONENTS_URL = "https://github.com/cosmicbhejafry/py-spoc/blob/main/README.md"
 STATISTIC_FILTERING_URL = ""
+
 
 # ---------------------------------------------------------------------------
 # Implementation note
@@ -74,37 +84,37 @@ class Component(ABC):
         self._params: Dict
         self._cache = dict()
 
-    def __new__(cls, *args, **kwargs):
+    # def __new__(cls, *args, **kwargs):
 
-        # Get class arguments
-        arg_dict = dict()
-        arg_list = list(args)
-        arg_spec = inspect.getfullargspec(cls.__init__)
-        arg_names = [arg for arg in arg_spec.args if arg != "self"]
-        arg_defaults = list(arg_spec.defaults) if arg_spec.defaults else list()
-        n_args = len(arg_names)
+    #     # Get class arguments
+    #     arg_dict = dict()
+    #     arg_list = list(args)
+    #     arg_spec = inspect.getfullargspec(cls.__init__)
+    #     arg_names = [arg for arg in arg_spec.args if arg != "self"]
+    #     arg_defaults = list(arg_spec.defaults) if arg_spec.defaults else list()
+    #     n_args = len(arg_names)
 
-        # Set defaults in dict
-        for i in range(n_args, 0, -1):
-            arg_name = arg_names[i - 1]
-            default = arg_defaults.pop() if arg_defaults else None
-            arg_dict[arg_name] = default
+    #     # Set defaults in dict
+    #     for i in range(n_args, 0, -1):
+    #         arg_name = arg_names[i - 1]
+    #         default = arg_defaults.pop() if arg_defaults else None
+    #         arg_dict[arg_name] = default
 
-        if arg_spec.kwonlydefaults:
-            arg_dict.update(arg_spec.kwonlydefaults)
+    #     if arg_spec.kwonlydefaults:
+    #         arg_dict.update(arg_spec.kwonlydefaults)
 
-        # Get arg values
-        for i, arg in enumerate(arg_list):
-            arg_name = arg_names[i]
-            arg_dict[arg_name] = arg
+    #     # Get arg values
+    #     for i, arg in enumerate(arg_list):
+    #         arg_name = arg_names[i]
+    #         arg_dict[arg_name] = arg
 
-        # Get kwarg values
-        for kwarg_name, kwarg in kwargs.items():
-            arg_dict[kwarg_name] = kwarg
+    #     # Get kwarg values
+    #     for kwarg_name, kwarg in kwargs.items():
+    #         arg_dict[kwarg_name] = kwarg
 
-        instance = super().__new__(cls)
-        instance._params = arg_dict
-        return instance
+    #     instance = super().__new__(cls)
+    #     instance._params = arg_dict
+    #     return instance
 
     def set_config(self, cfg: Config):
         self._cfg = cfg
@@ -221,7 +231,7 @@ def has_required_func_args(func: FunctionType) -> bool:
 
         if par.default is inspect._empty:
             return True
-        
+
     return False
 
 
@@ -239,7 +249,7 @@ def get_obj_init_args(class_obj: type) -> dict[str, Any]:
 
     for arg in required_args:
         args[arg] = None
-    
+
     if arg_spec.defaults:
         for i, arg in enumerate(optional_args):
             args[arg] = arg_spec.defaults[i]
@@ -290,16 +300,16 @@ def check_type(arg_val: object,
 
     if not isinstance(arg_types, Iterable):
         arg_types = [arg_types]
-    
+
     type_names = list()
 
     for arg_type in arg_types:
         type_name = arg_type.__name__
         type_names.append(type_name)
-    
+
         if isinstance(arg_val, arg_type):
             return True
-            
+
     if is_try:
         return False
 
@@ -575,7 +585,7 @@ def filter_spis(keywords, output_name = None, configfile= None):
     # new dictionary to be converted to final YAML
     filtered_subset = {}
     spis_found = 0
-    
+
     for module in yf:
         module_spis = {}
         for spi in yf[module]:
@@ -586,21 +596,21 @@ def filter_spis(keywords, output_name = None, configfile= None):
                     spis_found += len(yf[module][spi].get('configs'))
                 else:
                     spis_found += 1
-    
+
         if module_spis:
             filtered_subset[module] = module_spis
-    
+
     # check that > 0 SPIs found
     if spis_found == 0:
         raise ValueError(f"0 SPIs were found with the specific keywords: {keywords}.")
-    
+
     # construct output file path
     if output_name is None:
         # use a unique name
         output_name = "config_" + os.urandom(4).hex()
 
     output_file = os.path.join(os.getcwd(), f"{output_name}.yaml")
-    
+
     # write to YAML
     with open(output_file, "w") as outfile:
         yaml.dump(filtered_subset, outfile, default_flow_style=False, sort_keys=False)
@@ -631,7 +641,7 @@ def inspect_calc_results(calc):
         else:
             # returned numeric values (i.e., not NaN)
             ss_results['Successful'].append(key)
-    
+
     # print summary
     double_line_60 = "="*60
     single_line_60 = "-"*60
@@ -664,3 +674,19 @@ def inspect_calc_results(calc):
         for i, spi in enumerate(ss_results['Partial NaNs']):
             print(f"{i+1}. {spi}")
         print(single_line_60 + "\n")
+
+@typechecked
+def copy_array(array: np.ndarray | Iterable[Number]) -> np.ndarray:
+    nparray = np.array(array) if not isinstance(array, np.ndarray) \
+        else array
+
+    result = nparray.copy()
+    return result
+
+
+def copy_tensor(tensor: torch.Tensor) -> torch.Tensor:
+    return tensor.detach().cpu().clone()
+
+
+def copy_object(obj: T) -> T:
+    return deepcopy(obj)

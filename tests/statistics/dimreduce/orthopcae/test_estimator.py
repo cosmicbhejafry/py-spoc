@@ -1,6 +1,6 @@
 """Tests for OrthogonalPCAEEstimator data and training orchestration."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import numpy as np
 import pytest
@@ -10,6 +10,7 @@ from pyspoc.statistics.dimreduce.orthopcae import _estimator as estimator_module
 from pyspoc.statistics.dimreduce.orthopcae._estimator import (
     OrthogonalPCAEEstimator,
 )
+from pyspoc.settings import settings
 
 
 @pytest.fixture
@@ -20,7 +21,7 @@ def estimator() -> OrthogonalPCAEEstimator:
         max_bottleneck_dim=2,
         train_steps=12,
     )
-    result.device = torch.device("cpu")
+    result._training_device = torch.device("cpu")
     return result
 
 
@@ -31,6 +32,93 @@ def test_constructor_rejects_incompatible_annotated_types() -> None:
             batch_size="four",  # type: ignore[arg-type]
             max_bottleneck_dim=2,
         )
+
+
+def test_constructor_uses_current_random_seed_by_default() -> None:
+    """The active package setting should seed a directly created estimator."""
+    with settings.override(random_seed=17):
+        estimator = OrthogonalPCAEEstimator(
+            batch_size=4,
+            max_bottleneck_dim=2,
+        )
+
+    assert estimator.random_seed == 17
+    assert estimator._loader_rng.initial_seed() == 17
+
+
+def test_constructor_random_seed_overrides_current_setting() -> None:
+    """An explicit estimator seed should take precedence over the setting."""
+    with settings.override(random_seed=17):
+        estimator = OrthogonalPCAEEstimator(
+            batch_size=4,
+            max_bottleneck_dim=2,
+            random_seed=23,
+        )
+
+    assert estimator.random_seed == 23
+    assert estimator._loader_rng.initial_seed() == 23
+
+
+def test_constructor_state_is_exposed_through_read_only_properties(
+        estimator: OrthogonalPCAEEstimator) -> None:
+    """Constructor and training state should be observable but not rebindable."""
+    assert estimator.batch_size == 4
+    assert estimator.shuffle
+    assert estimator.train_steps == 12
+    assert estimator.burn_in_steps_prop == pytest.approx(0.1)
+    assert estimator.max_bottleneck_dim == 2
+    assert estimator.alpha == pytest.approx(0.1)
+    assert estimator.random_seed == settings.current.random_seed
+    assert estimator.current_epoch == 0
+    assert estimator.training_device == torch.device("cpu")
+    assert estimator.train_epochs is None
+    assert estimator.burn_in_epochs is None
+    assert estimator.mean is None
+    assert estimator.scale is None
+    assert estimator.final_loss is None
+
+    with pytest.raises(AttributeError):
+        estimator.batch_size = 8  # type: ignore[misc]
+
+
+def test_history_properties_return_immutable_snapshots(
+        estimator: OrthogonalPCAEEstimator) -> None:
+    """History access should not expose the estimator's mutable lists."""
+    estimator._lambda_history.extend([0.1, 0.2])
+    estimator._recon_loss_history.append((0, 1.5))
+    estimator._ortho_loss_history.append((0, 0.5))
+
+    lambda_history = estimator.lambda_history
+    recon_history = estimator.recon_loss_history
+    ortho_history = estimator.ortho_loss_history
+    estimator._lambda_history.append(0.3)
+
+    assert lambda_history == (0.1, 0.2)
+    assert recon_history == ((0, 1.5),)
+    assert ortho_history == ((0, 0.5),)
+
+
+def test_tensor_and_generator_properties_return_defensive_copies(
+        estimator: OrthogonalPCAEEstimator) -> None:
+    """Mutable tensors and generator state should not leak through properties."""
+    estimator._mean_ = torch.tensor([1.0, 2.0])
+    estimator._scale_ = torch.tensor([3.0, 4.0])
+
+    mean = estimator.mean
+    scale = estimator.scale
+    loader_rng = estimator.loader_rng
+
+    assert mean is not None
+    assert scale is not None
+    mean[0] = 99.0
+    scale[0] = 99.0
+    torch.testing.assert_close(estimator._mean_, torch.tensor([1.0, 2.0]))
+    torch.testing.assert_close(estimator._scale_, torch.tensor([3.0, 4.0]))
+    assert loader_rng is not estimator._loader_rng
+    torch.testing.assert_close(
+        loader_rng.get_state(),
+        estimator._loader_rng.get_state(),
+    )
 
 
 def test_get_or_create_reuses_equivalent_orthopcae_estimator() -> None:
@@ -53,6 +141,27 @@ def test_get_or_create_reuses_equivalent_orthopcae_estimator() -> None:
     attached_data = first._get_attached_dataset()
     assert attached_data is not data
     np.testing.assert_array_equal(attached_data, data)
+
+
+def test_get_or_create_distinguishes_effective_setting_seeds() -> None:
+    """Different active default seeds should produce different cache entries."""
+    OrthogonalPCAEEstimator._reset_cache()
+    data = np.arange(8, dtype=np.float32).reshape(4, 2)
+    kwargs = {
+        "batch_size": 4,
+        "max_bottleneck_dim": 2,
+        "train_steps": 12,
+    }
+
+    with settings.override(random_seed=17):
+        first = OrthogonalPCAEEstimator.get_or_create(data=data, **kwargs)
+
+    with settings.override(random_seed=23):
+        second = OrthogonalPCAEEstimator.get_or_create(data=data, **kwargs)
+
+    assert second is not first
+    assert first.random_seed == 17
+    assert second.random_seed == 23
 
 
 def test_prepare_data_casts_numpy_arrays_to_contiguous_float32(
@@ -92,7 +201,7 @@ def test_normalize_data_records_column_statistics_and_handles_constants(
     torch.testing.assert_close(result.mean(dim=0), torch.zeros(2))
     assert result[:, 0].std().item() == pytest.approx(1.0)
     torch.testing.assert_close(result[:, 1], torch.zeros(3))
-    assert estimator.scale_[1].item() == pytest.approx(1.0)
+    assert estimator._scale_[1].item() == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize(
@@ -104,10 +213,14 @@ def test_prepare_loader_only_drops_partial_training_batches(
         shuffle: bool,
         expected_drop_last: bool) -> None:
     """Partial batches should be dropped only for shuffled training data."""
-    estimator.batch_size = 4
-    estimator.shuffle = shuffle
+    estimator._batch_size = 4
+    estimator._shuffle = shuffle
 
-    loader = estimator._prepare_loader(torch.randn(5, 2))
+    loader = estimator._prepare_loader(
+        torch.randn(5, 2),
+        torch.device("cpu"),
+        shuffle,
+    )
 
     assert loader.batch_size == 4
     assert loader.drop_last is expected_drop_last
@@ -116,7 +229,7 @@ def test_prepare_loader_only_drops_partial_training_batches(
 @pytest.mark.parametrize(
     ("n_rows", "batch_size", "train_steps", "expected_epochs"),
     [
-        (10, 4, 12, 4),
+        (10, 4, 12, 6),
         (8, 4, 12, 6),
         (2, 10, 3, 3),
     ],
@@ -128,90 +241,92 @@ def test_get_train_epochs_converts_steps_to_complete_epochs(
         train_steps: int,
         expected_epochs: int) -> None:
     """Requested optimizer steps should be rounded up to whole epochs."""
-    estimator.batch_size = batch_size
-    estimator.train_steps = train_steps
+    estimator._batch_size = batch_size
+    estimator._train_steps = train_steps
 
     assert estimator._get_train_epochs(n_rows) == expected_epochs
+
+
+def test_get_train_epochs_counts_partial_unshuffled_batch(
+        estimator: OrthogonalPCAEEstimator) -> None:
+    """Unshuffled training should count the partial batch it retains."""
+    estimator._batch_size = 4
+    estimator._train_steps = 12
+    estimator._shuffle = False
+
+    assert estimator._get_train_epochs(10) == 4
 
 
 def test_get_model_requires_training(
         estimator: OrthogonalPCAEEstimator) -> None:
     """Model selection should fail before a model has been constructed."""
-    with pytest.raises(ValueError, match="compute"):
-        estimator._get_model("current")
+    with pytest.raises(ValueError, match="fit"):
+        estimator._get_model()
 
 
-def test_get_model_selects_current_or_optimal_model(
+def test_get_model_returns_fitted_model(
         estimator: OrthogonalPCAEEstimator) -> None:
-    """Model selection should honor the requested model type."""
-    current = Mock()
-    optimal = Mock()
-    estimator.model_ = current
-    estimator.optimal_model_ = optimal
+    """Model access should return the estimator's fitted model."""
+    model = Mock()
+    estimator._model_ = model
 
-    assert estimator._get_model("current") is current
-    assert estimator._get_model("optimal") is optimal
+    assert estimator._get_model() is model
 
 
-def test_compute_constructs_trains_and_extracts_statistics(
+def test_fit_constructs_trains_and_returns_estimator(
         estimator: OrthogonalPCAEEstimator,
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """First computation should perform the complete estimator lifecycle."""
+    """First fitting should construct, train, and finalize the model."""
     data = np.arange(6, dtype=np.float32).reshape(3, 2)
     model = Mock()
     model.to.return_value = model
     model_factory = Mock(return_value=model)
     train = Mock()
-    expected = {"pseudo_variance_explained": np.array([0.2, 0.8])}
-    extract = Mock(return_value=expected)
     monkeypatch.setattr(estimator_module, "OrthogonalPCAE", model_factory)
     monkeypatch.setattr(estimator, "_train", train)
-    monkeypatch.setattr(estimator, "_compute_fitted", extract)
 
-    result = estimator.compute(data)
+    result = estimator.fit(data)
 
-    assert result is expected
+    assert result is estimator
     attached_data = estimator._get_attached_dataset()
     assert attached_data is not data
     np.testing.assert_array_equal(attached_data, data)
     assert estimator._pyspoc_is_fitted
-    assert estimator.batch_size == 3
-    assert estimator.train_epochs_ == 12
-    assert estimator.burn_in_epochs_ == 2
-    assert estimator.model_ is model
+    assert estimator._batch_size == 3
+    assert estimator._train_epochs_ == 12
+    assert estimator.burn_in_epochs == 2
+    assert estimator._model_ is model
     model_factory.assert_called_once_with(
         2,
         2,
         random_seed=estimator.random_seed,
     )
-    model.to.assert_called_once_with(estimator.device)
+    assert model.to.call_args_list == [
+        call(estimator._training_device),
+        call(torch.device("cpu")),
+    ]
     train.assert_called_once_with(data, 12)
-    extract.assert_called_once_with(data)
+    model.eval.assert_called_once_with()
     assert estimator._get_lru() > 0.0
 
 
-def test_compute_reuses_fitted_optimal_model_without_retraining(
+def test_fit_reuses_fitted_model_without_retraining(
         estimator: OrthogonalPCAEEstimator,
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """An estimator with an optimal model should only extract new results."""
+    """A fitted estimator should validate its data without training again."""
     data = np.ones((3, 2), dtype=np.float32)
     estimator._pyspoc_is_fitted = True
     estimator._set_attached_dataset(data)
-    estimator.optimal_model_ = Mock()
     train = Mock()
-    expected = {"optimal_bottleneck_dimension": 2}
-    extract = Mock(return_value=expected)
     monkeypatch.setattr(estimator, "_train", train)
-    monkeypatch.setattr(estimator, "_compute_fitted", extract)
 
-    result = estimator.compute(data)
+    result = estimator.fit(data)
 
-    assert result is expected
+    assert result is estimator
     attached_data = estimator._get_attached_dataset()
     assert attached_data is not data
     np.testing.assert_array_equal(attached_data, data)
     train.assert_not_called()
-    extract.assert_called_once_with(data)
 
 
 def test_compute_rechecks_fitted_state_after_acquiring_training_lock(
@@ -221,8 +336,6 @@ def test_compute_rechecks_fitted_state_after_acquiring_training_lock(
     data = np.ones((3, 2), dtype=np.float32)
     estimator._set_attached_dataset(data)
     train = Mock()
-    expected = {"optimal_bottleneck_dimension": 2}
-    extract = Mock(return_value=expected)
 
     class FittingRaceLock:
         """Simulate another thread completing fitting before lock acquisition."""
@@ -235,59 +348,47 @@ def test_compute_rechecks_fitted_state_after_acquiring_training_lock(
 
     estimator._pyspoc_fitting_lock = FittingRaceLock()  # type: ignore[assignment]
     monkeypatch.setattr(estimator, "_train", train)
-    monkeypatch.setattr(estimator, "_compute_fitted", extract)
 
-    result = estimator.compute(data)
+    result = estimator.fit(data)
 
-    assert result is expected
+    assert result is estimator
     train.assert_not_called()
-    extract.assert_called_once_with(data)
 
 
-def test_train_accumulates_histories_and_records_better_model(
+def test_train_accumulates_histories_and_records_final_loss(
         estimator: OrthogonalPCAEEstimator,
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """Training metrics should be accumulated and the best model retained."""
-    estimator.model_ = Mock()
-    estimator.train_epochs_ = 2
-    estimator.burn_in_epochs_ = 1
-    tensor = torch.randn(4, 2)
+    """Training metrics and the final loss should be retained."""
+    estimator._model_ = Mock()
+    estimator._train_epochs_ = 2
+    estimator._burn_in_epochs_ = 1
     loader = Mock()
-    optimal = Mock()
     train_result = {
         "lambda_history": [0.1, 0.2],
         "recon_loss_history": [(0, 2.0), (1, 1.0)],
         "ortho_loss_history": [(0, 0.5), (1, 0.4)],
-        "optimal_model": optimal,
-        "optimal_epoch": 1,
-        "optimal_epoch_loss": 1.4,
+        "final_loss": 1.4,
     }
     train_func = Mock(return_value=train_result)
-    monkeypatch.setattr(estimator, "_prepare_data", Mock(return_value=tensor))
-    monkeypatch.setattr(estimator, "_normalize_data", Mock(return_value=tensor))
-    monkeypatch.setattr(estimator, "_prepare_loader", Mock(return_value=loader))
     monkeypatch.setattr(
-        estimator_module.f,
-        "train_adaptive_orthogonal_pcae",
-        train_func,
+        estimator,
+        "_get_model_device",
+        Mock(return_value=torch.device("cpu")),
     )
+    monkeypatch.setattr(estimator, "_prepare_loader", Mock(return_value=loader))
+    monkeypatch.setattr(estimator, "_train_adaptive_orthogonal_pcae", train_func)
 
     estimator._train(np.ones((4, 2)), epochs=2)
 
-    assert estimator.lambda_history == [0.1, 0.2]
-    assert estimator.recon_loss_history == [(0, 2.0), (1, 1.0)]
-    assert estimator.ortho_loss_history == [(0, 0.5), (1, 0.4)]
-    assert estimator.current_epoch == 2
-    assert estimator.optimal_model_ is optimal
-    assert estimator.optimal_epoch_ == 1
-    assert estimator.optimal_loss_ == pytest.approx(1.4)
+    assert estimator._lambda_history == [0.1, 0.2]
+    assert estimator._recon_loss_history == [(0, 2.0), (1, 1.0)]
+    assert estimator._ortho_loss_history == [(0, 0.5), (1, 0.4)]
+    assert estimator.final_loss == pytest.approx(1.4)
     assert not estimator._pyspoc_is_fitted
     train_func.assert_called_once_with(
-        estimator.model_,
+        estimator._model_,
         loader,
-        estimator.device,
-        current_epoch=0,
+        estimator._training_device,
         epochs=2,
-        burn_in_epochs=1,
-        alpha=estimator.alpha,
+        alpha=estimator._alpha,
     )
