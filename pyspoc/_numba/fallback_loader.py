@@ -1,4 +1,4 @@
-#from __future__ import annotations
+# from __future__ import annotations
 
 import inspect
 import importlib.util
@@ -10,13 +10,9 @@ from functools import wraps
 from types import ModuleType
 from typing import Literal, ParamSpec, TypeVar, cast
 from numba.core.registry import CPUDispatcher
-from numba.core.errors import (
-    LoweringError,
-    TypingError,
-    UnsupportedError
-)
+from numba.core.errors import LoweringError, TypingError, UnsupportedError
 
-from pyspoc._numba import _export_func
+from .export import export_func
 from pyspoc.settings import settings
 
 P = ParamSpec("P")
@@ -30,9 +26,68 @@ _NUMBA_FALLBACK_ERRORS = (
     UnsupportedError,
 )
 
+_PYTHON_FALLBACK_ATTRIBUTE = "__pyspoc_python_fallback__"
+
 # ---------------------------------------------------------------------
 # Loader machinery
 # ---------------------------------------------------------------------
+
+
+def python_fallback(fallback: Callable[..., R]) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Associate an explicit Python fallback with a Numba function."""
+
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
+        setattr(func, _PYTHON_FALLBACK_ATTRIBUTE, fallback)
+        return func
+
+    return decorator
+
+
+def numba_dispatch(
+    numba_func: CPUDispatcher,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Dispatch between an explicitly compiled Numba function and Python."""
+
+    def decorator(python_func: Callable[P, R]) -> Callable[P, R]:
+        return _create_numba_dispatch_wrapper(numba_func)(python_func)
+
+    return decorator
+
+
+def install_numba_funcs(module: ModuleType):
+    module_py = _load_module_copy(
+        module,
+        enable_numba=False,
+    )
+
+    module_nb = _load_module_copy(
+        module,
+        enable_numba=True,
+    )
+
+    for name, nb_obj in vars(module_nb).items():
+        func_obj = None
+
+        if isinstance(nb_obj, CPUDispatcher):
+            py_obj = getattr(module_py, name, None)
+
+            if py_obj is None:
+                py_obj = nb_obj.py_func
+
+            explicit_fallback = getattr(py_obj, _PYTHON_FALLBACK_ATTRIBUTE, None)
+
+            func_obj = _create_numba_dispatch_wrapper(nb_obj, fallback_func=explicit_fallback)(
+                py_obj
+            )
+
+            export_func(module, nb_obj, nb_obj.__name__ + "_numba")
+
+        elif inspect.isfunction(nb_obj):
+            func_obj = nb_obj
+
+        if func_obj is not None:
+            export_func(module, func_obj)
+
 
 def _get_module_source_path(module: ModuleType) -> str:
     spec = getattr(module, "__spec__", None)
@@ -48,10 +103,7 @@ def _get_module_source_path(module: ModuleType) -> str:
     return source_path
 
 
-def _load_module_copy(
-    module: ModuleType,
-    *,
-    enable_numba: bool) -> ModuleType:
+def _load_module_copy(module: ModuleType, *, enable_numba: bool) -> ModuleType:
     source_path = _get_module_source_path(module)
 
     suffix = "__nb" if enable_numba else "__py"
@@ -73,12 +125,15 @@ def _load_module_copy(
     return module_copy
 
 
-def _py_fallback(numba_func: CPUDispatcher) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def _create_numba_dispatch_wrapper(
+    numba_func: CPUDispatcher, *, fallback_func: Callable[P, R] | None = None
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+
     def decorator(py_func: Callable[P, R]) -> Callable[P, R]:
+        selected_fallback = fallback_func or py_func
+
         @wraps(py_func)
-        def wrapper(
-            *args: P.args,
-            **kwargs: P.kwargs) -> R:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
 
             # Resolve the complete typed snapshot once so every setting used
             # by this call comes from the same execution context.
@@ -86,12 +141,11 @@ def _py_fallback(numba_func: CPUDispatcher) -> Callable[[Callable[P, R]], Callab
             mode = current_settings.numba_mode
 
             if mode == "python":
-
                 if current_settings.verbose:
                     print(f"Python ran {py_func.__name__} successfully.")
 
-                return py_func(*args, **kwargs)
-            
+                return selected_fallback(*args, **kwargs)
+
             try:
                 result = numba_func(*args, **kwargs)
 
@@ -107,7 +161,7 @@ def _py_fallback(numba_func: CPUDispatcher) -> Callable[[Callable[P, R]], Callab
                 if current_settings.verbose:
                     warnings.warn(
                         f"Numba could not compile {py_func.__qualname__}; "
-                         "using its Python implementation instead. "
+                        "using its Python implementation instead. "
                         f"Numba reported: {e}",
                         RuntimeWarning,
                         stacklevel=2,
@@ -115,39 +169,7 @@ def _py_fallback(numba_func: CPUDispatcher) -> Callable[[Callable[P, R]], Callab
 
                 return py_func(*args, **kwargs)
 
-        #wrapper.__signature__ = inspect.signature(py_func)
+        # wrapper.__signature__ = inspect.signature(py_func)
         return cast(Callable[P, R], wrapper)
 
     return decorator
-
-
-def _install_numba_funcs(module: ModuleType) -> None:
-    module_py = _load_module_copy(
-        module,
-        enable_numba=False,
-    )
-
-    module_nb = _load_module_copy(
-        module,
-        enable_numba=True,
-    )
-
-    for name, nb_obj in vars(module_nb).items():
-        func_obj = None
-        
-        if isinstance(nb_obj, CPUDispatcher):
-            py_obj = getattr(module_py, name, None)
-
-            if py_obj is None:
-                py_obj = nb_obj.py_func
-
-            func_obj = _py_fallback(nb_obj)(py_obj)
-                
-            _export_func(module, nb_obj, nb_obj.__name__ + "_numba")
-
-        elif inspect.isfunction(nb_obj):
-            func_obj = nb_obj
-
-        if func_obj is not None:
-            _export_func(module, func_obj)
-            

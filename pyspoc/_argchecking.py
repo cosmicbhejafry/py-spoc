@@ -8,20 +8,11 @@ annotations with :mod:`typeguard`.
 from __future__ import annotations
 
 import inspect
-import math
 import logging
 
 from collections.abc import Callable
 from functools import wraps
-from typing import (
-    Any,
-    Optional,
-    Literal,
-    ParamSpec,
-    TypeVar,
-    cast,
-    get_type_hints
-)
+from typing import Any, Optional, Literal, ParamSpec, TypeVar, cast, get_type_hints
 from numbers import Real
 from typeguard import CollectionCheckStrategy, TypeCheckError, check_type
 
@@ -217,18 +208,12 @@ class RuntimeTypeCheckedMixin:
             return not method_name.startswith("_")
 
         if configured_methods == "all":
-            return not (
-                method_name.startswith("__")
-                and method_name.endswith("__")
-            )
+            return not (method_name.startswith("__") and method_name.endswith("__"))
 
         return method_name in configured_methods
 
     @classmethod
-    def _wrap_type_checked_property(
-            cls,
-            prop: property,
-            property_name: str) -> property:
+    def _wrap_type_checked_property(cls, prop: property, property_name: str) -> property:
         """Return a property with each available accessor type checked.
 
         Parameters
@@ -277,9 +262,8 @@ class RuntimeTypeCheckedMixin:
 
     @classmethod
     def _wrap_type_checked_callable(
-            cls,
-            func: Callable[_P, _R],
-            callable_name: str) -> Callable[_P, _R]:
+        cls, func: Callable[_P, _R], callable_name: str
+    ) -> Callable[_P, _R]:
         """Wrap a callable with configured argument and return checks.
 
         Parameters
@@ -383,8 +367,7 @@ class RuntimeTypeCheckedMixin:
                         value,
                         expected_type,
                         value_description=(
-                            f"argument {argument_name!r} for "
-                            f"{cls.__qualname__}.{callable_name}"
+                            f"argument {argument_name!r} for {cls.__qualname__}.{callable_name}"
                         ),
                     )
 
@@ -416,10 +399,7 @@ class RuntimeTypeCheckedMixin:
             cls._check_value_type(
                 return_value,
                 return_type,
-                value_description=(
-                    f"return value from "
-                    f"{cls.__qualname__}.{callable_name}"
-                ),
+                value_description=(f"return value from {cls.__qualname__}.{callable_name}"),
             )
 
         # The branches necessarily have different runtime callable shapes:
@@ -432,9 +412,7 @@ class RuntimeTypeCheckedMixin:
             # Await coroutine completion before validating its resolved result.
 
             @wraps(func)
-            async def async_wrapper(
-                    *args: _P.args,
-                    **kwargs: _P.kwargs) -> _R:
+            async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
                 check_arguments(args, kwargs)
                 return_value = await func(*args, **kwargs)
                 check_return(return_value)
@@ -447,9 +425,7 @@ class RuntimeTypeCheckedMixin:
             # the underlying callable returns.
 
             @wraps(func)
-            def sync_wrapper(
-                    *args: _P.args,
-                    **kwargs: _P.kwargs) -> _R:
+            def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
                 check_arguments(args, kwargs)
                 return_value = func(*args, **kwargs)
                 check_return(return_value)
@@ -469,11 +445,7 @@ class RuntimeTypeCheckedMixin:
         return cast(Callable[_P, _R], wrapper)
 
     @classmethod
-    def _check_value_type(
-            cls,
-            value: Any,
-            expected_type: Any,
-            value_description: str) -> None:
+    def _check_value_type(cls, value: Any, expected_type: Any, value_description: str) -> None:
         """Validate one value and translate Typeguard errors consistently.
 
         Parameters
@@ -508,29 +480,42 @@ class RuntimeTypeCheckedMixin:
         except TypeCheckError as error:
             # Expose the conventional exception type expected by callers while
             # retaining Typeguard's detailed diagnostic through chaining.
-            raise TypeError(
-                f"Invalid {value_description}: {error}"
-            ) from error
+            raise TypeError(f"Invalid {value_description}: {error}") from error
 
 
-def check_natural_number(arg_value: int,
-                         arg_name: Optional[str] = None) -> int:
+def check_natural_number(arg_value: int, arg_name: Optional[str] = None) -> int:
+
+    return check_integer_bounds(arg_value=arg_value, minimum=1, arg_name=arg_name)
+
+
+def check_integer_bounds(
+    arg_value: int,
+    minimum: float | None = None,
+    exclusive_minimum: float | None = None,
+    maximum: float | None = None,
+    exclusive_maximum: float | None = None,
+    arg_name: str | None = None,
+) -> int:
+    """Check integer argument corresponds to required bounds."""
+
+    name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
 
     if isinstance(arg_value, bool) or not isinstance(arg_value, int):
-        name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
-        raise TypeError(f"{name} must be an integer, not {type(arg_value).__name__}.")
+        raise TypeError(f"{name} must be an integer, not {type(arg_value).__name__}")
 
-    if arg_value < 1:
-        
-        if not arg_name:
-            arg_name = _base.retrieve_arg_name(arg_value) or "value"
-
-        raise ValueError(f"{arg_name} should be a positive integer value, received {arg_value}.")
+    check_real(
+        arg_value=arg_value,
+        minimum=minimum,
+        exclusive_minimum=exclusive_minimum,
+        maximum=maximum,
+        exclusive_maximum=exclusive_maximum,
+        arg_name=arg_name,
+    )
 
     return arg_value
 
-def try_check_natural_number(arg_value: int,
-                             arg_name: str) -> bool:
+
+def try_check_natural_number(arg_value: int, arg_name: str) -> bool:
 
     try:
         check_natural_number(arg_value, arg_name)
@@ -538,41 +523,97 @@ def try_check_natural_number(arg_value: int,
     except (TypeError, ValueError):
         return False
 
+
 def check_real(
-        arg_value: _TRealNumber,
-        lower_bound: float = 0,
-        upper_bound: float = math.inf,
-        arg_name: Optional[str] = None) -> _TRealNumber:
+    arg_value: _TRealNumber,
+    minimum: float | None = None,
+    exclusive_minimum: float | None = None,
+    maximum: float | None = None,
+    exclusive_maximum: float | None = None,
+    arg_name: Optional[str] = None,
+) -> _TRealNumber:
+
+    name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
 
     if isinstance(arg_value, bool) or not isinstance(arg_value, Real):
-        name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
         raise TypeError(f"{name} must be a real number, not {type(arg_value).__name__}.")
 
-    if arg_value <= lower_bound or arg_value >= upper_bound:
+    if minimum is not None and exclusive_minimum is not None:
+        raise ValueError("Only one of minimum and exclusive_minimum may be provided.")
 
-        if not arg_name:
-            arg_name = _base.retrieve_arg_name(arg_value) or "value"
-        
-        raise ValueError(f"{arg_name} should be a real value within bounds "
-                         f"({lower_bound},{upper_bound}), received {arg_value}.")
+    if maximum is not None and exclusive_maximum is not None:
+        raise ValueError("Only one of maximum and exclusive_maximum may be provided.")
+
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ValueError("minimum cannot be greater than maximum")
+
+    if minimum is not None and exclusive_maximum is not None and minimum >= exclusive_maximum:
+        raise ValueError("minimum cannot be greater than or equal to exclusive maximum")
+
+    if exclusive_minimum is not None and maximum is not None and exclusive_minimum >= maximum:
+        raise ValueError("exclusive minimum cannot be greater than or equal to maximum")
+
+    if (
+        exclusive_minimum is not None
+        and exclusive_maximum is not None
+        and exclusive_minimum >= exclusive_maximum
+    ):
+        raise ValueError("exclusive minimum cannot be greater than or equal to exclusive maximum")
+
+    within_lower = True
+    within_upper = True
+
+    if minimum is not None:
+        within_lower = arg_value >= minimum
+        interval = f"[{minimum},"
+
+    elif exclusive_minimum is not None:
+        within_lower = arg_value > exclusive_minimum
+        interval = f"({exclusive_minimum},"
+
+    else:
+        interval = "(-inf,"
+
+    if maximum is not None:
+        within_upper = arg_value <= maximum
+        interval += f"{maximum}]"
+
+    elif exclusive_maximum is not None:
+        within_upper = arg_value < exclusive_maximum
+        interval += f"{exclusive_maximum})"
+
+    else:
+        interval += "inf)"
+
+    if not within_lower or not within_upper:
+        raise ValueError(
+            f"{name} should be a value within bounds {interval}, received {arg_value}."
+        )
 
     return arg_value
 
 
 def check_float(
-        arg_value: Real,
-        lower_bound: float = 0,
-        upper_bound: float = math.inf,
-        arg_name: Optional[str] = None) -> float:
+    arg_value: Real,
+    minimum: float | None = None,
+    exclusive_minimum: float | None = None,
+    maximum: float | None = None,
+    exclusive_maximum: float | None = None,
+    arg_name: Optional[str] = None,
+) -> float:
     """Validate and normalize a continuous numeric argument.
 
     Parameters
     ----------
     arg_value : numbers.Real
         Value to validate and convert to ``float``.
-    lower_bound : float, default=0
+    minimum : float | None, default=None
+        Inclusive lower bound accepted for ``arg_value``.
+    exclusive_minimum : float | None, default=None
         Exclusive lower bound accepted for ``arg_value``.
-    upper_bound : float, default=math.inf
+    maximum : float | None, default=None
+        Inclusive upper bound accepted for ``arg_value``.
+    exclusive_maximum : float | None, default=None
         Exclusive upper bound accepted for ``arg_value``.
     arg_name : str, optional
         Name included in validation errors. When omitted, the helper attempts
@@ -593,80 +634,94 @@ def check_float(
     return float(
         check_real(
             arg_value,
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
+            minimum=minimum,
+            exclusive_minimum=exclusive_minimum,
+            maximum=maximum,
+            exclusive_maximum=exclusive_maximum,
             arg_name=arg_name,
         )
     )
 
 
 def try_check_real(
-        arg_value: Real,
-        lower_bound: float = 0,
-        upper_bound: float = math.inf,
-        arg_name: Optional[str] = None) -> bool:
+    arg_value: Real,
+    minimum: float | None = None,
+    exclusive_minimum: float | None = None,
+    maximum: float | None = None,
+    exclusive_maximum: float | None = None,
+    arg_name: Optional[str] = None,
+) -> bool:
 
     try:
-        check_real(arg_value, lower_bound, upper_bound, arg_name)
+        check_real(
+            arg_value,
+            minimum=minimum,
+            exclusive_minimum=exclusive_minimum,
+            maximum=maximum,
+            exclusive_maximum=exclusive_maximum,
+            arg_name=arg_name,
+        )
         return True
     except (TypeError, ValueError):
         return False
 
+
 def clip_integer(
     arg_value: int,
-    lower_bound: int | None = None,
-    upper_bound: int | None = None,
-    arg_name: str | None = None) -> int:
-
+    minimum: int | None = None,
+    maximum: int | None = None,
+    arg_name: str | None = None,
+) -> int:
     """Clip and normalize an integer argument."""
-    if isinstance(arg_value, bool):
-        raise TypeError("arg_value must be a real number, not bool")
 
-    if lower_bound is not None and upper_bound is not None and lower_bound > upper_bound:
-        raise ValueError(
-            "lower_bound cannot be greater than upper_bound"
-        )
+    name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
+
+    if isinstance(arg_value, bool):
+        raise TypeError(f"{name} must be an integer, not bool")
+
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ValueError("lower_bound cannot be greater than upper_bound")
 
     clipped = arg_value
 
-    if lower_bound is not None:
-        clipped = max(clipped, lower_bound)
+    if minimum is not None:
+        clipped = max(clipped, minimum)
 
-    if upper_bound is not None:
-        clipped = min(clipped, upper_bound)
+    if maximum is not None:
+        clipped = min(clipped, maximum)
 
     if clipped != arg_value and settings.current.verbose:
-        name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
-
         _LOGGER.info(
             "%s was clipped from %r to %r; accepted bounds are [%r, %r].",
             name,
             arg_value,
             clipped,
-            lower_bound,
-            upper_bound,
+            minimum,
+            maximum,
         )
 
     return clipped
 
+
 def clip_float(
     arg_value: Real,
-    lower_bound: Real | None = None,
-    upper_bound: Real | None = None,
-    arg_name: str | None = None) -> float:
-
+    minimum: Real | None = None,
+    maximum: Real | None = None,
+    arg_name: str | None = None,
+) -> float:
     """Clip and normalize a continuous numeric argument."""
+
+    name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
+
     if isinstance(arg_value, bool):
-        raise TypeError("arg_value must be a real number, not bool")
+        raise TypeError(f"{name} must be a real number, not bool")
 
     value = float(arg_value)
-    lower = float(lower_bound) if lower_bound is not None else None
-    upper = float(upper_bound) if upper_bound is not None else None
+    lower = float(minimum) if minimum is not None else None
+    upper = float(maximum) if maximum is not None else None
 
     if lower is not None and upper is not None and lower > upper:
-        raise ValueError(
-            "lower_bound cannot be greater than upper_bound"
-        )
+        raise ValueError("lower_bound cannot be greater than upper_bound")
 
     clipped = value
 
@@ -677,8 +732,6 @@ def clip_float(
         clipped = min(clipped, upper)
 
     if clipped != value and settings.current.verbose:
-        name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
-
         _LOGGER.info(
             "%s was clipped from %r to %r; accepted bounds are [%r, %r].",
             name,

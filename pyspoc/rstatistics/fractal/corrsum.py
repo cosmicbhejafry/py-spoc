@@ -6,7 +6,7 @@ from typing import Literal, Iterable
 from pyspoc.rstatistics.fractal.base import FractalMeasureBase
 
 from . import funcs_py as f
-from . import funcs_numba as fnumba
+from . import _funcs_numba as fnumba
 
 # ---------------------------------------------------------------------------
 # Implementation note

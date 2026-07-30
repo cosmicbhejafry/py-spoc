@@ -7,7 +7,7 @@ import statsmodels.api as sm
 from typing import Literal, Any, TYPE_CHECKING
 from scipy.signal import savgol_filter
 
-from . import funcs_numba as fnb
+from . import _funcs_numba as fnb
 
 if TYPE_CHECKING:
     from piecewise_regression import Fit

@@ -5,8 +5,8 @@ from typing import Literal, Iterable
 
 from pyspoc.rstatistics.fractal.base import FractalMeasureBase
 
-from . import funcs_numba as fnb
-from . import fallback_loader as fload
+from . import _funcs_numba as fnb
+from ..._numba import fallback_loader as fload
 
 # ---------------------------------------------------------------------------
 # Implementation note
@@ -241,7 +241,7 @@ class RenyiEntropy(FractalMeasureBase):
 
         return _get_renyi_entropy(
             self.q, data, scales, self._SHANNON_ENTROPY_TOL)
-    
+
 
 @njit
 def _get_renyi_entropy_numba(
@@ -317,7 +317,7 @@ def _get_renyi_entropy_numba(
     return H
 
 
-@fload._py_fallback(_get_renyi_entropy_numba)
+@fload.numba_dispatch(_get_renyi_entropy_numba)
 def _get_renyi_entropy(
         q: float,
         data : np.ndarray,

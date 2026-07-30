@@ -7,7 +7,7 @@ from types import ModuleType
 from typing import Iterable
 from numba.core.registry import CPUDispatcher
 
-from pyspoc.rstatistics.fractal import funcs_numba
+from pyspoc.rstatistics.fractal import _funcs_numba
 
 
 def _format_annotation(annotation: object) -> str:
@@ -145,10 +145,10 @@ def generate_stub(
 
 
 def main() -> None:
-    output_path = Path(funcs_numba.__file__).with_suffix(".pyi")
+    output_path = Path(_funcs_numba.__file__).with_suffix(".pyi")
 
     generate_stub(
-        funcs_numba,
+        _funcs_numba,
         output_path=output_path,
         include_private=True,
         include_debug_numba=False,

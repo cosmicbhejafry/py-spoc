@@ -1,4 +1,5 @@
 """Random-seed resolution shared by statistics and estimators."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -6,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from pyspoc.exceptions import OptionalDependencyMissingError
 from pyspoc._initialization import AutoInitializedMixin
+from pyspoc._argchecking import check_integer_bounds
 from pyspoc.settings import settings
 
 if TYPE_CHECKING:
@@ -24,9 +26,7 @@ class RandomSeedMixin(AutoInitializedMixin):
     _freeze_random_seed = False
 
     @classmethod
-    def _resolve_cache_init_args(
-            cls,
-            init_args: dict[str, object]) -> dict[str, object]:
+    def _resolve_cache_init_args(cls, init_args: dict[str, object]) -> dict[str, object]:
         """Resolve an omitted random seed before cached construction.
 
         Parameters
@@ -46,22 +46,15 @@ class RandomSeedMixin(AutoInitializedMixin):
             None,
         )
         resolved_args = (
-            parent_resolver(init_args)
-            if parent_resolver is not None
-            else init_args.copy()
+            parent_resolver(init_args) if parent_resolver is not None else init_args.copy()
         )
 
-        if (
-            "random_seed" in resolved_args
-            and resolved_args["random_seed"] is None
-        ):
+        if "random_seed" in resolved_args and resolved_args["random_seed"] is None:
             resolved_args["random_seed"] = resolve_random_seed(None)
 
         return resolved_args
 
-    def _before_component_init(
-            self,
-            init_args: dict[str, object]) -> None:
+    def _before_component_init(self, init_args: dict[str, object]) -> None:
         """Initialize random-seed state before concrete construction.
 
         Parameters
@@ -82,9 +75,7 @@ class RandomSeedMixin(AutoInitializedMixin):
             raise TypeError("random_seed must be an integer or None.")
 
         self._random_seed_override = (
-            resolve_random_seed(random_seed)
-            if self._freeze_random_seed
-            else random_seed
+            resolve_random_seed(random_seed) if self._freeze_random_seed else random_seed
         )
 
     @property
@@ -115,12 +106,10 @@ class RandomSeedMixin(AutoInitializedMixin):
         """
         return np.random.default_rng(random_seed)
 
-
     @staticmethod
     def make_torch_generator(
-            random_seed: int,
-            *,
-            device: torch.device | str = "cpu") -> torch.Generator:
+        random_seed: int, *, device: torch.device | str = "cpu"
+    ) -> torch.Generator:
         """Create an independent PyTorch generator.
 
         Parameters
@@ -149,8 +138,6 @@ class RandomSeedMixin(AutoInitializedMixin):
         return generator
 
 
-
-
 def resolve_random_seed(random_seed: int | None) -> int:
     """Return an explicit seed or the active package default.
 
@@ -165,7 +152,9 @@ def resolve_random_seed(random_seed: int | None) -> int:
     int
         Effective random seed.
     """
+
     if random_seed is not None:
+        check_integer_bounds(random_seed, minimum=0, arg_name="random_seed")
         return random_seed
 
     return settings.current.random_seed

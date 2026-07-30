@@ -1,22 +1,22 @@
-"""Abstract Statistic adapter for the OrthogonalPCAE estimator family."""
+"""Abstract Statistic adapter for the KMeans estimator family."""
 
 from __future__ import annotations
 
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from pyspoc.statistic import Statistic
-from ._mixin import OrthogonalPCAEMixin
+from ._mixin import KMeansMixin
 
 if TYPE_CHECKING:
-    from ._estimator import OrthogonalPCAEEstimator
+    from ._estimator import KMeansEstimator
 
 
-class OrthogonalPCAEStatistic(OrthogonalPCAEMixin, Statistic, ABC):
+class KMeansStatistic(KMeansMixin, Statistic, ABC):
     """
-    Bridge shared OrthogonalPCAE machinery into the Statistic hierarchy.
+    Bridge shared KMeans machinery into the Statistic hierarchy.
 
     The private method :meth:`_get_result` must be implemented by concrete
     subclasses.
@@ -40,35 +40,29 @@ class OrthogonalPCAEStatistic(OrthogonalPCAEMixin, Statistic, ABC):
         """
         # Resolve dimensions against this particular dataset without mutating
         # the originally requested component configuration.
-        resolved_parameters = self._resolve_parameters(data)
-        fitted_estimator = self._compute_estimator_output(data, resolved_parameters)
-        return self._get_result(fitted_estimator, resolved_parameters.components)
+        fitted_estimator = self._compute_estimator_output(data)
+        return self._get_result(data, fitted_estimator)
 
     @abstractmethod
-    def _get_result(
-        self, fitted_estimator: OrthogonalPCAEEstimator, components: tuple[int, ...]
-    ) -> Union[np.ndarray, float]:
+    def _get_result(self, data: np.ndarray, fitted_estimator: KMeansEstimator) -> np.ndarray:
         """Extract a concrete result from a shared fitted estimator.
 
         Parameters
         ----------
-        fitted_estimator : OrthogonalPCAEEstimator
+        fitted_estimator : KMeansEstimator
             Estimator fitted to the current dataset. The estimator and
             its internal model are shared and must be treated as read-only.
-        components : tuple[int, ...]
-            One-based components available for this dataset used to filter
-            results.
 
         Returns
         -------
-        numpy.ndarray or float
+        numpy.ndarray
             Concrete Statistic result.
 
         Notes
         -----
-        This abstract hook must be implemented by every concrete OrthogonalPCAE
-        Statistic. Implementations may inspect the borrowed estimator but must
-        not retrain or mutate its shared model.
+        This abstract hook must be implemented by every concrete KMeans Statistic.
+        Implementations may inspect the borrowed estimator but must not retrain
+        or mutate its shared model.
         """
 
         pass

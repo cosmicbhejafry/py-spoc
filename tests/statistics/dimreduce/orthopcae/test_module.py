@@ -10,7 +10,7 @@ def test_initialization_constructs_expected_layer_shapes() -> None:
     """Encoder and decoder layers should reflect the input and bottleneck."""
     model = OrthogonalPCAE(
         input_dim=5,
-        max_bottleneck_dim=3,
+        bottleneck_dim=3,
         random_seed=0,
     )
 
@@ -25,7 +25,7 @@ def test_mask_pool_contains_each_active_dimension_once() -> None:
     """A refreshed mask pool should be a permutation of valid dimensions."""
     model = OrthogonalPCAE(
         input_dim=4,
-        max_bottleneck_dim=4,
+        bottleneck_dim=4,
         random_seed=0,
     )
 
@@ -36,7 +36,7 @@ def test_pop_mask_idx_removes_and_returns_first_entry() -> None:
     """Popping a mask should consume exactly one pool entry."""
     model = OrthogonalPCAE(
         input_dim=3,
-        max_bottleneck_dim=3,
+        bottleneck_dim=3,
         random_seed=0,
     )
     model.mask_pool = torch.tensor([2, 1, 3])
@@ -51,7 +51,7 @@ def test_forward_preserves_batch_and_input_dimensions() -> None:
     """Reconstruction should have the same shape as its input."""
     model = OrthogonalPCAE(
         input_dim=5,
-        max_bottleneck_dim=3,
+        bottleneck_dim=3,
         random_seed=0,
     )
     model.eval()
@@ -67,7 +67,7 @@ def test_forward_clamps_requested_active_dimension() -> None:
     torch.manual_seed(1)
     model = OrthogonalPCAE(
         input_dim=4,
-        max_bottleneck_dim=3,
+        bottleneck_dim=3,
         random_seed=1,
     )
     model.eval()
@@ -87,7 +87,7 @@ def test_training_mask_refreshes_an_empty_pool(
     """Masked training should refresh and consume an exhausted mask pool."""
     model = OrthogonalPCAE(
         input_dim=3,
-        max_bottleneck_dim=2,
+        bottleneck_dim=2,
         random_seed=0,
     )
     model.train()
@@ -107,7 +107,7 @@ def test_orthogonality_loss_is_zero_for_orthonormal_rows() -> None:
     """The penalty should vanish when projection rows are orthonormal."""
     model = OrthogonalPCAE(
         input_dim=3,
-        max_bottleneck_dim=3,
+        bottleneck_dim=3,
         random_seed=0,
     )
 

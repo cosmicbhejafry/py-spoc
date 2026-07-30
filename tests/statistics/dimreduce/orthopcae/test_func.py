@@ -49,7 +49,7 @@ class MaskTrackingOrthogonalPCAE(OrthogonalPCAE):
     def __init__(self) -> None:
         super().__init__(
             input_dim=3,
-            max_bottleneck_dim=2,
+            bottleneck_dim=2,
             random_seed=2,
         )
         self.mask_history: list[bool] = []
@@ -151,7 +151,7 @@ def test_training_returns_metric_for_each_processed_batch() -> None:
     estimator._burn_in_epochs_ = 1
     model = OrthogonalPCAE(
         input_dim=3,
-        max_bottleneck_dim=2,
+        bottleneck_dim=2,
         random_seed=2,
     )
     data = torch.randn(4, 3)

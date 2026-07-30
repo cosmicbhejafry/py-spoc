@@ -8,12 +8,14 @@ from numba import types, jit_module
 from numba.typed import Dict, List
 
 from pyspoc.settings import settings
-from .fallback_loader import _install_numba_funcs
+from pyspoc._numba import install_numba_funcs
+from pyspoc._utils.arrays import array_equal
+
 
 list_type = types.ListType(types.int64)
 
 
-def _get_row_hashes(x: np.ndarray) -> np.ndarray:
+def get_row_hashes(x: np.ndarray) -> np.ndarray:
     """
     Compute a 64-bit hash for each row of an integer matrix.
 
@@ -61,7 +63,7 @@ def _get_row_hashes(x: np.ndarray) -> np.ndarray:
     return h
 
 
-def _get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
+def get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
     """
     Count repeated box IDs using hash buckets with exact collision checks.
     Returns the tallies for the number of times a box is present.
@@ -108,7 +110,7 @@ def _get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
         for existing_idx in existing_idxs:
             x_existing = box_ids[existing_idx]
 
-            if _array_equal(box_ids[i], x_existing):
+            if array_equal(box_ids[i], x_existing, equal_nan=True):
                 is_existing_x = True
                 cnts[existing_idx] += 1
                 break
@@ -120,33 +122,7 @@ def _get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
     return cnts
 
 
-def _array_equal(x: np.ndarray, y: np.ndarray):
-    """
-    Return whether two one-dimensional arrays are elementwise equal.
-
-    Parameters
-    ----------
-    x, y : np.ndarray
-        One-dimensional arrays with the same length.
-
-    Returns
-    -------
-    bool
-        ``True`` when every corresponding element is equal, otherwise ``False``.
-
-    Notes
-    -----
-    This manual loop avoids temporary boolean arrays inside Numba kernels. The
-    function assumes ``x`` and ``y`` have matching lengths.
-    """
-    for j in range(x.shape[0]):
-        if x[j] != y[j]:
-            return False
-        
-    return True
-
-
-def _get_box_count(data: np.ndarray, scale: float) -> int:
+def get_box_count(data: np.ndarray, scale: float) -> int:
     """
     Count occupied boxes for a dataset at a single box scale.
 
@@ -168,14 +144,14 @@ def _get_box_count(data: np.ndarray, scale: float) -> int:
     :func:`_hash_rows` and :func:`_get_counts`.
     """
     boxes = np.floor(data / scale).astype(np.int64)
-    hashes = _get_row_hashes(boxes)
-    cnts = _get_box_tallies(boxes, hashes)
+    hashes = get_row_hashes(boxes)
+    cnts = get_box_tallies(boxes, hashes)
     non_zero = cnts[cnts > 0]
     box_cnt = non_zero.shape[0]
     return box_cnt
 
 
-def _get_bounded_idxs(
+def get_bounded_idxs(
         data,
         scales,
         lower_bound: int | None = None,
@@ -226,9 +202,9 @@ def _get_bounded_idxs(
             return blank_return
 
         lower_start_idx, lower_end_idx, _, end_box_cnt = \
-            _get_bounded_idxs(data, scales, lower_bound=lower_bound)
+            get_bounded_idxs(data, scales, lower_bound=lower_bound)
         upper_start_idx, upper_end_idx, start_box_cnt, _ = \
-            _get_bounded_idxs(data, scales, upper_bound=upper_bound)
+            get_bounded_idxs(data, scales, upper_bound=upper_bound)
 
         if upper_start_idx is None or lower_end_idx is None:
             return blank_return
@@ -249,14 +225,14 @@ def _get_bounded_idxs(
         
     start_idx = 0
     end_idx = k - 1
-    first_box_cnt = _get_box_count(data, scales[start_idx])
-    final_box_cnt = _get_box_count(data, scales[end_idx])
+    first_box_cnt = get_box_count(data, scales[start_idx])
+    final_box_cnt = get_box_count(data, scales[end_idx])
     start_box_cnt = None
     end_box_cnt = None
 
     while end_idx > start_idx + 1:
         middle = int((end_idx - start_idx) / 2) + start_idx
-        box_cnt = _get_box_count(data, scales[middle])
+        box_cnt = get_box_count(data, scales[middle])
             
         # Lower bound search.
         if lower_bound is not None:
@@ -285,7 +261,7 @@ def _get_bounded_idxs(
 
     if lower_bound is not None:
         
-        first_box_cnt = _get_box_count(data, scales[0])
+        first_box_cnt = get_box_count(data, scales[0])
         
         if end_idx == 1:
             if first_box_cnt == lower_bound:
@@ -296,7 +272,7 @@ def _get_bounded_idxs(
                 return blank_return
             
         if end_idx == k - 1:
-            final_box_cnt = _get_box_count(data, scales[k - 1])
+            final_box_cnt = get_box_count(data, scales[k - 1])
 
             if final_box_cnt >= lower_bound:
                 return 0, k - 1, first_box_cnt, final_box_cnt
@@ -306,14 +282,14 @@ def _get_bounded_idxs(
         else:
             if end_box_cnt < lower_bound:
                 end_idx -= 1
-                end_box_cnt = _get_box_count(data, scales[end_idx])
+                end_box_cnt = get_box_count(data, scales[end_idx])
 
             return 0, end_idx, first_box_cnt, end_box_cnt
 
     # NOTE: Assists numba with int vs. int? comparison.
     elif upper_bound is not None:
         
-        final_box_cnt = _get_box_count(data, scales[k - 1])
+        final_box_cnt = get_box_count(data, scales[k - 1])
         
         if start_idx == k - 2:
             if final_box_cnt == upper_bound:
@@ -324,7 +300,7 @@ def _get_bounded_idxs(
                 return blank_return
 
         if start_idx == 0:
-            first_box_cnt = _get_box_count(data, scales[0])
+            first_box_cnt = get_box_count(data, scales[0])
             
             if first_box_cnt <= upper_bound:
                 return 0, k - 1, first_box_cnt, final_box_cnt
@@ -334,7 +310,7 @@ def _get_bounded_idxs(
         else:
             if start_box_cnt > upper_bound:
                 start_idx += 1
-                start_box_cnt = _get_box_count(data, scales[start_idx])
+                start_box_cnt = get_box_count(data, scales[start_idx])
                 
             return start_idx, k - 1, start_box_cnt, final_box_cnt
         
@@ -342,7 +318,7 @@ def _get_bounded_idxs(
         return blank_return
 
 
-def _is_nearly_monotonic(
+def is_nearly_monotonic(
     y: np.ndarray,
     *,
     direction: str = "decreasing",
@@ -377,7 +353,7 @@ def _is_nearly_monotonic(
     return bool(np.mean(violations) <= tolerance)
 
 
-def _compute_deshmukh_slope_estimate(
+def compute_deshmukh_slope_estimate(
         trimmed_scales: np.ndarray,
         trimmed_H: np.ndarray,
         deshmukh_reg_proportion: float,
@@ -440,7 +416,7 @@ def _compute_deshmukh_slope_estimate(
             # Perform linear regression.
             #m, c, _, _, _ = stats.linregress(
                 #xs, ys)
-            m, c = _simple_linear_regression(xs, ys)
+            m, c = simple_linear_regression(xs, ys)
             
             # Grab the slope, fitting error and segment length
             slopes[i] = m
@@ -464,7 +440,7 @@ def _compute_deshmukh_slope_estimate(
     return samples.sum()
 
 
-def _simple_linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+def simple_linear_regression(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
     """
     Fast 1D OLS line fitter.
     Fits: y = mx + c
@@ -507,4 +483,4 @@ if not globals().get("__skip_jit_compile__", False):
 # ---------------------------------------------------------------------
 
 if not globals().get("__internal_copy__", False):
-   _install_numba_funcs(sys.modules[__name__])
+   install_numba_funcs(sys.modules[__name__])

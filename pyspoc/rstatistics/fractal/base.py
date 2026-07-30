@@ -6,7 +6,7 @@ from typing import Literal, Iterable
 from pyspoc import ReducedStatistic
 
 from . import funcs_py as fpy
-from . import funcs_numba as fnb
+from . import _funcs_numba as fnb
 
 # ---------------------------------------------------------------------------
 # Implementation note

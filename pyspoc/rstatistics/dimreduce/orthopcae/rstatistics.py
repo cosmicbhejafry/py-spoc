@@ -88,7 +88,7 @@ def extract_pcae_scree_data(
     data_tensor = fitted_estimator._prepare_data(data)
     data_loader = fitted_estimator._prepare_loader(data_tensor, model_device, False)
     normalized_data = fitted_estimator._normalize_data(data_tensor)
-    dimensions = list(range(1, model.max_bottleneck + 1))
+    dimensions = list(range(1, model.bottleneck + 1))
     loss_distribution = []
     mse_divisor = normalized_data.numel()
 

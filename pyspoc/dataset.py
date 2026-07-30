@@ -17,7 +17,8 @@ from typing import Iterable, Union, List
 from time import time
 from typeguard import check_type
 
-from pyspoc import (_base, _argchecking)
+from pyspoc import (_base)
+from pyspoc import _argchecking
 from pyspoc.statistic import Statistic
 from pyspoc.settings import settings
 

@@ -2,7 +2,7 @@
 
 # %%
 import pyspoc.rstatistics.fractal.funcs_py as fpy
-import pyspoc.rstatistics.fractal.funcs_numba as fnb
+import pyspoc.rstatistics.fractal._funcs_numba as fnb
 import pyspoc.rstatistics.fractal.renyi as renyi
 import pyspoc.data.generators.fractal as fgen
 import numpy as np
