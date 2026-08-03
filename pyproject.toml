@@ -39,7 +39,6 @@ dependencies = [
   "oct2py",
   "seaborn",
   "future",
-  "piecewise_regression",
 ]
 
 classifiers = [

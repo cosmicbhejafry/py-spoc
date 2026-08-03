@@ -485,10 +485,10 @@ class RuntimeTypeCheckedMixin:
 
 def check_natural_number(arg_value: int, arg_name: Optional[str] = None) -> int:
 
-    return check_integer_bounds(arg_value=arg_value, minimum=1, arg_name=arg_name)
+    return check_integer(arg_value=arg_value, minimum=1, arg_name=arg_name)
 
 
-def check_integer_bounds(
+def check_integer(
     arg_value: int,
     minimum: float | None = None,
     exclusive_minimum: float | None = None,

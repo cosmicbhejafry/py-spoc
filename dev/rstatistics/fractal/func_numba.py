@@ -1,7 +1,7 @@
 # %%
 
 # %%
-import pyspoc.rstatistics.fractal.funcs_py as fpy
+import pyspoc.rstatistics.fractal._funcs_py as fpy
 import pyspoc.rstatistics.fractal._funcs_numba as fnb
 import pyspoc.rstatistics.fractal.renyi as renyi
 import pyspoc.data.generators.fractal as fgen
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from importlib import reload
 
 data = np.random.standard_normal(size=(10000,10))
-scales = fpy._get_adaptive_scales(data, method="datseries", k=1000)
+scales = fpy.get_adaptive_scales(data, method="datseries", k=1000)
 scales = scales[::-1]
 #data = fgen.mandelbrot()
 # %%
@@ -23,9 +23,9 @@ renyi_entr.compute(data)
 #reload(fnb)
 densities = renyi._get_renyi_entropy(0, data, scales)
 neg_log_scales = -np.log(scales)
-slope, adj_r2 = fpy._compute_ols_results(neg_log_scales, densities)
+slope, adj_r2 = fpy.compute_ols_results(neg_log_scales, densities)
 # %%
-elbow_idxs = fpy._find_elbow_idx(
+elbow_idxs = fpy.find_elbow_idx(
     neg_log_scales,
     densities,
     direction="increasing",
@@ -53,7 +53,7 @@ fd = _get_deshmukh_dist_statistic(slope_samples, "mode")
 print(fd)
 
 # %%
-scales = fpy._get_datseries_scales(data, k=1000)
+scales = fpy.get_datseries_scales(data, k=1000)
 # %%
 
 fnb._get_bounded_idxs(data, scales, 1, 100, debug_numba=["warn"])
@@ -72,7 +72,7 @@ sig
 #%%
 fnb._get_bounded_idxs(data, scales, 1, 100)
 #%%
-scales = fpy._get_adaptive_scales(data, method="datseries", k=1000)
+scales = fpy.get_adaptive_scales(data, method="datseries", k=1000)
 #%%
 from typing import Literal, Iterable
 from scipy.stats import gaussian_kde

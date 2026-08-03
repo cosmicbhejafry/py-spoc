@@ -11,13 +11,13 @@ from abc import ABC
 from pyspoc import _argchecking
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 from pyspoc._random import RandomSeedMixin
-from ._estimator import KMeansEstimator
+from ._estimator import KClusteringEstimator
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class KMeansMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
+class KClusteringMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
     """Provide common initialization and estimator access for KMeans Statistics.
 
     The mixin validates dataset-independent configuration at construction time.
@@ -73,7 +73,7 @@ class KMeansMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
         # inherited mixins can initialize their state.
         super().__init__()
 
-    def _compute_estimator_output(self, data: np.ndarray) -> KMeansEstimator:
+    def _compute_estimator_output(self, data: np.ndarray) -> KClusteringEstimator:
         """Resolve, fit, and retain the estimator for a Statistic computation.
 
         Parameters
@@ -89,7 +89,7 @@ class KMeansMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
             multiple Statistics and should therefore be treated as read-only.
         """
         # Constructor arguments and data identify a reusable cached estimator.
-        self._estimator_ = KMeansEstimator.get_or_create(
+        self._estimator_ = KClusteringEstimator.get_or_create(
             data=data,
             k=self._k,
             initializer=self._initializer,

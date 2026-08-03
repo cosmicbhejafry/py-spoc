@@ -29,7 +29,7 @@ def array_equal_numba(x: np.ndarray, y: np.ndarray, equal_nan: bool = False):
     for j in range(x.shape[0]):
         if x[j] != y[j]:
             if equal_nan and np.isnan(x[j]) and np.isnan(y[j]):
-                return True
+                continue
 
             return False
 

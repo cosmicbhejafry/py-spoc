@@ -5,7 +5,7 @@ from typing import Literal, Iterable
 
 from pyspoc.rstatistics.fractal.base import FractalMeasureBase
 
-from . import funcs_py as f
+from . import _funcs_py as f
 from . import _funcs_numba as fnumba
 
 # ---------------------------------------------------------------------------
@@ -183,8 +183,8 @@ class CorrelationSum(FractalMeasureBase):
                  debug_numba: Iterable[Literal["ignore", "warn", "raise", "bounds"]] = "ignore"):
                 
         self._q = q
-        super().__init__(adj_r2_thresh=adj_r2_thresh,
-                         elbow_thresh=elbow_thresh,
+        super().__init__(r2_thresh=adj_r2_thresh,
+                         monotonic_tol=elbow_thresh,
                          deshmukh_reg_proportion=deshmukh_reg_proportion,
                          scale_method=scale_generator,
                          scale_length=scale_length,

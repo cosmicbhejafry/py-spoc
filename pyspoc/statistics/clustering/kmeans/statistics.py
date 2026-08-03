@@ -10,13 +10,13 @@ from sklearn.metrics.pairwise import (
 )
 from scipy.spatial.distance import euclidean
 
-from pyspoc._argchecking import check_integer_bounds, check_float
+from pyspoc._argchecking import check_integer, check_float
 from pyspoc._utils import numerical as pn
-from ._estimator import KMeansEstimator
-from ._base import KMeansStatistic
+from ._estimator import KClusteringEstimator
+from ._base import KClusteringStatistic
 
 
-class KMeansClusterSimilarity(KMeansStatistic):
+class KClusteringSimilarity(KClusteringStatistic):
     """Calculate pairwise similarities between fitted K-Means centres.
 
     Each row and column of the result represents one fitted cluster. The
@@ -75,8 +75,8 @@ class KMeansClusterSimilarity(KMeansStatistic):
             "correlation",
         ] = "rbf",
         gamma: float | None = None,
-        random_seed: int | None = None,
-    ):
+        random_seed: int | None = None):
+
         """Initialize cluster-fitting and similarity configuration.
 
         Parameters
@@ -119,7 +119,7 @@ class KMeansClusterSimilarity(KMeansStatistic):
 
         # A pairwise cluster matrix is only meaningful for at least two
         # clusters. The shared mixin performs the remaining K-Means checks.
-        check_integer_bounds(k, 2, arg_name="k")
+        check_integer(k, 2, arg_name="k")
         super().__init__(k, initializer, max_iter, random_seed)
 
     @property
@@ -157,7 +157,7 @@ class KMeansClusterSimilarity(KMeansStatistic):
 
     # Override the abstract extraction hook inherited from KMeansStatistic.
     # The base class has already resolved and fitted the shared estimator.
-    def _get_result(self, data: np.ndarray, fitted_estimator: KMeansEstimator) -> np.ndarray:
+    def _get_result(self, data: np.ndarray, fitted_estimator: KClusteringEstimator) -> np.ndarray:
         """Construct a pairwise similarity matrix from a fitted estimator.
 
         Parameters

@@ -1,12 +1,12 @@
 import numpy as np
 
 from numba import njit
-from typing import Literal, Iterable
+from typing import Literal
 
-from pyspoc.rstatistics.fractal.base import FractalMeasureBase
-
+from pyspoc._numba import fallback_loader as fload
+from pyspoc._argchecking import check_float
+from .base import FractalMeasureBase
 from . import _funcs_numba as fnb
-from ..._numba import fallback_loader as fload
 
 # ---------------------------------------------------------------------------
 # Implementation note
@@ -96,30 +96,62 @@ class RenyiEntropy(FractalMeasureBase):
 
     Parameters
     ----------
-    q : float, default=0
+    slope_estimation_method : {"hybrid", "ols", "deshmukh"}, default="hybrid"
+        Method used to select the final scaling-curve slope. ``"ols"`` uses
+        ordinary least squares, ``"deshmukh"`` prefers the slope-ensemble
+        estimate, and ``"hybrid"`` selects between them using ``r2_thresh``.
+
+    q : float, default=0, requires: >=0
         Rényi entropy order. Special cases include :math:`q = 0` for box-counting
         entropy and :math:`q \\to 1` for Shannon entropy.
 
-    adj_r2_tol : float, default=0.01, requires: >0, <=1
-        Minimum proportional improvement in adjusted :math:`R^2` required to
-        accept an additional linear segment during piecewise regression model
-        selection.
+    r2_thresh : float, default=0.9, requires: >=0, <=1
+        Minimum :math:`R^2` score required from an ordinary least squares (OLS) fit to use
+        its slope as the fractal dimension estimate. The process is attempted twice.
+        See __Algorithm__ for more information on the parameter's use in the algorithm.
 
-    elbow_tol : float, default=0.15, requires: >0, <=1
-        Proportional tolerance used to identify outer segments as elbows. If the
-        slope of an outer segment is below this tolerance multiplied by the average slope
-        of the inner segments, that outer segment is removed.
+    monotonic_tol : float, default=0.1, requires: >=0, <=1
+        Proportional tolerance applied to monotonic detection of the smoothed scaling
+        curve for elbow detection and removal. The scaling curve is considered monotonic
+        if and only if the proportion of adjacent points along the curve that violate
+        monotonicity is less than or equal to this value. A value of `1`
+        disables the monotonicity check entirely.
 
-    deshmukh_reg_proportion : float, default=0.25, requires: >0, <=1
+    deshmukh_reg_proportion : float, default=0.25, requires: >0, <=0.5
         Minimum relative subinterval length used when constructing the ensemble of
         linear regressions over the retained scaling region.
+
+    minimum_scaling_region : float, default=0.1, requires: >0, <=1
+        Minimum proportion of both the original scaling-curve points and its
+        log-scale span that an elbow-trimmed region must retain.
+
+    minimum_scaling_points : int or None, default=None, requires: >=20
+        Absolute minimum number of points retained after elbow trimming. If
+        ``None``, this is 40% of the data-dependent scale length, with a
+        minimum of 20 points.
+
+    use_adaptive_scaling : bool, default=True
+        Whether to iteratively adapt the initial scale range to exclude
+        uninformative saturated regions.
+
+    scale_method : {"datseries", "log-10"}, default="datseries"
+        Algorithm used to generate the initial box scales.
+
+    scale_length : int or None, default=None, requires: >=50
+        Number of intervals in the generated scale range. If ``None``, this is
+        resolved from dimensionality :math:`p` as
+        ``max(50, ceil(100 * log(p)))``. Scale generators may return one more
+        scale value than the resolved interval count.
+
+    scale_adaption_iters : int, default=20, requires: >=1
+        Maximum number of scale-range expansion iterations when adaptive scaling
+        is enabled.
 
 
     Returns
     -------
-    np.ndarray
-        Estimated generalized fractal dimension. For static input data this is
-        returned as a scalar-like NumPy value.
+    float
+        Estimated generalized fractal dimension.
 
 
     Notes
@@ -131,26 +163,47 @@ class RenyiEntropy(FractalMeasureBase):
     tolerances.
 
 
+    Algorithm
+    ---------------
+    1. Generate the initial scaling region using `adaptive`, `datseries`, or
+        `log base-10` methods.
+    2. For each scale:
+            2a. Partition the data space into hypercubes of the given scale.
+            2b. Compute the Rényi entropy of the data over the hypercubes.
+    3. Collect the negative log of the scaling region and the respective Rényi
+        entropies as the scaling curve.
+    4. Apply OLS to the entire scaling curve.
+    5. Attempt elbow detection and removal. Accept the trimmed region only if
+        it retains the required number and proportion of points and the required
+        proportion of the original log-scale span, then refit OLS.
+    6. If:
+        OLS :math:`R^2` `>= r2_thresh` requirement and `slope_estimation_method == 'hybrid'`:
+            Return the OLS slope as the fractal dimension estimate.
+        `slope_estimation_method == 'ols``:
+            Return the OLS slope as the fractal dimension estimate.
+        
+    7. Compute the Deshmukh slope estimate.
+    8. If Deshmukh slope estimate is valid:
+            Return Deshmukh slope estimate.
+    9. Otherwise, return the last computed OLS slope estimate.
+
+
     Elbow detection
     ---------------
-    To reduce the influence of unstable outer-scale behaviour, this class applies
-    a piecewise linear regression model selection procedure to the estimated
-    entropy scaling curve. The procedure begins with a standard linear regression
-    model and then incrementally increases the number of linear segments. New
-    segments are accepted only while the adjusted :math:`R^2` score improves by at
-    least ``adj_r2_tol`` relative to the previous fit.
+    A typical feature of the scaling curve is a sigmoidal shape due to entropy
+    saturation at the outer scales. With the true scaling region commonly found at
+    the centre of the curve, elbow-detection may be applied to reduce the influence
+    of unstable outer-scale behaviour.
 
-    Once the selected piecewise linear model has been obtained, the slopes of the
-    two outermost segments are compared with the average slope of the inner
-    segments. An outer segment is treated as an elbow and removed if its slope is
-    less than ``elbow_tol`` times the mean slope of the inner region. This
-    trimming step is intended to remove edge effects caused by finite sampling,
-    discretization, or departures from the main scaling regime.
+    The method is applied for detecting upper and/or lower elbows, and therefore also
+    accounts for simpler curves with only a single elbow.
 
-    After trimming, the final fractal dimension estimate is obtained based on the method
-    defined in [3], which involves fitting an ensemble of linear regressions computed
-    over subintervals of the retained scaling region. These slope estimates are then
-    aggregated using a mode-weighted averaging procedure.
+
+    Deshmukh Slope Estimation
+    ---------------
+    The method is defined in [3], which involves fitting an ensemble of linear
+    regressions computed over subintervals of the retained scaling curve. These slope
+    estimates are then averaged to produce the final fractal dimension estimate.
 
 
     References
@@ -175,23 +228,70 @@ class RenyiEntropy(FractalMeasureBase):
     _SHANNON_ENTROPY_TOL = 1e-6
 
     def __init__(self,
+                 slope_estimation_method: Literal["hybrid", "ols", "deshmukh"] = "hybrid",
                  q: float = 0,
-                 adj_r2_thresh: float = 0.005,
-                 elbow_thresh: float = 0.25,
+                 r2_thresh: float = 0.9,
+                 monotonic_tol: float = 0.1,
                  deshmukh_reg_proportion: float = 0.25,
+                 minimum_scaling_region: float = 0.1,
+                 minimum_scaling_points: int | None = None,
                  use_adaptive_scaling: bool = True,
                  scale_method: Literal["datseries", "log-10"] = "datseries",
-                 scale_length: int = 50,
-                 debug_numba: Iterable[Literal["ignore", "warn", "raise", "bounds"]] = "ignore"):
+                 scale_length: int | None = None,
+                 scale_adaption_iters: int = 20):
+        """Initialize a Rényi generalized-dimension statistic.
+
+        Parameters
+        ----------
+        slope_estimation_method : {"hybrid", "ols", "deshmukh"}, default="hybrid"
+            Strategy used to select the final scaling-curve slope.
+        q : float, default=0, requires: >=0
+            Rényi entropy order. ``0`` gives the box-counting entropy and values
+            sufficiently close to ``1`` use the Shannon-entropy limit.
+        r2_thresh : float, default=0.9, requires: >=0, <=1
+            Minimum OLS :math:`R^2` accepted by the hybrid strategy.
+        monotonic_tol : float, default=0.1, requires: >=0, <=1
+            Maximum proportion of adjacent monotonicity violations allowed by
+            elbow detection.
+        deshmukh_reg_proportion : float, default=0.25, requires: >0, <=0.5
+            Minimum relative length of scaling-curve subintervals included in
+            the Deshmukh slope ensemble.
+        minimum_scaling_region : float, default=0.1, requires: >0, <=1
+            Minimum proportion of the original point count and log-scale span
+            retained by an accepted elbow-trimmed region.
+        minimum_scaling_points : int or None, default=None, requires: >=20
+            Absolute minimum number of retained scaling-curve points. If
+            omitted, this is 40% of the resolved scale length, with a minimum
+            of 20 points.
+        use_adaptive_scaling : bool, default=True
+            Whether to iteratively adapt the generated scale range.
+        scale_method : {"datseries", "log-10"}, default="datseries"
+            Method used to generate the initial box scales.
+        scale_length : int or None, default=None, requires: >=50
+            Number of intervals in the generated scale range. If omitted, this
+            is ``max(50, ceil(100 * log(p)))`` for dimensionality ``p``.
+        scale_adaption_iters : int, default=20, requires: >=1
+            Maximum adaptive-scale expansion iterations.
+
+        Raises
+        ------
+        TypeError
+            If a checked numeric argument has an incompatible type.
+        ValueError
+            If a checked numeric argument lies outside its documented bounds.
+        """
                 
-        self._q = q
-        super().__init__(adj_r2_thresh=adj_r2_thresh,
-                         elbow_thresh=elbow_thresh,
+        self._q = check_float(q, minimum=0, arg_name="q")
+        super().__init__(slope_estimation_method=slope_estimation_method,
+                         r2_thresh=r2_thresh,
+                         monotonic_tol=monotonic_tol,
                          deshmukh_reg_proportion=deshmukh_reg_proportion,
+                         minimum_scaling_region=minimum_scaling_region,
+                         minimum_scaling_points=minimum_scaling_points,
                          use_adaptive_scaling=use_adaptive_scaling,
                          scale_method=scale_method,
                          scale_length=scale_length,
-                         debug_numba=debug_numba)
+                         scale_adaption_iters=scale_adaption_iters)
 
     @property
     def name(self) -> str:
@@ -285,6 +385,9 @@ def _get_renyi_entropy_numba(
     # Initialising.
     n_scales = scales.shape[0]
     H = np.empty(shape=n_scales, dtype=np.float64)
+    n_observations = data.shape[0]
+    scales_are_nonincreasing = np.all(scales[:-1] >= scales[1:])
+    scales_are_nondecreasing = np.all(scales[:-1] <= scales[1:])
 
     for k in range(n_scales):
         s = scales[k]
@@ -293,17 +396,42 @@ def _get_renyi_entropy_numba(
         box_ids = np.floor(data / s).astype(np.int32)
         
         
-        hashes = fnb._get_row_hashes_numba(box_ids)
+        hashes = fnb.get_row_hashes_numba(box_ids)
 
 
-        cnts = fnb._get_box_tallies_numba(box_ids, hashes)
+        cnts = fnb.get_box_tallies_numba(box_ids, hashes)
 
 
         cnts = cnts[cnts > 0]
+        n_occupied_boxes = cnts.shape[0]
+
+        # At the fine-scale limit, every observation has its own box and all
+        # probabilities are 1 / n. Finer scales therefore have entropy log(n),
+        # regardless of q, and need no further integer box identifiers.
+        if n_occupied_boxes == n_observations:
+            saturated_entropy = np.log(n_observations)
+            H[k] = saturated_entropy
+
+            if scales_are_nonincreasing:
+                H[k:] = saturated_entropy
+                break
+
+            continue
+
+        # At the coarse-scale limit, the sole occupied box has probability 1,
+        # so its entropy and that of every remaining coarser scale are zero.
+        if n_occupied_boxes == 1:
+            H[k] = 0.0
+
+            if scales_are_nondecreasing:
+                H[k:] = 0.0
+                break
+
+            continue
 
 
         if q == 0:
-            H[k] = np.log(cnts.shape[0])
+            H[k] = np.log(n_occupied_boxes)
             continue
 
         probs = cnts / cnts.sum()
@@ -360,14 +488,42 @@ def _get_renyi_entropy(
 
     n_scales = scales.shape[0]
     H = np.empty(shape=n_scales)
+    n_observations = data.shape[0]
+    scales_are_nonincreasing = np.all(scales[:-1] >= scales[1:])
+    scales_are_nondecreasing = np.all(scales[:-1] <= scales[1:])
 
     for k in range(H.shape[0]):
         s = scales[k]
         box_ids = np.floor(data / s).astype(np.int32)
         _, cnts = np.unique(box_ids, axis=0, return_counts=True)
+        n_occupied_boxes = cnts.shape[0]
+
+        # Avoid constructing still-finer box identifiers once the entropy has
+        # saturated at log(n), which also prevents integer overflow at scales
+        # too small to provide any additional information.
+        if n_occupied_boxes == n_observations:
+            saturated_entropy = np.log(n_observations)
+            H[k] = saturated_entropy
+
+            if scales_are_nonincreasing:
+                H[k:] = saturated_entropy
+                break
+
+            continue
+
+        # Likewise, all scales coarser than a one-box partition have zero
+        # entropy and can be filled without further box-count calculations.
+        if n_occupied_boxes == 1:
+            H[k] = 0.0
+
+            if scales_are_nondecreasing:
+                H[k:] = 0.0
+                break
+
+            continue
 
         if q == 0:
-            H[k] = np.log(cnts.shape[0])
+            H[k] = np.log(n_occupied_boxes)
             continue
 
         probs = cnts / cnts.sum()

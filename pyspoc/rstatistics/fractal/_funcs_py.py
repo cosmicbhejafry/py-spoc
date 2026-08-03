@@ -1,23 +1,20 @@
 from __future__ import annotations
 
 import numpy as np
-import piecewise_regression
 import statsmodels.api as sm
 
-from typing import Literal, Any, TYPE_CHECKING
+from typing import Literal
 from scipy.signal import savgol_filter
 
+from pyspoc._utils.arrays import sort_data
 from . import _funcs_numba as fnb
-
-if TYPE_CHECKING:
-    from piecewise_regression import Fit
 
 
 _ERROR_SCALING_FAILURE = "No scaling could be determined for the provided dataset. " \
     "Returning NaN result."
 
 
-def _find_elbow_idx(
+def find_elbow_idx(
     x: np.ndarray,
     y: np.ndarray,
     *,
@@ -94,7 +91,7 @@ def _find_elbow_idx(
     if y_max == y_min:
         return
     
-    if not fnb._is_nearly_monotonic(
+    if not fnb.is_nearly_monotonic(
         y_work,
         direction=direction,
         tolerance=monotonic_tolerance):
@@ -135,127 +132,7 @@ def _find_elbow_idx(
     return left_elbow_idx, right_elbow_idx
 
 
-def _get_best_parsimonious_model_fit(
-        neg_log_scales: np.ndarray,
-        densities: np.ndarray,
-        best_adj_r2: float,
-        adj_r2_tol: float = 0.001) -> dict[str, Any] | None:
-
-    max_breakpoints = max(int(neg_log_scales.shape[0] / 4), 1)
-    fit_scales = neg_log_scales.copy()
-    fit_densities = densities.copy()
-    prev_adj_r2 = best_adj_r2
-    best_fit = None
-
-    for n_breakpoints in range(1, max_breakpoints + 1):
-        pw_fit = _compute_pw_fit(fit_scales,
-            fit_densities,
-            n_breakpoints)
-
-        if pw_fit is None:
-            
-            if not best_fit:
-                break
-
-            fit_params = best_fit.get_params()
-            c = fit_params.get("const", 0)
-
-            if not c > 0:
-                break
-            
-            include_mask = fit_densities > c
-            fit_scales = fit_scales[include_mask]
-            fit_densities = fit_densities[include_mask]
-
-            if fit_scales.shape[0] < neg_log_scales.shape[0] * 2:
-                break
-
-            continue
-
-        adj_r2 = _compute_adj_r2(fit_densities, pw_fit)
-        improvement = adj_r2 - prev_adj_r2
-
-        if improvement < adj_r2_tol:
-            break
-            
-        prev_adj_r2 = adj_r2
-        best_fit = pw_fit
-
-    if not best_fit:
-        return
-    
-    best_params = best_fit.get_params()
-    best_params = _add_bookend_bps(fit_scales[0], fit_scales[-1], best_params)
-    return best_params
-
-
-def _add_bookend_bps(
-        first_bp: float,
-        last_bp: float,
-        fit_params: dict[str, Any]) -> dict[str, Any]:
-    
-    adjusted_params = dict()
-    fit_params["breakpoint0"] = first_bp
-    max_idx = 0
-    
-    for key, val in fit_params.items():
-        if not key.startswith("alpha"):
-            continue
-
-        str_idx = key[5:]
-        idx = int(str_idx)
-
-        if idx > max_idx:
-            max_idx = idx
-
-        adjusted_params[f"breakpoint{idx}"] = fit_params[f"breakpoint{idx - 1}"]
-        adjusted_params[f"alpha{idx}"] = fit_params[f"alpha{idx}"]
-
-    adjusted_params[f"breakpoint{max_idx+1}"] = last_bp
-    return adjusted_params
-
-
-def _get_segments(
-        fit_params: dict[str, Any]) -> tuple[np.ndarray, np.ndarray] | None:
-        
-    segments = list()
-
-    for key, val in fit_params.items():
-        if not key.startswith("breakpoint"):
-            continue
-
-        str_idx = key[10:]
-        alpha = fit_params.get(f"alpha{str_idx}")
-        bp = val
-        segments.append((alpha, bp))
-
-    if not segments:
-        return
-    
-    sorted_segments = sorted(segments, key=lambda t: t[1])
-    alphas, bps = tuple(zip(*sorted_segments))
-    return np.array([a for a in alphas if a]), np.array(bps)
-
-
-def _compute_pw_fit(
-        neg_log_scales: np.ndarray,
-        H: np.ndarray,
-        n_breakpoints: int) -> Fit | None:
-    
-    pw_fit = piecewise_regression.Fit(neg_log_scales,
-                                      H,
-                                      n_breakpoints=n_breakpoints,
-                                      max_iterations=100,
-                                      n_boot=5)
-    results = pw_fit.get_results()
-
-    if not results["converged"]:
-        return # Terminate on non-convergence.
-    
-    return pw_fit
-
-
-def _compute_ols_results(
+def compute_ols_results(
         neg_log_scales: np.ndarray,
         H: np.ndarray) -> tuple[float, float]:
     
@@ -264,25 +141,11 @@ def _compute_ols_results(
     results = ols.fit()
     coeffs = results.params
     slope = coeffs[0] if len(coeffs) == 1 else coeffs[1]
-    adj_r2 = results.rsquared_adj
-    return slope, adj_r2
+    r2 = results.rsquared
+    return slope, r2
 
 
-def _compute_adj_r2(
-        log_boxes: np.ndarray,
-        piecewise_fit: Fit) -> float:
-    
-    results = piecewise_fit.get_results()
-    n = log_boxes.shape[0]
-    p = piecewise_fit.n_breakpoints * 2
-    tss = log_boxes.var() * n
-    rss = results["rss"]
-    r_sq = 1 - rss / tss
-    adj_r_sq = 1 - (n - 1) / (n - 1 - p) * (1 - r_sq)
-    return adj_r_sq
-
-
-def _get_adaptive_scales(
+def get_adaptive_scales(
         xs: np.ndarray,
         *,
         method: Literal["datseries", "log-10"],
@@ -291,15 +154,15 @@ def _get_adaptive_scales(
         max_iter_alert: bool = False,
         **kwargs):
     
-    scale_func = _get_log10_scales if method == "log-10" \
-        else _get_datseries_scales
+    scale_func = get_log10_scales if method == "log-10" \
+        else get_datseries_scales
     i = 0
     scales = scale_func(xs, k=k, **kwargs)
     n = xs.shape[0]
 
     while i < max_iter:
         
-        results = fnb._get_bounded_idxs(xs, scales, 1, n)
+        results = fnb.get_bounded_idxs(xs, scales, 1, n)
         
         if None in results:
             raise ValueError("Unable to establish informative scales.")
@@ -320,7 +183,7 @@ def _get_adaptive_scales(
         if range >= 0.85 * n and length >= k + 1:
             break
         
-        scales = _get_exp_scales(start_scale, end_scale, k)
+        scales = get_exp_scales(start_scale, end_scale, k)
         i += 1
 
     if max_iter_alert and i == max_iter:
@@ -329,7 +192,7 @@ def _get_adaptive_scales(
     return scales
     
 
-def _get_exp_scales(
+def get_exp_scales(
         start: float,
         end: float,
         k: int = 50,
@@ -350,7 +213,7 @@ def _get_exp_scales(
     return scales
         
 
-def _get_log10_scales(
+def get_log10_scales(
         xs: np.ndarray,
         *,
         k: int = 50,
@@ -363,7 +226,7 @@ def _get_log10_scales(
     if prop_scales_right < 0:
         prop_scales_right = 0
     
-    xs = _sort_data(xs)
+    xs = sort_data(xs)
     eps = 1e-20
     ref_scales = np.mean(np.linalg.norm(xs[:-1, :] - xs[1:, :], axis=1)) + eps
     num_scales_right = int(k * prop_scales_right)
@@ -378,14 +241,14 @@ def _get_log10_scales(
     return scales
 
 
-def _get_datseries_scales(
+def get_datseries_scales(
         xs: np.ndarray,
         *,
         k: int = 50,
         psi: float = 1.0,
         zeta: float = 1.0) -> np.ndarray:
     
-    xs = _sort_data(xs)
+    xs = sort_data(xs)
     eps = 1e-6
     
     # Includes corrective term for high dimensionality.
@@ -409,14 +272,3 @@ def _get_datseries_scales(
         raise ValueError(_ERROR_SCALING_FAILURE)
 
     return scales
-
-
-def _argsort_data(data: np.ndarray) -> np.ndarray:
-    keys = tuple(data[:, j] for j in range(data.shape[1] - 1, -1, -1))
-    idx = np.lexsort(keys)
-    return idx
-
-
-def _sort_data(data: np.ndarray) -> np.ndarray:
-    idx = _argsort_data(data)
-    return data[idx]

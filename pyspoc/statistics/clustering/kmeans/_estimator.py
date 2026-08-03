@@ -4,6 +4,7 @@ import numpy as np
 
 from typing import Literal
 from sklearn.cluster import KMeans
+from sklearn_extra.cluster import KMedoids
 
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 from pyspoc._estimators import LazyFittedCachedEstimatorMixin
@@ -11,12 +12,12 @@ from pyspoc._random import RandomSeedMixin
 from pyspoc.settings import settings
 
 
-class KMeansEstimator(
+class KClusteringEstimator(
     RuntimeTypeCheckedMixin,
     RandomSeedMixin,
     LazyFittedCachedEstimatorMixin,
 ):
-    """Manage a cached scikit-learn K-Means model.
+    """Manage a scikit-learn backed KClustering model.
 
     The estimator combines runtime constructor checking, library-wide random
     seed resolution, estimator caching, and synchronized lazy fitting. A fitted
@@ -27,6 +28,8 @@ class KMeansEstimator(
     ----------
     k : int
         Number of clusters to form.
+    method : {"kmeans", "kmedoids"}, default="kmeans"
+        K-clustering method to use.
     initializer : {"k-means++", "random"}, default="k-means++"
         Strategy used to initialize cluster centroids.
     max_iter : int, default=300
@@ -37,8 +40,9 @@ class KMeansEstimator(
 
     Notes
     -----
-    The underlying :class:`sklearn.cluster.KMeans` object remains private so
-    cache consumers cannot accidentally replace it through a public property.
+    The underlying :class:`sklearn.cluster.KMeans` or :class:`sklearn_extra.cluster.KMedoids`
+    objects remains private so cache consumers cannot accidentally replace it through
+    a public property.
     """
 
     # Include the resolved random seed in cache identity. This prevents an
@@ -49,7 +53,8 @@ class KMeansEstimator(
     def __init__(
         self,
         k: int,
-        initializer: Literal["k-means++", "random"] = "k-means++",
+        method: Literal["kmeans", "kmedoids"] = "kmeans",
+        initializer: Literal["++", "random"] = "++",
         max_iter: int = 300,
         random_seed: int | None = None,
     ):
@@ -59,7 +64,9 @@ class KMeansEstimator(
         ----------
         k : int
             Number of clusters to form.
-        initializer : {"k-means++", "random"}, default="k-means++"
+        method : {"kmeans", "kmedoids"}, default="kmeans"
+            K-clustering method to use.
+        initializer : {"++", "random"}, default="k-means++"
             Centroid initialization strategy passed to scikit-learn.
         max_iter : int, default=300
             Maximum number of iterations for a single K-Means run.
@@ -76,18 +83,19 @@ class KMeansEstimator(
         # Retain constructor configuration unchanged so it can be passed to the
         # scikit-learn implementation when lazy fitting is first requested.
         self._k = k
+        self._method = method
         self._initializer = initializer
         self._max_iter = max_iter
 
         # The model is created only inside the synchronized fitting hook.
         self._model_ = None
 
-    def _get_model(self) -> KMeans:
+    def _get_model(self) -> KMeans | KMedoids:
         """Return the fitted private K-Means model.
 
         Returns
         -------
-        sklearn.cluster.KMeans
+        Union[sklearn.cluster.KMeans, sklearn_extra.cluster.KMeans]
             Fitted scikit-learn model owned by this estimator.
 
         Raises
@@ -129,17 +137,25 @@ class KMeansEstimator(
         :meth:`fit` rather than invoking this method directly so cache and
         thread-safety invariants remain enforced.
         """
-        # Translate the library's boolean verbosity setting to scikit-learn's
-        # integer verbosity parameter. False becomes 0 and True becomes 1.
-        kmeans = KMeans(
-            n_clusters=self._k,
-            init=self._initializer,
-            max_iter=self._max_iter,
-            random_state=self.random_seed,
-            copy_x=True,
-            verbose=int(settings.current.verbose),
-        )
+        
+        if self._method == "kmeans":
+            # Translate the library's boolean verbosity setting to scikit-learn's
+            # integer verbosity parameter. False becomes 0 and True becomes 1.
+            model = KMeans(
+                n_clusters=self._k,
+                init=self._initializer,
+                max_iter=self._max_iter,
+                random_state=self.random_seed,
+                copy_x=True,
+                verbose=int(settings.current.verbose),
+            )
+        elif self._method == "kmediods":
+            model = KMedoids(
+                n_clusters=self._k,
+                max_iter=300,
+                random_state=self.random_seed
+            )
 
         # scikit-learn returns the fitted estimator from fit(); retain that
         # object as the private model published by the lazy fitting lifecycle.
-        self._model_ = kmeans.fit(data)
+        self._model_ = model.fit(data)

@@ -8,13 +8,13 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from pyspoc.statistic import Statistic
-from ._mixin import KMeansMixin
+from ._mixin import KClusteringMixin
 
 if TYPE_CHECKING:
-    from ._estimator import KMeansEstimator
+    from ._estimator import KClusteringEstimator
 
 
-class KMeansStatistic(KMeansMixin, Statistic, ABC):
+class KClusteringStatistic(KClusteringMixin, Statistic, ABC):
     """
     Bridge shared KMeans machinery into the Statistic hierarchy.
 
@@ -44,7 +44,7 @@ class KMeansStatistic(KMeansMixin, Statistic, ABC):
         return self._get_result(data, fitted_estimator)
 
     @abstractmethod
-    def _get_result(self, data: np.ndarray, fitted_estimator: KMeansEstimator) -> np.ndarray:
+    def _get_result(self, data: np.ndarray, fitted_estimator: KClusteringEstimator) -> np.ndarray:
         """Extract a concrete result from a shared fitted estimator.
 
         Parameters

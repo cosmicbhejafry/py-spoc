@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from pyspoc.exceptions import OptionalDependencyMissingError
 from pyspoc._initialization import AutoInitializedMixin
-from pyspoc._argchecking import check_integer_bounds
+from pyspoc._argchecking import check_integer
 from pyspoc.settings import settings
 
 if TYPE_CHECKING:
@@ -154,7 +154,7 @@ def resolve_random_seed(random_seed: int | None) -> int:
     """
 
     if random_seed is not None:
-        check_integer_bounds(random_seed, minimum=0, arg_name="random_seed")
+        check_integer(random_seed, minimum=0, arg_name="random_seed")
         return random_seed
 
     return settings.current.random_seed

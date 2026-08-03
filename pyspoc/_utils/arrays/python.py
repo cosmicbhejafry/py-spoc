@@ -28,3 +28,14 @@ def array_equal(x: np.ndarray, y: np.ndarray, equal_nan: bool = False):
     function assumes ``x`` and ``y`` have matching lengths.
     """
     return np.array_equal(x, y, equal_nan=equal_nan)
+
+
+def argsort_data(data: np.ndarray) -> np.ndarray:
+    keys = tuple(data[:, j] for j in range(data.shape[1] - 1, -1, -1))
+    idx = np.lexsort(keys)
+    return idx
+
+
+def sort_data(data: np.ndarray) -> np.ndarray:
+    idx = argsort_data(data)
+    return data[idx]

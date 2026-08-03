@@ -3,13 +3,12 @@ from __future__ import annotations
 import numpy as np
 import sys
 
-from typing import Literal
 from numba import types, jit_module
 from numba.typed import Dict, List
 
 from pyspoc.settings import settings
 from pyspoc._numba import install_numba_funcs
-from pyspoc._utils.arrays import array_equal
+from pyspoc._utils.arrays.numba import array_equal_numba
 
 
 list_type = types.ListType(types.int64)
@@ -110,7 +109,7 @@ def get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
         for existing_idx in existing_idxs:
             x_existing = box_ids[existing_idx]
 
-            if array_equal(box_ids[i], x_existing, equal_nan=True):
+            if array_equal_numba(box_ids[i], x_existing, equal_nan=True):
                 is_existing_x = True
                 cnts[existing_idx] += 1
                 break
@@ -357,7 +356,6 @@ def compute_deshmukh_slope_estimate(
         trimmed_scales: np.ndarray,
         trimmed_H: np.ndarray,
         deshmukh_reg_proportion: float,
-        averaging_method: Literal["mean", "median", "modalmean", "modalmax"] = "mean",
         error_eps: float = 1e-6) -> float | None:
     
     """
