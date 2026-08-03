@@ -1,23 +1,32 @@
-**/__pycache__/**
-dist
+
+.DS_Store
+.vscode/
+.venv/
+.pytest_cache/
+.codex/
+.mypy_cache/
+.ruff_cache/
+.agents/
+.benchmarks/
+.env/
+*.egg-info/
+*.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+dist/
 *.pkl
 !tests/*.pkl
 *.log
 *.bkp
-.DS_Store
-.vscode
-build
+build/
 octave-workspace
 readme.html
 venv
 img
-tests
 pyspoc/statistics/wip
 README.md.bak
 
-.env
-*.egg-info/
-*.ipynb_checkpoints/
+
 .envrc
 
 # TODO - CHANGE LATER, BUT IGNORE RIGHT NOW AS IT HAS LOCAL FILE PATH NAMES THAT I DONT WANT TO PUBLISH

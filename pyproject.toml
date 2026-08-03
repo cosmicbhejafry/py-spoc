@@ -16,11 +16,13 @@ authors = [
 description = "Library for generating large volumes of statistical summaries on static datasets."
 readme = "README.md"
 license = "GPL-3.0-or-later"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
-  "pytest",
+  "typeguard",
   "h5py",
+  "Cython",
+  "Ripser",
   "scikit-learn",
   "scipy",
   "numpy<2.0.0",
@@ -36,7 +38,7 @@ dependencies = [
   "cdt==0.5.23",
   "oct2py",
   "seaborn",
-  "future"
+  "future",
 ]
 
 classifiers = [
@@ -48,19 +50,61 @@ classifiers = [
 [project.optional-dependencies]
 dev = [
   "pytest",
+  "pytest-benchmark",
   "black",
   "mypy",
   "coverage",
-  "pre-commit"
+  "pre-commit",
+  "ruff",
+  "watchfiles"
+]
+
+doc = [
+  "numpydoc",
+  "sphinx",
 ]
 
 notebooks = [
   "jupyter",
   "ipykernel",
-  "matplotlib",
-  "nb_conda_kernels",
-  "plotly"
+  "matplotlib",  
+  "plotly",
 ]
+
+all = [
+  "pytest",
+  "pytest-benchmark",
+  "black",
+  "mypy",
+  "coverage",
+  "pre-commit",
+  "numpydoc",
+  "sphinx",
+  "jupyter",
+  "ipykernel",
+  "matplotlib",
+  "plotly",
+  "ruff"
+]
+
+extended = [
+  "torch"
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests","benchmarks"]
+addopts = "-ra"
+
+[tool.pytest-benchmark]
+min_rounds = 5
+sort = "mean"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+lint.select = ["E", "F", "W"]
+lint.ignore = ["W293", "E722"]
 
 # optionally:   "nbstripout"
 

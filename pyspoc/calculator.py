@@ -5,7 +5,7 @@ import pandas as pd
 import warnings
 
 from tqdm import tqdm
-from typing import Union, Iterable, Any
+from typing import Iterable, Any
 
 # From this package
 from pyspoc.dataset import Dataset
@@ -25,24 +25,26 @@ class Calculator:
          calc = Calculator(dataset=dataset)  # Instantiate the calculator
          calc.compute()                      # Compute all statistical summaries
 
-    Args:
-        dataset (Data, np.ndarray, pd.DataFrame, str):
-            A multivariate dataset typically with n realisations of p variables.
-        name (str, optional):
-            The name of the calculator. Mainly used for printing the results but can be useful if you have multiple
-            instances, defaults to None.
-        labels (array_like, optional):
-            Any set of strings by which you want to label the calculator. This can be useful later for classification
-            purposes, defaults to None.
-        normalise (bool, optional):
-            Normalise the dataset across realisations before computing statistical summaries, defaults to True.
+    Parameters
+    ----------
+
+    dataset : Dataset or numpy.ndarray or pandas.DataFrame or str
+        A multivariate dataset typically with n realisations of p variables.
+    name : str or None, optional
+        The name of the calculator. Mainly used for printing the results but can be useful if you have multiple
+        instances, defaults to None.
+    labels : Iterable[str]
+        Any set of strings by which you want to label the calculator. This can be useful later for classification
+        purposes, defaults to None.
+    normalise : bool or None, optional
+        Normalise the dataset across realisations before computing statistical summaries, defaults to True.
     """
 
-    __cached_results = dict()
-    __max_calc_results = 5  # Change this to a global config setting
+    _cached_results = dict()
+    _max_calc_results = 5  # Change this to a global config setting
 
     def __init__(self,
-                 dataset: Union[Dataset, np.ndarray, pd.DataFrame, str],
+                 dataset: Dataset | np.ndarray | pd.DataFrame | str,
                  name: str = None,
                  labels: Iterable[str] = None,
                  normalise: bool = True):
@@ -51,7 +53,7 @@ class Calculator:
         self._excluded_ss: list[dict[str, Any]] = list()
         self._normalise: bool = normalise
         self._cached_configs = dict()
-        self._dataset: Union[Dataset, None] = None
+        self._dataset: Dataset | None = None
         self._results_dict = dict()
         self._results = None
 
@@ -63,7 +65,7 @@ class Calculator:
 
         self.name = name
         self.labels = labels
-        self.__set_dataset(dataset)
+        self._set_dataset(dataset)
 
     @property
     def ss(self):
@@ -83,8 +85,8 @@ class Calculator:
         """Dataset as a dataset object."""
         return self._dataset
 
-    def __set_dataset(self,
-                      dataset: Union[Dataset, np.ndarray, pd.DataFrame, str]):
+    def _set_dataset(self,
+                      dataset: Dataset | np.ndarray | pd.DataFrame | str):
         """Load new dataset into existing instance.
 
         Args:
@@ -148,7 +150,7 @@ class Calculator:
 
         # Calculate configured Statistics.
         if stats:
-            stat_pbar = tqdm(stats.keys())            
+            stat_pbar = tqdm(stats.keys())
 
             for stat_name in stat_pbar:
                 try:
@@ -169,7 +171,7 @@ class Calculator:
             stat_pbar.close()
             elapsed += stat_pbar.format_dict["elapsed"]
 
-            # Calculate configured Reducers.        
+            # Calculate configured Reducers.
             reducer_pbar = tqdm(reducers.keys())
             stat_names = list(results_dict.keys())
 
@@ -209,7 +211,7 @@ class Calculator:
         # Calculate configured ReducedStatistics.
         if rstats:
             
-            rstat_pbar = tqdm(rstats.keys())            
+            rstat_pbar = tqdm(rstats.keys())
 
             for rstat_name in rstat_pbar:
                 try:

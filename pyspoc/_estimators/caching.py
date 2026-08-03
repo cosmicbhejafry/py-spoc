@@ -1,0 +1,974 @@
+"""Constructor-aware caching machinery shared by estimator classes.
+
+The module provides :class:`CachedEstimatorMixin`, which records normalized
+constructor arguments and uses them, together with an attached NumPy dataset,
+to find equivalent estimator instances. Cache buckets retain strong references
+until explicit reset or bounded LRU eviction.
+"""
+
+# TODO: Implement verbose warnings.
+
+from __future__ import annotations
+
+import numpy as np
+import inspect
+import sys
+
+from typing import Any, ParamSpec, TypeVar, Union, Callable, Concatenate
+from collections.abc import Hashable
+from datetime import datetime
+from functools import wraps
+from threading import RLock
+
+from pyspoc._initialization import AutoInitializedMixin
+from pyspoc.settings import settings
+
+
+_T_cache_enabled = TypeVar("_T_cache_enabled", bound="CachedEstimatorMixin")
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+PYSPOC_CACHE_ATTRIBUTE = "_pyspoc_cache"
+PYSPOC_INIT_ARGS_ATTRIBUTE = "_pyspoc_init_arguments"
+PYSPOC_HASH_ATTRIBUTE = "_pyspoc_hash"
+PYSPOC_LRU_ATTRIBUTE = "_pyspoc_lru"
+PYSPOC_ATTACHED_DATA_ATTRIBUTE = "_pyspoc_attached_dataset"
+
+
+class CachedEstimatorMixin(AutoInitializedMixin):
+    """Provide configurable, constructor-aware caching for estimator instances.
+
+    Every subclass constructor is wrapped automatically by
+    :meth:`__init_subclass__`. The wrapper binds positional and keyword
+    arguments to the subclass constructor signature, applies declared
+    defaults, and stores the resulting mapping on the estimator. Consequently,
+    equivalent calls expressed with different positional/keyword forms can be
+    compared consistently.
+
+    Hashable constructor arguments are combined into a preliminary lookup
+    hash. Hash collisions do not imply estimator equivalence: candidates in a
+    hash bucket are subsequently compared using their complete normalized
+    argument mappings and attached NumPy arrays. Dataset comparison includes
+    shape, dtype, and element values.
+
+    Cache buckets are ordinary :class:`set` instances that retain estimators
+    strongly. Retention allows sequential Statistics to reuse one fitted
+    estimator even when the Statistic that created it has been discarded.
+    Least-recently-used entries are evicted when the cache exceeds
+    ``settings.current.max_cache_results``.
+
+    Subclasses customize cache identity by canonicalizing constructor
+    arguments, selecting a coarse set of arguments for candidate hashing, or
+    overriding the final cache-request matching hook.
+
+    Internal Attributes
+    ----------
+    _pyspoc_cache : dict[int, set[CachedEstimatorMixin]], optional
+        Mapping from preliminary argument hashes to strong candidate sets. The
+        default is an empty dictionary.
+
+    Notes
+    -----
+    Calling a subclass constructor directly always creates a new instance.
+    Call :meth:`get_or_create` when cache resolution is required.
+    """
+
+    _pyspoc_cache: dict[int, set[CachedEstimatorMixin]] = dict()
+    _pyspoc_cache_lock = RLock()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Wrap a subclass constructor to record normalized arguments.
+
+        Parameters
+        ----------
+        **kwargs : Any, optional
+            Keyword arguments accepted by other classes participating in
+            subclass initialization. The default is no keyword arguments.
+
+        Returns
+        -------
+        None
+            This method modifies the subclass constructor in place and does
+            not return a value.
+        """
+        super().__init_subclass__(**kwargs)
+
+        # Every estimator subclass receives independent cache state.
+        cls._pyspoc_cache = dict()
+        cls._pyspoc_cache_lock = RLock()
+
+    def _before_component_init(
+            self,
+            init_args: dict[str, Any]) -> None:
+        """Record normalized constructor state before initialization."""
+        super()._before_component_init(init_args)
+
+        setattr(
+            self,
+            PYSPOC_INIT_ARGS_ATTRIBUTE,
+            init_args.copy(),
+        )
+
+        estimator_hash = type(self)._get_args_hash(init_args)
+        self._set_hash(estimator_hash)
+
+    @classmethod
+    def get_or_create(
+            cls: type[_T_cache_enabled],
+            data: np.ndarray,
+            *args,
+            **kwargs) -> _T_cache_enabled:
+        """Return an equivalent cached estimator or construct a new one.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Dataset against which cached candidates are compared.
+        *args : Any, optional
+            Positional arguments forwarded to the subclass constructor. The
+            default is no positional arguments.
+        **kwargs : Any, optional
+            Keyword arguments forwarded to the subclass constructor. The
+            default is no keyword arguments.
+
+        Returns
+        -------
+        T_cache_enabled
+            Existing matching instance when available; otherwise a newly
+            constructed and cached instance of ``cls``.
+        """
+        call_args, call_kwargs, estimator_args = (
+            cls._resolve_cache_init_call(args, kwargs)
+        )
+
+        with cls._pyspoc_cache_lock:
+            # Use the dataset and normalized constructor call to find candidates.
+            cached = cls._get_cached(data, estimator_args)
+
+            # Normal construction cannot replace an instance, so cache resolution
+            # belongs in this factory method rather than in ``__init__``.
+            if not cached:
+                return cls._instantiate(data, call_args, call_kwargs)
+
+            # The base implementation treats every exact match as interchangeable.
+            return cached[0]
+
+
+    @classmethod
+    def _get_args_hash(cls, kwargs: dict[str, Any]) -> int:
+        """Create a preliminary cache key from hashable constructor arguments.
+
+        Parameters
+        ----------
+        kwargs : dict[str, Any]
+            Normalized constructor argument mapping.
+
+        Returns
+        -------
+        int
+            Hash of the retained argument values. This hash selects candidate
+            estimators only and is not treated as proof of equivalence.
+        """
+        candidate_args = cls._get_candidate_args(kwargs)
+        hash_args = cls._get_hashables(candidate_args)
+        return hash(tuple(hash_args.values()))
+
+
+    @classmethod
+    def _canonicalize_cache_args(
+            cls,
+            estimator_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Return constructor arguments used for ordinary cache equivalence.
+
+        Subclasses may remove arguments that do not affect the fitted
+        estimator, such as verbosity or debugging arguments, and normalize
+        equivalent representations to a common value. The returned mapping
+        is used by exact argument comparison.
+
+        Parameters
+        ----------
+        estimator_kwargs : dict[str, Any]
+            Complete normalized constructor argument mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Canonical argument mapping. The base implementation returns a
+            shallow copy without changing any arguments.
+        """
+        return estimator_kwargs.copy()
+
+
+    @classmethod
+    def _get_candidate_args(
+            cls,
+            estimator_kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Return arguments used to group potential cache matches.
+
+        The candidate mapping may be coarser than the final definition of
+        equivalence. Subclasses should omit arguments here when differing
+        values must reach :meth:`_matches_cache_request` for model-specific or
+        asymmetric comparison.
+
+        Parameters
+        ----------
+        estimator_kwargs : dict[str, Any]
+            Complete normalized constructor argument mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Arguments from which the preliminary candidate hash is produced.
+            The base implementation uses the canonical equivalence arguments.
+        """
+        return cls._canonicalize_cache_args(estimator_kwargs)
+
+
+    @classmethod
+    def _resolve_cache_init_args(
+            cls,
+            init_args: dict[str, Any]) -> dict[str, Any]:
+        """Resolve dynamic constructor defaults before cache lookup.
+
+        Parameters
+        ----------
+        init_args : dict[str, Any]
+            Normalized constructor arguments, including declared defaults.
+
+        Returns
+        -------
+        dict[str, Any]
+            Resolved arguments used for cache identity and construction. The
+            returned mapping must contain exactly the supplied argument names.
+
+        Notes
+        -----
+        Subclass and mixin overrides should call ``super()`` so independent
+        argument-resolution policies compose through the method-resolution
+        order.
+        """
+        return init_args.copy()
+
+
+    @classmethod
+    def _bind_init_call(
+            cls,
+            args,
+            kwargs) -> inspect.BoundArguments:
+        """Bind a constructor call while preserving parameter kinds.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments intended for the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments intended for the subclass constructor.
+
+        Returns
+        -------
+        inspect.BoundArguments
+            Bound constructor call with declared defaults applied. Positional-
+            only, variadic positional, keyword-only, and variadic keyword
+            parameters retain their signature-defined calling semantics.
+
+        Raises
+        ------
+        TypeError
+            If the supplied arguments cannot be bound to the constructor.
+        """
+        init_signature = inspect.signature(cls.__init__)
+        bound = init_signature.bind(None, *args, **kwargs)
+        bound.apply_defaults()
+        return bound
+
+
+    @classmethod
+    def _bind_init_args(cls, args, kwargs) -> dict[str, Any]:
+        """Normalize arguments against the subclass constructor signature.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments intended for the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments intended for the subclass constructor.
+
+        Returns
+        -------
+        dict[str, Any]
+            Mapping from constructor parameter names to supplied or default
+            values, excluding ``self``.
+
+        Raises
+        ------
+        TypeError
+            If the supplied arguments cannot be bound to the constructor.
+        """
+        bound = cls._bind_init_call(args, kwargs)
+        arguments = dict(bound.arguments)
+        arguments.pop("self", None)
+        return arguments
+
+
+    @classmethod
+    def _resolve_cache_init_call(
+            cls,
+            args,
+            kwargs) -> tuple[tuple[Any, ...], dict[str, Any], dict[str, Any]]:
+        """Resolve a constructor call and reconstruct its valid call form.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments intended for the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments intended for the subclass constructor.
+
+        Returns
+        -------
+        tuple[tuple[Any, ...], dict[str, Any], dict[str, Any]]
+            Resolved positional arguments, resolved keyword arguments, and the
+            complete normalized argument mapping used for cache identity.
+
+        Raises
+        ------
+        TypeError
+            If the original call cannot be bound to the constructor.
+        ValueError
+            If an argument resolver adds or removes constructor parameters.
+        """
+        bound = cls._bind_init_call(args, kwargs)
+        init_args = dict(bound.arguments)
+        init_args.pop("self", None)
+        resolved_args = cls._resolve_cache_init_args(init_args)
+
+        if resolved_args.keys() != init_args.keys():
+            raise ValueError(
+                "Resolved cache constructor arguments must preserve every "
+                "constructor parameter name."
+            )
+
+        # Update the BoundArguments object so it can reconstruct a valid call
+        # without converting positional-only parameters into keywords.
+        for arg_name, arg_value in resolved_args.items():
+            bound.arguments[arg_name] = arg_value
+
+        call_args = bound.args
+
+        # ``self`` was represented by the placeholder supplied during binding.
+        if call_args and call_args[0] is None:
+            call_args = call_args[1:]
+
+        return tuple(call_args), dict(bound.kwargs), resolved_args
+    
+
+    @classmethod
+    def _get_cache(cls) -> dict[int, set[CachedEstimatorMixin]]:
+        """Return the cache associated with the estimator subclass.
+
+        Returns
+        -------
+        dict[int, set[CachedEstimatorMixin]]
+            Mapping of constructor hashes to strong candidate sets. A new empty
+            cache is installed if the stored cache is missing or invalid.
+        """
+
+        with cls._pyspoc_cache_lock:
+            cache = getattr(cls, PYSPOC_CACHE_ATTRIBUTE, None)
+
+            if not isinstance(cache, dict):
+                cache = cls._reset_cache()
+
+            return cache
+
+    @classmethod
+    def _update_cache(cls, estimator: CachedEstimatorMixin
+        ) -> dict[int, set[CachedEstimatorMixin]] | None:
+
+        """Add an estimator to the candidate bucket for a hash.
+
+        Parameters
+        ----------
+        hash : int
+            Preliminary constructor-argument hash identifying the bucket.
+        estimator : CachedEstimatorMixin
+            Live estimator instance to retain strongly.
+
+        Returns
+        -------
+        None
+            The class cache is updated in place.
+        """
+        hash = estimator._get_hash()
+
+        if hash is None:
+            return
+        
+        with cls._pyspoc_cache_lock:
+            cache = cls._get_cache()
+            estimators = cache.get(hash)
+
+            # Create a strong bucket for the first estimator with this hash.
+            if not isinstance(estimators, set):
+                cache[hash] = {estimator}
+            else:
+                cache[hash].add(estimator)
+
+            return cache
+
+            
+    @classmethod
+    def _reset_cache(cls) -> dict[int, set[CachedEstimatorMixin]]:
+        """Replace the subclass cache with an empty mapping.
+
+        Returns
+        -------
+        dict[int, set[CachedEstimatorMixin]]
+            Newly installed empty cache.
+        """
+
+        with cls._pyspoc_cache_lock:
+            cache = dict()
+            setattr(cls, PYSPOC_CACHE_ATTRIBUTE, cache)
+            return cache
+
+
+    def _get_init_args(self) -> dict[str, Any]:
+        """Return normalized arguments recorded during construction.
+
+        Returns
+        -------
+        dict[str, Any]
+            Recorded constructor arguments, or an empty dictionary if argument
+            recording did not occur.
+        """
+        return getattr(self, PYSPOC_INIT_ARGS_ATTRIBUTE, dict())
+    
+
+    def _get_hash(self) -> Union[int, None]:
+        """Return the estimator's preliminary constructor hash.
+
+        Returns
+        -------
+        int or None
+            Recorded hash, or ``None`` if no hash has been assigned.
+        """
+        return getattr(self, PYSPOC_HASH_ATTRIBUTE, None)
+
+
+    def _set_hash(self, hash: int):
+        """Record the estimator's preliminary constructor hash.
+
+        Parameters
+        ----------
+        hash : int
+            Hash produced from the estimator's normalized, hashable arguments.
+
+        Returns
+        -------
+        None
+            The hash is stored on the estimator in place.
+        """
+        setattr(self, PYSPOC_HASH_ATTRIBUTE, hash)
+
+
+    def _get_attached_dataset(self) -> Union[np.ndarray, None]:
+        """Return the dataset associated with the estimator.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Attached dataset, or ``None`` when no dataset has been recorded.
+        """
+        return getattr(self, PYSPOC_ATTACHED_DATA_ATTRIBUTE, None)
+    
+
+    def _set_attached_dataset(self, dataset: np.ndarray):
+        """Attach a dataset used for exact cache matching.
+
+        Parameters
+        ----------
+        dataset : numpy.ndarray
+            Dataset to associate with this estimator. The array is stored by
+            as a copy of the original.
+
+        Returns
+        -------
+        None
+            The dataset is stored on the estimator in place.
+        """
+        setattr(self, PYSPOC_ATTACHED_DATA_ATTRIBUTE, dataset.copy())
+
+
+    def _get_lru(self) -> float:
+        """Return the estimator's last-use time as a POSIX timestamp.
+
+        Returns
+        -------
+        float
+            Recorded last-use timestamp, or ``0.0`` if no valid
+            :class:`datetime.datetime` has been stored.
+        """
+        lru = getattr(self, PYSPOC_LRU_ATTRIBUTE, None)
+        
+        if not isinstance(lru, datetime):
+            return 0.0
+
+        return lru.timestamp()
+
+    def _set_lru(self, lru: datetime):
+        """Record when the estimator was last used.
+
+        Parameters
+        ----------
+        lru : datetime.datetime
+            Date and time of the estimator's most recent use.
+
+        Returns
+        -------
+        None
+            The timestamp is stored on the estimator in place.
+        """
+        setattr(self, PYSPOC_LRU_ATTRIBUTE, lru)
+        
+
+    
+
+    @classmethod
+    def _get_cached(cls: type[_T_cache_enabled],
+                    data: np.ndarray,
+                    estimator_args: dict[str, Any]
+                    ) -> Union[list[_T_cache_enabled], None]:
+        """Return all candidates matching the arguments and dataset.
+
+        The constructor hash is only a preliminary filter. Each candidate must
+        also have the same concrete subclass, normalized arguments, array
+        shape, dtype, and values. ``None`` indicates that no candidate matched.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            Dataset to compare with each candidate's attached dataset.
+        estimator_args : dict[str, Any]
+            Resolved, normalized constructor arguments for the request.
+
+        Returns
+        -------
+        list[T_cache_enabled] or None
+            Live estimators satisfying every comparison, or ``None`` when the
+            hash bucket is absent or contains no exact matches.
+        """
+
+        with cls._pyspoc_cache_lock:
+            estimator_hash = cls._get_args_hash(estimator_args)
+            cache = cls._get_cache()
+
+            # Hash lookup cheaply reduces the number of estimators that require
+            # potentially expensive argument and array comparisons.
+            objs = cache.get(estimator_hash)
+
+            if objs is None:
+                return
+
+            matched_objs = list()
+
+            for obj in objs:
+                # Buckets can be inherited or shared, so enforce the requested
+                # estimator class before performing detailed comparisons.
+                if not isinstance(obj, cls):
+                    continue
+
+                # Delegate detailed equivalence to an overridable hook so
+                # subclasses can implement asymmetric or model-specific matching.
+                if not cls._matches_cache_request(obj, estimator_args, data):
+                    continue
+
+                matched_objs.append(obj)
+
+            return matched_objs or None
+
+
+    @classmethod
+    def _matches_cache_request(
+            cls,
+            estimator: CachedEstimatorMixin,
+            estimator_args: dict[str, Any],
+            data: np.ndarray) -> bool:
+        """Return whether an estimator satisfies a complete cache request.
+
+        The default implementation requires matching normalized constructor
+        arguments and an exactly matching attached dataset. Subclasses may
+        override this hook for model-specific rules, including asymmetric
+        relationships such as a cached component superset satisfying a subset
+        request.
+
+        Parameters
+        ----------
+        estimator : CachedEstimatorMixin
+            Cached estimator candidate selected by the preliminary hash.
+        estimator_args : dict[str, Any]
+            Normalized constructor arguments for the current request.
+        data : numpy.ndarray
+            Dataset supplied with the current request.
+
+        Returns
+        -------
+        bool
+            ``True`` if the candidate satisfies the request; otherwise
+            ``False``.
+
+        Notes
+        -----
+        An override that compares an argument specially should also override
+        :meth:`_get_candidate_args` when differing values for that argument
+        need to reach this hook.
+        """
+        # The hash is only a candidate filter: collisions and omitted or
+        # unhashable values can place unequal requests in the same bucket.
+        if not cls._is_arg_match(estimator._get_init_args(), estimator_args):
+            return False
+
+        return cls._is_data_match(estimator, data)
+
+
+    @classmethod
+    def _is_data_match(
+            cls,
+            estimator: CachedEstimatorMixin,
+            data: np.ndarray) -> bool:
+        """Compare a cached estimator's attached dataset with request data.
+
+        Parameters
+        ----------
+        estimator : CachedEstimatorMixin
+            Cached estimator candidate whose attached dataset is compared.
+        data : numpy.ndarray
+            Dataset supplied with the current cache request.
+
+        Returns
+        -------
+        bool
+            ``True`` when shape, dtype, and element values match exactly;
+            otherwise ``False``.
+        """
+        attached_dataset = estimator._get_attached_dataset()
+
+        if attached_dataset is None:
+            return False
+
+        # Check inexpensive metadata before comparing every element.
+        if attached_dataset.shape != data.shape:
+            return False
+
+        if attached_dataset.dtype != data.dtype:
+            return False
+
+        return np.array_equal(attached_dataset, data, equal_nan=True)
+
+
+    @classmethod
+    def _is_arg_match(
+            cls,
+            args: dict[str, Any],
+            reference_args: dict[str, Any]) -> bool:
+        
+        """
+        Compare two complete normalized constructor mappings.
+
+        Parameters
+        ----------
+        args : dict[str, Any]
+            Constructor arguments recorded on a cached estimator.
+        reference_args : dict[str, Any]
+            Constructor arguments for the current cache request.
+
+        Returns
+        -------
+        bool
+            ``True`` if both mappings contain the same names and equal values;
+            otherwise ``False``.
+        """
+        # Apply subclass normalization and omission rules consistently to the
+        # cached arguments and the current request.
+        canonical_args = cls._canonicalize_cache_args(args)
+        canonical_reference_args = cls._canonicalize_cache_args(reference_args)
+
+        if canonical_args.keys() != canonical_reference_args.keys():
+            return False
+
+        for arg_name, arg in canonical_args.items():
+            reference_arg = canonical_reference_args[arg_name]
+
+            if not cls._is_arg_value_match(arg, reference_arg):
+                return False
+
+        return True
+
+
+    @classmethod
+    def _is_arg_value_match(cls, arg: Any, reference_arg: Any) -> bool:
+        """Compare two individual constructor argument values safely.
+
+        Identity is checked first so that an object always matches itself,
+        including objects whose equality operation is unsupported or
+        ambiguous. NumPy arrays require explicit array comparison because
+        their equality operator returns an array of booleans. Other values use
+        their normal equality operation only when it produces a scalar Boolean
+        result.
+
+        Parameters
+        ----------
+        arg : Any
+            Constructor argument recorded on a cached estimator.
+        reference_arg : Any
+            Constructor argument supplied with the current cache request.
+
+        Returns
+        -------
+        bool
+            ``True`` when the values are unambiguously equal; otherwise
+            ``False``.
+
+        Notes
+        -----
+        The conservative ``False`` result for ambiguous or unsupported
+        equality prevents the cache from returning an incorrect estimator.
+        Subclasses may override this method to support additional value types.
+        """
+        # Identity is definitive and avoids invoking potentially problematic
+        # equality implementations when both arguments are the same object.
+        if arg is reference_arg:
+            return True
+
+        # NumPy equality is element-wise, so compare arrays explicitly and
+        # include shape in the equivalence check.
+        if isinstance(arg, np.ndarray) and isinstance(reference_arg, np.ndarray):
+            return np.array_equal(arg, reference_arg)
+
+        # Tensor equality is element-wise, so compare arrays explicitly and
+        # include shape and type in the equivalence check.
+        # If torch isn't loaded, ignore the check entirely.
+        tensors_equal = cls._are_tensors_equal(arg, reference_arg)
+
+        if tensors_equal is not None:
+            return tensors_equal
+
+        try:
+            is_equal = arg == reference_arg
+        except Exception:
+            # Equality is user-defined and may reject cross-type comparisons.
+            # A cache miss is safer than propagating or guessing in that case.
+            return False
+
+        # Do not coerce array-like equality results to bool: NumPy arrays,
+        # tensors, and similar objects may be ambiguous or apply implicit
+        # aggregation rules that are unsuitable for cache equivalence.
+        if isinstance(is_equal, (bool, np.bool_)):
+            return bool(is_equal)
+
+        return False
+        
+
+    @staticmethod
+    def _are_tensors_equal(arg: Any, reference_arg: Any) -> bool | None:
+        """
+        Return tensor equality, or None when Torch comparison is inapplicable.
+        
+        Parameters
+        ----------
+        arg : Any
+            Constructor argument recorded on a cached estimator.
+        reference_arg : Any
+            Constructor argument supplied with the current cache request.
+
+        Returns
+        -------
+        bool | None
+            ``None`` if torch is not loaded;
+            ``True`` when the values are unambiguously equal; otherwise
+            ``False``.
+
+        Notes
+        -----
+        The ``None`` result allows for checks to continue in the main check
+        method, signalling that the arguments are not tensors.
+        Subclasses may override this method to support additional checks,
+        for example to include checking on device match.
+        """
+        torch = sys.modules.get("torch")
+
+        if torch is None:
+            return None
+
+        if not (
+            isinstance(arg, torch.Tensor)
+            and isinstance(reference_arg, torch.Tensor)
+        ):
+            return None
+
+        return (
+            arg.shape == reference_arg.shape
+            and arg.dtype == reference_arg.dtype
+            #and arg.device == reference_arg.device
+            and torch.equal(arg, reference_arg)
+        )
+    
+
+    @classmethod
+    def _get_hashables(cls, estimator_kwargs: dict[str, Any]):
+        """Select arguments suitable for preliminary cache hashing.
+
+        Parameters
+        ----------
+        estimator_kwargs : dict[str, Any]
+            Complete normalized constructor argument mapping.
+
+        Returns
+        -------
+        dict[str, Any]
+            Ordered subset containing values that can be hashed successfully.
+        """
+        hashable_kwargs = dict()
+
+        for arg_name, arg in estimator_kwargs.items():
+            # The protocol check is a cheap first pass; the actual hash call
+            # below handles objects that advertise hashing but reject it.
+            if not isinstance(arg, Hashable):
+                continue
+
+            try:
+                hash(arg)
+            except TypeError:
+                continue
+
+            hashable_kwargs[arg_name] = arg
+
+        return hashable_kwargs
+
+
+    @classmethod
+    def _instantiate(
+            cls: type[_T_cache_enabled],
+            data: np.ndarray,
+            args,
+            kwargs) -> _T_cache_enabled:
+        """Construct an estimator and register it with the bounded cache.
+
+        Parameters
+        ----------
+        args : tuple[Any, ...]
+            Positional arguments forwarded to the subclass constructor.
+        kwargs : dict[str, Any]
+            Keyword arguments forwarded to the subclass constructor.
+
+        Returns
+        -------
+        T_cache_enabled
+            Newly constructed and cached estimator instance.
+        """
+        # Construction invokes the wrapper installed by ``__init_subclass__``,
+        # which records normalized arguments and their preliminary hash.
+        estimator = cls(*args, **kwargs)
+        estimator._set_attached_dataset(data)
+        estimator._set_lru(datetime.now())
+        cls._maintain_cache(estimator)
+        return estimator
+
+
+    @classmethod
+    def _maintain_cache(cls, estimator: CachedEstimatorMixin):
+        """Insert an estimator and evict excess live cache entries.
+
+        Parameters
+        ----------
+        estimator : CachedEstimatorMixin
+            Newly constructed estimator to add to its argument-hash bucket.
+
+        Returns
+        -------
+        None
+            The cache is updated in place. At most
+            ``settings.current.max_cache_results`` estimator references remain
+            after maintenance.
+
+        Raises
+        ------
+        RuntimeError
+            If an estimator selected for eviction has no corresponding cache
+            bucket, indicating that the cache changed unexpectedly.
+        """
+        size = 0
+        cached_estimators: list[CachedEstimatorMixin] = list()
+
+        with cls._pyspoc_cache_lock:
+            cache = cls._update_cache(estimator)
+
+            if cache is None:
+                raise RuntimeError("Estimator hash not found during cache maintenance.")
+
+            # Materialize the currently live objects so their total can be bounded
+            # and they remain alive for the duration of this maintenance pass.
+            for cached_hash, estimators in tuple(cache.items()):
+                n_est = len(estimators)
+
+                if n_est == 0:
+                    cache.pop(cached_hash, None)
+                    continue
+
+                cached_estimators.extend(estimators)
+                size += n_est
+
+            excess = size - settings.current.max_cache_results
+
+            if excess <= 0:
+                return
+
+            # Newest estimators sort first; removal proceeds from the oldest end.
+            cached_estimators.sort(
+                key=lambda x: x._get_lru(),
+                reverse=True)
+
+            for i in range(excess):
+                lru_estimator = cached_estimators.pop()
+                lru_hash = lru_estimator._get_hash()
+
+                if lru_hash is None:
+                    continue
+
+                estimator_set = cache.get(lru_hash)
+
+                if estimator_set is None:
+                    raise RuntimeError(f"Estimator cache for hash {lru_hash} "
+                                    "not found during cache maintenance.")
+
+                # Set removal uses the estimator's hash/equality semantics.
+                estimator_set.remove(lru_estimator)
+
+                if not estimator_set:
+                    cache.pop(lru_hash, None)
+
+    @staticmethod
+    def _updates_lru(func: Callable[Concatenate[_T_cache_enabled, _P], _R]
+        ) -> Callable[Concatenate[_T_cache_enabled, _P], _R]:
+        """
+        Decorate an instance method to update its estimator's use time.
+
+        Parameters
+        ----------
+        func : collections.abc.Callable
+            Instance method whose invocation counts as estimator use.
+
+        Returns
+        -------
+        collections.abc.Callable
+            Wrapper that records the current local date and time immediately
+            before calling ``func``.
+        """
+        @wraps(func)
+        def wrapper(self: _T_cache_enabled, /, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+            # Update recency before executing the wrapped operation so cache
+            # maintenance can prefer recently requested estimators.
+            self._set_lru(datetime.now())
+            return func(self, *args, **kwargs)
+
+        return wrapper

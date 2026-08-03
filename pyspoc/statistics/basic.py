@@ -15,19 +15,19 @@ class Covariance(Statistic):
     Information on covariance estimators can be found at: https://scikit-learn.org/stable/modules/covariance.html
     """
 
-    __name = "Covariance"
-    __identifier = "cov"
-    __labels = ["basic", "unordered", "linear"]
+    _name = "Covariance"
+    _identifier = "cov"
+    _labels = ["basic", "unordered", "linear"]
 
     def __init__(self,
                  estimator: str = "EmpiricalCovariance",
                  squared: bool = False):
 
         if squared:
-            self.__labels.append("unsigned")
-            self.__identifier += ".sq"
+            self._labels.append("unsigned")
+            self._identifier += ".sq"
         else:
-            self.__labels.append("signed")
+            self._labels.append("signed")
 
         self.__is_squared = squared
         self.__estimator = estimator
@@ -35,17 +35,17 @@ class Covariance(Statistic):
 
     @property
     def name(self) -> str:
-        return self.__name
+        return self._name
 
     @property
     def identifier(self) -> str:
-        return self.__identifier
+        return self._identifier
 
     @property
     def labels(self) -> list[str]:
-        return self.__labels
+        return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
         cov_obj = self.__fit(data)
         cov = cov_obj.covariance_
 
@@ -55,7 +55,7 @@ class Covariance(Statistic):
         return cov
 
     def __fit(self, data: np.ndarray):
-        cov_dir = [x for x in skcov.__dir__() if inspect.isclass(getattr(skcov, x))]
+        cov_dir = [x for x in skcov.__dir__() if inspect.isclass(getattr(skcov, x))] # pyright: ignore[reportAttributeAccessIssue]
 
         if self.__estimator not in cov_dir:
             available_estimators = ", ".join(cov_dir)
@@ -69,8 +69,8 @@ class Covariance(Statistic):
 
 class Precision(Covariance):
 
-    __name = "Precision"
-    __identifier = "prec"
+    _name = "Precision"
+    _identifier = "prec"
 
     def __init__(self,
                  estimator: str = "EmpiricalCovariance",
@@ -90,13 +90,13 @@ class Precision(Covariance):
 
 class SpearmanR(PairwiseStatistic):
     # Setting the name internally.
-    __name = "Spearman's correlation coefficient"
+    _name = "Spearman's correlation coefficient"
 
     # Setting the identifier internally.
-    __identifier = "spearmanr"
+    _identifier = "spearmanr"
 
     # Setting the labels internally.
-    __labels = ["basic", "rank", "linear", "undirected"]
+    _labels = ["basic", "rank", "linear", "undirected"]
 
     def __init__(self, squared: bool):
 
@@ -107,15 +107,15 @@ class SpearmanR(PairwiseStatistic):
         if squared:
 
             # Add the "unsigned" label.
-            self.__labels += ["unsigned"]
+            self._labels += ["unsigned"]
 
             # And the ".sq" suffix to the identifier.
-            self.__identifier += ".sq"
+            self._identifier += ".sq"
 
         else:
 
             # Else, add the "signed" label.
-            self.__labels += ["signed"]
+            self._labels += ["signed"]
 
         # Call the base class initialiser with required arguments.
         super().__init__(dim="p",
@@ -124,17 +124,17 @@ class SpearmanR(PairwiseStatistic):
     # Implementing the name property.
     @property
     def name(self) -> str:
-        return self.__name
+        return self._name
 
     # Implementing the identifier property.
     @property
     def identifier(self) -> str:
-        return self.__identifier
+        return self._identifier
 
     # Implementing the labels property.
     @property
     def labels(self) -> list[str]:
-        return self.__labels
+        return self._labels
 
     # Implementing the PairwiseStatistic's pairwise_compute method.
     # Arguments:
@@ -157,29 +157,29 @@ class SpearmanR(PairwiseStatistic):
 
 class KendallTau(PairwiseStatistic):
 
-    __name = "Kendall's tau"
-    __identifier = "kendalltau"
-    __labels = ["basic", "unordered", "rank", "linear", "undirected"]
+    _name = "Kendall's tau"
+    _identifier = "kendalltau"
+    _labels = ["basic", "unordered", "rank", "linear", "undirected"]
 
     def __init__(self, squared: bool, dim: str = "p"):
         self.__squared = squared
         if squared:
-            self.__identifier += ".sq"
-            self.__labels += ["unsigned"]
+            self._identifier += ".sq"
+            self._labels += ["unsigned"]
         else:
-            self.__labels += ["signed"]
+            self._labels += ["signed"]
 
         super().__init__(dim=dim,
                          is_ordered=False)
 
     def name(self) -> str:
-        return self.__name
+        return self._name
 
     def identifier(self) -> str:
-        return self.__identifier
+        return self._identifier
 
     def labels(self) -> list[str]:
-        return self.__labels
+        return self._labels
 
     def pairwise_compute(self,
                           x: np.ndarray,
