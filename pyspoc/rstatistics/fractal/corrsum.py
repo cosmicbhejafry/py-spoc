@@ -244,9 +244,6 @@ def _assign_boxes(data: np.ndarray):
     data - data.min(axis=1)
 
 
-
-
-
 def _get_renyi_entropy_numba(
         q: float,
         data: np.ndarray,

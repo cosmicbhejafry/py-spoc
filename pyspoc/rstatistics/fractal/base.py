@@ -3,7 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Literal
 
-from pyspoc import ReducedStatistic
+from pyspoc.statistic import ReducedStatistic
 from pyspoc._argchecking import (
     RuntimeTypeCheckedMixin,
     check_float,

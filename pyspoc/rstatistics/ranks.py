@@ -1,6 +1,7 @@
 import numpy as np
 
-from pyspoc import Reducer, ReducedStatistic
+from pyspoc import Reducer
+from pyspoc.statistic import ReducedStatistic
 
 class EffectiveRank(Reducer, ReducedStatistic):
 

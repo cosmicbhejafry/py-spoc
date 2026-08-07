@@ -1,1 +1,1 @@
-from .renyi import *
+from .renyi import RenyiEntropy

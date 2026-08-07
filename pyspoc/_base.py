@@ -19,7 +19,7 @@ from typeguard import typechecked
 
 if TYPE_CHECKING:
     from pyspoc.config import Config
-    from pyspoc.statistic import Statistic
+    from pyspoc._core.statistic import Statistic
     from pyspoc.dataset import Dataset
     import torch
 

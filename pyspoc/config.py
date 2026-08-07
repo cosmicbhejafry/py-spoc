@@ -158,14 +158,14 @@ class Config:
         return cls.from_yaml_file(name, yaml_path)
 
     @classmethod
-    def from_archetypes(cls, 
+    def from_archetypes(cls,
                         name: str,
                         statistic_archetypes: list[str] | None = None,
                         reducer_archetypes: list[str] | None = None,
-                        reduced_statistic_archetypes: list[str] | None = None) -> Config:
+                        scalar_statistic_archetypes: list[str] | None = None) -> Config:
                 
-        if not reduced_statistic_archetypes:
-            reduced_statistic_archetypes = list()
+        if not scalar_statistic_archetypes:
+            scalar_statistic_archetypes = list()
 
         if not statistic_archetypes:
             statistic_archetypes = list()
@@ -174,7 +174,7 @@ class Config:
             reducer_archetypes = list()
         
         is_valid_config = any([
-           reduced_statistic_archetypes,
+           scalar_statistic_archetypes,
            statistic_archetypes and reducer_archetypes
         ])
         
@@ -186,7 +186,7 @@ class Config:
         instance = cls(name)
         component_dirs = ["statistics", "reducers", "rstatistics"]
         component_classes = [Statistic, Reducer, ReducedStatistic]
-        all_archetypes = [statistic_archetypes, reducer_archetypes, reduced_statistic_archetypes]
+        all_archetypes = [statistic_archetypes, reducer_archetypes, scalar_statistic_archetypes]
         archetype_triples = zip(component_dirs, component_classes, all_archetypes)
         
         for dir, component_class, archetypes in archetype_triples:
@@ -315,7 +315,7 @@ class Config:
         Arguments:
             reduced_statistic (ReducedStatistic): A ReducedStatistic object to add to the configuration.
             scheme_name (string): A unique name for the scheme attached to the object.
-        """        
+        """
         
         self._add_component(reduced_statistic, ReducedStatistic, scheme_name)
 
@@ -818,13 +818,17 @@ class Config:
         if module:
             return module
 
-        # Check module files.
+        # Check user current working directory module files.
         module = cls._load_module_file(module_reference,
-                                        refresh_module=refresh_module,
-                                        suppress_warning=True)
+                                       refresh_module=refresh_module,
+                                       suppress_warning=True)
 
         if module:
             return module
+
+        raise ModuleNotFoundError(
+            f"Unable to find the module {module_reference} within the pyspoc library, "
+            "session memory or user current working directory.")
         
     @classmethod
     def _get_cached_module(cls,
@@ -887,10 +891,14 @@ class Config:
             return
 
         # Load and return module
-        print(module_path)
-        module_dict = run_path(module_path, run_name=module_path)
-        module = Namespace(**module_dict)
-        cls._cached_modules[module_path] = module
+        try:
+            module_dict = run_path(module_path, run_name=module_path)
+            module = Namespace(**module_dict)
+            cls._cached_modules[module_path] = module
+
+        except FileNotFoundError:
+            return None
+
         return module
 
     @classmethod

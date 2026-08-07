@@ -8,7 +8,7 @@ import pytest
 from pyspoc.rstatistics.dimreduce.orthopcae import rstatistics as rstatistics_module
 from pyspoc.rstatistics.dimreduce.orthopcae.rstatistics import (
     OrthogonalPCAEVarianceElbow,
-    OrthogonalPCAEVarianceExplained,
+    OrthogonalPCAEVarianceExplainedRatio,
 )
 from pyspoc.statistics.dimreduce.orthopcae._state import (
     OrthogonalPCAEFittedState,
@@ -43,7 +43,7 @@ def test_variance_elbow_selects_scalar_estimator_result(
 def test_variance_explained_selects_requested_components(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """The enclosing statistic should apply one-based component selection."""
-    statistic = OrthogonalPCAEVarianceExplained(
+    statistic = OrthogonalPCAEVarianceExplainedRatio(
         batch_size=4,
         components=[1, 3],
         max_bottleneck_dim=3,

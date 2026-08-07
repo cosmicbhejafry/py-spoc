@@ -39,6 +39,7 @@ dependencies = [
   "oct2py",
   "seaborn",
   "future",
+  "mne_connectivity"
 ]
 
 classifiers = [
@@ -104,7 +105,7 @@ sort = "mean"
 line-length = 100
 target-version = "py310"
 lint.select = ["E", "F", "W"]
-lint.ignore = ["W293", "E722"]
+lint.ignore = ["W293", "E722", "F722"]
 
 # optionally:   "nbstripout"
 

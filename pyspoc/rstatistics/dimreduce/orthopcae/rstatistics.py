@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from pyspoc.statistics.dimreduce.orthopcae._estimator import OrthogonalPCAEEstimator
 
 
-class OrthogonalPCAEVarianceExplained(OrthogonalPCAEReducedStatistic):
+class OrthogonalPCAEVarianceExplainedRatio(OrthogonalPCAEReducedStatistic):
 
     _name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
     _identifier = "opcae-var"
