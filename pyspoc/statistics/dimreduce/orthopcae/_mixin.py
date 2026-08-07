@@ -8,6 +8,7 @@ import numpy as np
 from typing import Union, Iterable, Optional
 from abc import ABC
 from dataclasses import dataclass
+from math import log2
 
 from pyspoc import _argchecking
 from pyspoc.settings import settings
@@ -48,10 +49,12 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
     state.
     """
 
+    _MIN_DEFAULT_BATCH_SIZE = 64
+
     def __init__(
         self,
-        batch_size: int,
         components: Union[int, Iterable[int]],
+        batch_size: Optional[int] = None,
         train_steps: int = 10000,
         burn_in_steps_prop: float = 0.1,
         alpha: float = 0.1,
@@ -99,10 +102,13 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
         """
 
         # Validate configuration that does not depend on the eventual dataset.
-        self._batch_size = _argchecking.check_natural_number(
-            batch_size,
-            "batch_size",
-        )
+        if batch_size is not None:
+            self._batch_size = _argchecking.check_natural_number(
+                batch_size,
+                "batch_size",
+            )
+        else:
+            self._batch_size = None
 
         if isinstance(components, int):
             component_count = _argchecking.check_natural_number(
@@ -223,6 +229,10 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
                 p,
                 effective_max_bottleneck_dim,
             )
+
+        if self._batch_size is None:
+            relative_batch_size = 2 ** round(log2(n / 10))
+            self._batch_size = max(self._MIN_DEFAULT_BATCH_SIZE, relative_batch_size)
 
         valid_components = tuple(
             component for component in self._components if component <= effective_max_bottleneck_dim

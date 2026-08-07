@@ -2,4 +2,4 @@ import numpy as np
 
 from pyspoc import Statistic
 
-mod = Statistic.available_statistics()
+mod = Statistic.get_available_statistics()

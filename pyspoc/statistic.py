@@ -3,12 +3,11 @@ from __future__ import annotations
 import runpy
 
 import numpy as np
-import copy
 import gc
 import pkgutil
 
-from abc import abstractmethod, ABC
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import Literal, TYPE_CHECKING
 from pathlib import Path
 
 from pyspoc._base import Component
@@ -59,11 +58,10 @@ class Statistic(Component, ABC):
                 return result
 
         # Else compute from scratch.
-        data = dataset.data
+        data = dataset.get_data()
 
         # Take a deep copy of the data.
-        data_copy = copy.deepcopy(data)
-        result = self.compute(data_copy)
+        result = self.compute(data)
         result = np.array(result)
 
         # Cache result in the hierarchy.
@@ -125,41 +123,6 @@ class Statistic(Component, ABC):
         return Statistic
 
 
-class DynamicStatistic(Statistic, ABC):
-
-    """
-    Abstract Statistic class intended for computing dynamic statistics from an entire time series dataset (n x p x t).
-    Provides a dynamic square matrix (p x p x t) output subject to further processing by applicable Reducers.
-
-    Contracts
-    ----------
-        Input: (n x p x t) -> Output: (p x p x t)
-    """
-
-    def calculate(self, dataset: Dataset) -> np.ndarray:
-
-        # If data is static n x p then just return a static statistic with m x m shape.
-        if dataset.data.ndim == 2:
-
-            # temporarily uncache results, TODO: fix caching mechanisms
-            self.uncache(dataset)
-            return super().calculate(dataset)
-
-        # Else, compute the statistic for each time step. #TODO: THIS NEEDS TO BE EDITED OUT
-        data = dataset.data
-        results = []
-        t = data.shape[2]
-
-        for s in range(t):
-            z = data[:, :, s]
-            result = super().calculate(z)
-            results.append(result)
-
-        # And combine as a dynamic statistic with m x m x t shape.
-        S = np.stack(results, axis=2)
-        return S
-
-
 class PairwiseStatistic(Statistic):
 
     """
@@ -171,9 +134,6 @@ class PairwiseStatistic(Statistic):
     Data can be ordered if required.
 
     Provides a square matrix (p x p, n x n, t x t) output subject to further processing by applicable Reducers.
-
-    IMPORTANT NOTE: Pairwise statistics for time processes are incompatible with dynamic statistics. The former
-    provides a statistic across ALL time points whereas the latter provides a statistic for EACH time point.
 
     Parameters
     ----------
@@ -198,19 +158,27 @@ class PairwiseStatistic(Statistic):
     """
 
     def __init__(self,
-                 dim: str,
-                 is_ordered: bool):
+                 dim: Literal["n", "p"] = "p",
+                 is_ordered: bool = False,
+                 is_symmetric: bool = False):
 
         self._dim = dim
         self._is_ordered = is_ordered
-        self._check_temporal_compatibility(dim)
+        self._is_symmetric = is_symmetric
         super().__init__()
 
-    def _check_temporal_compatibility(self, dim):
-        if isinstance(self, DynamicStatistic) and dim == "t":
-            raise TypeError("Temporal Pairwise (Timewise) statistics and Dynamic statistics are incompatible. "
-                            "Timewise methods compute a statistic for an entire time series. "
-                            "Dynamic methods compute a statistic for each time point.")
+    @property
+    def dim(self) -> str:
+        return self._dim
+
+    @property
+    def is_ordered(self) -> bool:
+        return self._is_ordered
+
+    @property
+    def is_symmetric(self) -> bool:
+        return self._is_symmetric
+    
 
     def _reshape_data(self, data: np.ndarray) -> np.ndarray:
 
@@ -235,7 +203,6 @@ class PairwiseStatistic(Statistic):
     def compute(self, data: np.ndarray) -> np.ndarray | float:
         """ Compute statistics over all pairwise permutations.
         """
-
         data = self._reshape_data(data)
 
         if self._is_ordered:
@@ -246,12 +213,18 @@ class PairwiseStatistic(Statistic):
 
         for i in range(m):
             x = data[i]
+            k = i + 1 if self._is_symmetric else 0
 
-            for j in range(m):
+            for j in range(k, m):
                 y = data[j]
-                S[i, j] = self.pairwise_compute(x, y)
+                s = self.pairwise_compute(x, y)
+                S[i, j] = s
+
+                if self._is_symmetric:
+                    S[j, i] = s
 
         return S
+
 
 
 class ReducedStatistic(Statistic, ABC):
@@ -269,3 +242,5 @@ class ReducedStatistic(Statistic, ABC):
 
         result = super().calculate(dataset)
         return result.flatten()
+
+

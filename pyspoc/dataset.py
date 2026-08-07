@@ -19,7 +19,7 @@ from typeguard import check_type
 
 from pyspoc import (_base)
 from pyspoc import _argchecking
-from pyspoc.statistic import Statistic
+from pyspoc._core.statistic import Statistic
 from pyspoc.settings import settings
 
 
@@ -85,6 +85,7 @@ class Dataset:
         self._base_data: np.ndarray | pd.DataFrame | str
         self._data_type: type
         self._data: np.ndarray
+        self._data_copy: np.ndarray | None = None
         self._var_names: List[str] = list()
         self._set_data(data=data,
                        dim_order=dim_order,
@@ -107,10 +108,6 @@ class Dataset:
 
         check_type(name, str)
         self._name = name
-
-    @property
-    def data(self) -> np.ndarray:
-        return self._data
 
     @property
     def data_type(self) -> type:
@@ -191,14 +188,20 @@ class Dataset:
 
         """Return the numpy array."""
         if realisation is not None:
-            data = self.data[realisation]
+            data = self._data[realisation]
         else:
-            data = self.data
+            data = self._data
 
         if squeeze:
             return np.squeeze(data)
         else:
             return data
+
+    def get_data(self) -> np.ndarray:
+        if self._data_copy is not None:
+            return self._data_copy
+
+        return self._data.copy()
 
     @staticmethod
     def convert_to_numpy(data: Union[np.ndarray, pd.DataFrame, str]) -> np.ndarray:
@@ -345,10 +348,11 @@ class Dataset:
 
         print("Normalising the dataset using StandardScaler \n")
         try:
-            data = StandardScaler().fit_transform(data)
-            return data
+            std_data = StandardScaler().fit_transform(data)
+            return std_data
         except ValueError as err:
             print(f"Error with RobustScaling: {err}")
+            return data
 
     @staticmethod
     def _message(message: str):
@@ -483,4 +487,4 @@ class Dataset:
         return Dataset(data=dataset, dim_order=dim_order)
 
     def __getitem__(self, item: Union[int, tuple[int, ...]]):
-        return self.data[item]
+        return self._data[item]

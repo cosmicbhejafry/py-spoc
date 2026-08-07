@@ -183,6 +183,11 @@ class KClusteringSimilarity(KClusteringStatistic):
         # Borrow fitted centres without exposing or mutating the cached model.
         model = fitted_estimator._get_model()
         centres = model.cluster_centers_
+
+        if centres is None:
+            raise RuntimeError("Fitted estimator has no cluster centres. "
+                               "Check that fit() completed successfully.")
+
         gamma = self._gamma if self._gamma is not None else 1 / data.shape[1]
 
         # Scikit-learn provides vectorized implementations for kernels that

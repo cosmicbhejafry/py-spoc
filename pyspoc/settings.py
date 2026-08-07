@@ -21,18 +21,43 @@ class SettingsValues:
 
     Attributes
     ----------
+
+    #### Logging
+
+    verbose : bool, default=False
+        Whether supported operations should emit additional diagnostics.
+
+    #### Caching
+    
     max_cache_results : int, default=10
         Maximum number of results retained by caches that use the package
         setting.
-    verbose : bool, default=False
-        Whether supported operations should emit additional diagnostics.
+    statistic_caching : bool, default=True
+        Whether Statistic results should be retained in cache.
+    reducer_caching : bool, default=False
+        Whether Reducer results should be retained in cache.
+    numba_caching : bool, default=False
+        Whether Numba should cache supported compiled functions on disk.
+
+    #### Determinism
+    
     random_seed : int, default=0
         Library-wide random seed used by statistics with non-deterministic
         solvers.
+
+    #### Torch
+    
     torch_estimator_inference_device: {"cpu", "training}, default="cpu"
         Device to store cached PyTorch estimators on for later inference.
         The "training" setting means that estimators remain stored on
         the device used for training.
+
+    #### Numba
+
+    numba_mode : {"auto", "numba", "python"}, default="auto"
+        Execution policy for functions with both Numba and Python
+        implementations. ``"auto"`` permits fallback, ``"numba"`` requires
+        the Numba implementation, and ``"python"`` bypasses Numba.
     numba_error_model : {"numpy", "python"}, default="numpy"
         Error model supplied when compiling supported Numba functions.
     numba_fastmath : bool, default=False
@@ -40,12 +65,6 @@ class SettingsValues:
         optimizations during compilation.
     numba_boundschecking : bool, default=False
         Whether supported Numba functions should perform bounds checking.
-    numba_caching : bool, default=False
-        Whether Numba should cache supported compiled functions on disk.
-    numba_mode : {"auto", "numba", "python"}, default="auto"
-        Execution policy for functions with both Numba and Python
-        implementations. ``"auto"`` permits fallback, ``"numba"`` requires
-        the Numba implementation, and ``"python"`` bypasses Numba.
 
     Notes
     -----
@@ -55,16 +74,26 @@ class SettingsValues:
     :meth:`Settings.override` to create a temporary context-local snapshot.
     """
 
-    max_cache_results: int = 10
+    # Logging
     verbose: bool = False
-    random_seed: int = 0
+
+    # Torch settings
     torch_estimator_inference_device: Literal["cpu", "training"] = "cpu"
 
+    # Caching
+    max_cache_results: int = 20
+    statistic_caching: bool = True
+    reducer_caching: bool = False
+    numba_caching: bool = False
+
+    # Determinism
+    random_seed: int = 0
+
+    # Numba specific
+    numba_mode: NumbaMode = "auto"
     numba_error_model: NumbaErrorModel = "numpy"
     numba_fastmath: bool = False
     numba_boundschecking: bool = False
-    numba_caching: bool = False
-    numba_mode: NumbaMode = "auto"
 
 
 class Settings:

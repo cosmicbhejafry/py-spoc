@@ -1,6 +1,7 @@
 import inspect
 import numpy as np
 import scipy as sp
+import mne_connectivity as mnec
 
 from sklearn import covariance as skcov
 from typing import Union
@@ -118,8 +119,7 @@ class SpearmanR(PairwiseStatistic):
             self._labels += ["signed"]
 
         # Call the base class initialiser with required arguments.
-        super().__init__(dim="p",
-                         is_ordered=False)
+        super().__init__(dim="p", is_ordered=False, is_symmetric=True)
 
     # Implementing the name property.
     @property
@@ -169,8 +169,7 @@ class KendallTau(PairwiseStatistic):
         else:
             self._labels += ["signed"]
 
-        super().__init__(dim=dim,
-                         is_ordered=False)
+        super().__init__(dim="p", is_ordered=False, is_symmetric=True)
 
     def name(self) -> str:
         return self._name
@@ -182,7 +181,7 @@ class KendallTau(PairwiseStatistic):
         return self._labels
 
     def pairwise_compute(self,
-                          x: np.ndarray,
+                         x: np.ndarray,
                          y: np.ndarray) -> Union[np.ndarray, float]:
 
         corr = sp.stats.kendalltau(x, y).correlation
@@ -191,3 +190,82 @@ class KendallTau(PairwiseStatistic):
             return corr ** 2
 
         return corr
+
+
+class PowerEnvelopeCorrelation(Statistic):
+    # Setting the name internally.
+    __name = "Power Envelope Correlation"
+
+    # Setting the identifier internally.
+    __identifier = "pec"
+
+    # Setting the labels internally.
+    __labels = ["unsigned", "misc", "undirected"]
+
+    def __init__(self, orth=False, log=False, absolute=False):
+
+        # If the orthogonal argument is provided...
+        if orth:
+            # Store the orthogonal argument to use in the compute method.
+            self.__orth = "pairwise"
+
+            # Update the identifier.
+            self.__identifier += "_orth"
+
+        # Otherwise, default to False.
+        else:
+            self.__orth = False
+
+        # Store the log argument for use in the compute method.
+        self.__log = log
+
+        # If set...
+        if log:
+            # Update the identifier.
+            self.__identifier += "_log"
+
+        # Store the absolute argument for use in the compute method.
+        self.__absolute = absolute
+
+        # If set...
+        if absolute:
+            # Update the identifier.
+            self.__identifier += "_abs"
+
+        # Call the base class initialiser.
+        super().__init__()
+
+    # Implementing the name property.
+    @property
+    def name(self) -> str:
+        return self.__name
+
+    # Implementing the identifier property.
+    @property
+    def identifier(self) -> str:
+        return self.__identifier
+
+    # Implementing the labels property.
+    @property
+    def labels(self) -> list[str]:
+        return self.__labels
+
+    # Compute method requires implementing.
+    # data: Full dataset with n observations, p variables as a numpy array.
+    def compute(self, data: np.ndarray) -> np.ndarray:
+
+        # Utilizing the envelop_correlation function provided by the MNE-Connectivity library.
+        env_corr = mnec.envelope_correlation(
+
+            # Passing through the stored arguments from the initialiser.
+            data, orthogonalize=self.__orth, log=self.__log, absolute=self.__absolute
+        )
+
+        # Squeezing the result to remove any excess dimensions.
+        adj = np.squeeze(env_corr)
+
+        # Filling self/auto-correlations with NaNs.
+        np.fill_diagonal(adj, np.nan)
+
+        # Returning the p by p matrix as numpy array.
+        return adj

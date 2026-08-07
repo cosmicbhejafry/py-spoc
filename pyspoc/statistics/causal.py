@@ -1,6 +1,8 @@
 import numpy as np
 import warnings
 
+from typing import Literal
+
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     
@@ -68,8 +70,9 @@ class InformationGeometricConditionalIndependence(PairwiseStatistic):
     identifier = "igci"
     labels = ["causal", "directed", "nonlinear", "unsigned", "unordered"]
 
-    def __init__(self, dim: str):
+    def __init__(self, dim: Literal["n", "p"] = "p"):
         super().__init__(dim=dim, is_ordered=False)
+        self._igci = IGCI()
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
-        return IGCI().predict_proba((x, y))
+        return self._igci.predict_proba((x, y))

@@ -28,13 +28,13 @@ print("Learned Beta (Shift) :", model.decoder_bn.bias)
 #%%
 
 from pyspoc.rstatistics.dimreduce.orthopcae.rstatistics import (
-    OrthogonalPCAEVarianceElbow, OrthogonalPCAEVarianceExplained)
+    OrthogonalPCAEVarianceElbow, OrthogonalPCAEVarianceExplainedRatio)
 
 orthopcae_ve = OrthogonalPCAEVarianceElbow(256, 5, train_steps=1000)
 orthopcae_ve.compute(data)
 
 # %%
-orthopcae_var = OrthogonalPCAEVarianceExplained(256, 7, train_steps=1000)
+orthopcae_var = OrthogonalPCAEVarianceExplainedRatio(256, 7, train_steps=1000)
 results = orthopcae_var.compute(data)
 results
 # %%
