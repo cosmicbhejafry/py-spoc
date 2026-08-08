@@ -52,43 +52,36 @@ classifiers = [
 dev = [
   "pytest",
   "pytest-benchmark",
-  "black",
   "mypy",
-  "coverage",
-  "pre-commit",
   "ruff",
   "watchfiles"
 ]
 
 doc = [
   "numpydoc",
-  "sphinx",
+  "sphinx"
 ]
 
 notebooks = [
   "jupyter",
   "ipykernel",
-  "matplotlib",  
-  "plotly",
+  "matplotlib"
+]
+
+extended = [
+  "torch"
 ]
 
 all = [
   "pytest",
   "pytest-benchmark",
-  "black",
   "mypy",
-  "coverage",
-  "pre-commit",
   "numpydoc",
   "sphinx",
   "jupyter",
   "ipykernel",
   "matplotlib",
-  "plotly",
-  "ruff"
-]
-
-extended = [
+  "ruff",
   "torch"
 ]
 
