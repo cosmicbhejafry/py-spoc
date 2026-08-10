@@ -289,6 +289,8 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
             else check_integer(scale_length, minimum=50, arg_name="scale_length"))
         self._scale_adaption_iters = check_natural_number(
             scale_adaption_iters, arg_name="scale_adaption_iters")
+        self._plot_scaling_curve = kwargs.pop("plot_scaling_curve", False)
+
         self._kwargs = kwargs
         super().__init__()
 
@@ -356,12 +358,13 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
         pass
 
     def compute(self, data: np.ndarray) -> np.ndarray | float:
-        scale_length = self._resolve_scale_length(data)
+        non_negative_data = data - data.min()
+        scale_length = self._resolve_scale_length(non_negative_data)
         
         # Get boxes of different scales.
         if self.use_adaptive_scaling:
             scales = fpy.get_adaptive_scales(
-                data,
+                non_negative_data,
                 method=self.scale_method,
                 k=scale_length,
                 max_iter=self.scale_adaption_iters,
@@ -370,13 +373,13 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
         else:
             if self.scale_method == "datseries":
                 scales = fpy.get_datseries_scales(
-                    data,
+                    non_negative_data,
                     k=scale_length,
                     **self._kwargs
                 )
             else:
                 scales = fpy.get_log10_scales(
-                    data,
+                    non_negative_data,
                     k=scale_length,
                     **self._kwargs
                 )
@@ -384,7 +387,7 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
         scales = scales[::-1]
         
         # Estimate density at each box scale.
-        densities = self._compute_density_estimate(data, scales)
+        densities = self._compute_density_estimate(non_negative_data, scales)
 
         # Throw error if no result.
         if densities is None:
@@ -398,6 +401,12 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
         
         # Log transform for linear relationship.
         neg_log_scales = -np.log(scales)
+
+        # Debug option to check scaling curves.
+        if self._plot_scaling_curve:
+            import matplotlib.pyplot as plt
+            plt.plot(neg_log_scales, densities)
+            plt.show()
 
         # Perform OLS regression of the scaling curve as starting point.
         slope, r2 = fpy.compute_ols_results(neg_log_scales, densities)
@@ -425,6 +434,10 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
                 slope, r2 = fpy.compute_ols_results(
                     neg_log_scales,
                     densities)
+
+                if self._plot_scaling_curve:
+                    plt.plot(neg_log_scales, densities)
+                    plt.show()
 
         # Return the OLS slope if it certain conditions are met.
         if slope:

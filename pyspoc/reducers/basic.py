@@ -163,9 +163,13 @@ class Determinant(Reducer):
         return self._labels
 
     def compute(self, data: np.ndarray) -> np.ndarray | float:
-        det = np.linalg.det(data)
+        sign, logabsdet = np.linalg.slogdet(data)
+        absdet = np.exp(logabsdet)
+
+        if absdet == np.inf:
+            return sign * absdet
 
         if self._scaled:
-            return det ** -data.ndim
+            return sign * (absdet ** (1 / data.ndim))
 
-        return det
+        return sign * absdet

@@ -84,8 +84,8 @@ def test_component_cfg_and_scheme_setter_getter():
     component = DummyComponent(alpha=1)
     config = DummyConfig("my-config")
 
-    component.set_config(config)
-    component.set_scheme("test-scheme")
+    component._set_config(config)
+    component._set_scheme("test-scheme")
 
     assert component.cfg is config
     assert component.scheme == "test-scheme"
@@ -94,7 +94,7 @@ def test_component_cfg_and_scheme_setter_getter():
 def test_component_string_representation_includes_metadata():
     component = DummyComponent(alpha=1)
     config = DummyConfig("config-name")
-    component.set_config(config)
+    component._set_config(config)
 
     string = str(component)
 

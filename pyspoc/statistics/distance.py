@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Union
+from typing import Union, Literal
 from sklearn.metrics import pairwise_distances
 from hyppo.independence import (
     MGC,
@@ -15,25 +15,29 @@ from pyspoc.statistic import Statistic, PairwiseStatistic
 class PairwiseDistance(Statistic):
 
     __name = "Pairwise distance"
-    __identifier = "pdist"
+    _identifier = "pdist"
     __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
 
-    def __init__(self, metric="euclidean"):
-        self.__metric = metric
-        self.__identifier += f".{metric}"
+    def __init__(self, dim : Literal["n", "p"] = "p", metric = "euclidean"):
+        self._dim = dim
+        self._metric = metric
+        self._identifier += f".{metric}"
         super().__init__()
 
     def name(self) -> str:
         return self.__name
 
     def identifier(self) -> str:
-        return self.__identifier
+        return self._identifier
 
     def labels(self) -> list[str]:
         return self.__labels
 
     def compute(self, data: np.ndarray) -> np.ndarray:
-        return pairwise_distances(data, metric=self.__metric)
+        if self._dim == "n":
+            return pairwise_distances(data, metric=self._metric)
+
+        return pairwise_distances(data.T, metric=self._metric)
 
 
 """ TODO: include optional kernels in each method

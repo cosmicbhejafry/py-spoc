@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import warnings
+import traceback
 
 from tqdm import tqdm
-from typing import Iterable, Any
+from typing import Iterable, Any, TYPE_CHECKING
+from collections.abc import Collection
 
 # From this package
 from pyspoc.dataset import Dataset
 from pyspoc.config import Config
 from pyspoc.statistic import Statistic, ReducedStatistic
+
+if TYPE_CHECKING:
+    from warnings import WarningMessage
 
 
 class Calculator:
@@ -62,6 +66,11 @@ class Calculator:
         self._loaded_stats = dict()
         self._loaded_reducer_config = dict()
         self._loaded_reducers = dict()
+        self._active_component_name : str | None = None
+        self._raised_warnings : dict[str, tuple[WarningMessage]] = dict()
+        self._untracked_warnings: tuple[WarningMessage, ...] = tuple()
+        self._raised_errors : dict[str, Exception] = dict()
+        self._untracked_errors: tuple[Exception, ...] = tuple()
 
         self.name = name
         self.labels = labels
@@ -109,6 +118,122 @@ class Calculator:
 
         raise ValueError("dataset must be of type pyspc.Data or np.ndarray.")
 
+    def _clear_errors(self):
+        self._raised_errors = dict()
+        self._untracked_errors = tuple()
+
+    def _clear_warnings(self):
+        self._raised_warnings = dict()
+        self._untracked_warnings = tuple()
+
+    def _add_error(self, error: Exception):
+        if self._active_component_name is not None:
+            self._raised_errors[self._active_component_name] = error
+            return
+
+        if self._untracked_warnings is None:
+            self._untracked_errors = (error,)
+            return
+        
+        self._untracked_errors = (*self._untracked_errors, error)
+
+    def _add_warnings(self, warnings: Collection[WarningMessage]):
+        if self._active_component_name is not None:
+            self._raised_warnings[self._active_component_name] = warnings
+            return
+
+        if self._untracked_warnings is None:
+            self._untracked_warnings = tuple(warnings)
+            return
+        
+        self._untracked_warnings = (*self._untracked_warnings, *warnings)
+
+    def _report_warnings(self):
+        if self._raised_warnings or self._untracked_warnings:
+            print("-" * 100)
+            print("Warnings")
+            print("-" * 100)
+            print("The following warnings were raised during computation:")
+
+        if self._raised_warnings:
+            for component_name, raised_warnings in self._raised_warnings.items():
+                for warning in raised_warnings:
+                    self._print_warning(warning, component_name)
+
+        if self._untracked_warnings:
+            for warning in self._untracked_warnings:
+                self._print_warning(warning, "Unattributed to any Component")
+
+    @staticmethod
+    def _print_warning(warning: WarningMessage, component_name: str):
+        """Print a captured warning and its original source metadata.
+
+        Parameters
+        ----------
+        warning : warnings.WarningMessage
+            Captured warning record containing the warning instance and source
+            location supplied by Python's warnings machinery.
+        component_name : str
+            Component attribution displayed above the warning details.
+
+        Returns
+        -------
+        None
+            The formatted warning is written to standard output immediately.
+        """
+        print(f"{component_name}:")
+        print(f"[{warning.category.__name__}] {warning.message}")
+        print(f"Location: {warning.filename}:{warning.lineno}")
+        print()
+
+    def _report_errors(self):
+        if self._raised_errors or self._untracked_errors:
+            print("-" * 100)
+            print("Exceptions")
+            print("-" * 100)
+            print("The following exceptions were raised during computation:")
+
+        if self._raised_errors:
+            for component_name, error in self._raised_errors.items():
+                self._print_error(error, component_name)
+
+        if self._untracked_errors:
+            for error in self._untracked_errors:
+                self._print_error(error, "Unattributed to any Component")
+
+    @staticmethod
+    def _print_error(error: Exception, component_name: str):
+        """Print a caught exception and its originating traceback location.
+
+        Parameters
+        ----------
+        error : Exception
+            Exception captured during Calculator execution.
+        component_name : str
+            Component attribution displayed above the exception details.
+
+        Returns
+        -------
+        None
+            The formatted exception is written to standard output immediately.
+
+        Notes
+        -----
+        An exception constructed but never raised has no traceback. In that
+        case its filename and line number cannot be recovered.
+        """
+        print(f"{component_name}:")
+        print(f"[{type(error).__name__}] {error}")
+
+        traceback_entries = traceback.extract_tb(error.__traceback__)
+        if traceback_entries:
+            origin = traceback_entries[-1]
+            print(f"Location: {origin.filename}:{origin.lineno}")
+        else:
+            print("Location: unavailable")
+
+        print()
+        
     @property
     def name(self):
         """Name of the calculator."""
@@ -148,16 +273,29 @@ class Calculator:
         dataset = self.dataset
         elapsed = 0
 
+        self._clear_errors()
+        self._clear_warnings()
+
+        print("-" * 100)
+        print("Running calculation.")
+        print("-" * 100)
+
         # Calculate configured Statistics.
         if stats:
             stat_pbar = tqdm(stats.keys())
 
             for stat_name in stat_pbar:
                 try:
-                    stat_pbar.set_description(f"Processing [{self._name}: {stat_name}]")
+                    stat_pbar.set_description(f"Computing Statistics [{self._name}: {stat_name}]")
 
                     # Get the next statistic.
                     stat = stats[stat_name]
+
+                    # Store the active statistic.
+                    self._active_component_name = stat_name
+
+                    # Register this calculator with the statistic for warning propagation.
+                    stat._set_active_calculator(self)
 
                     # Get result (checks cache first before computation).
                     stat.calculate(dataset)
@@ -166,44 +304,59 @@ class Calculator:
                     results_dict[stat_name] = dict()
 
                 except Exception as e:
-                    warnings.warn(f'Caught {type(e)} for Statistic "{stat_name}": {e}')
+                    self._add_error(e)
 
             stat_pbar.close()
             elapsed += stat_pbar.format_dict["elapsed"]
 
-            # Calculate configured Reducers.
-            reducer_pbar = tqdm(reducers.keys())
             stat_names = list(results_dict.keys())
+            reducer_stat_list = list()
 
-            for reducer_name in reducer_pbar:
-                reducer_pbar.set_description(f"Processing [{self._name}: {reducer_name}]")
+            for reducer_name in reducers.keys():
                 reducer = reducers[reducer_name]
                 applicable_stat_names = config.get_reducer_filters(reducer)
 
-                if applicable_stat_names is None:
+                if not applicable_stat_names:
                     reducer_stat_names = stat_names
                 else:
                     reducer_stat_names = [stat_name for stat_name in applicable_stat_names if stat_name in stat_names]
 
                 for stat_name in reducer_stat_names:
+                    reducer_stat_list.append((reducer_name, stat_name))
 
-                    try:
-                        # Get computed statistic.
-                        stat = stats[stat_name]
+            # Calculate configured Reducers.
+            reducer_pbar = tqdm(reducer_stat_list)
 
-                        # If the Statistic is a ReducedStatistic (ie. an all-in-one) then store the result and continue.
-                        if isinstance(stat, ReducedStatistic):
-                            results_dict[stat_name]["self"] = stat.get_result()
-                            continue
+            for reducer_name, stat_name in reducer_pbar:
+                combined_name = f"{stat_name}-{reducer_name}"
+                reducer_pbar.set_description(
+                    f"Computing reduction [{self._name}: {combined_name}]")
+                reducer = reducers[reducer_name]
 
-                        # Reduce the result.
-                        R = reducer.calculate(stat).squeeze()
+                # Register this calculator with the reducer for warning propagation.
+                reducer._set_active_calculator(self)
 
-                        # Save results.
-                        results_dict[stat_name][reducer_name] = R
+                try:
+                    # Get computed statistic.
+                    stat = stats[stat_name]
 
-                    except Exception as e:
-                        warnings.warn(f'Caught {type(e)} for Reducer "{stat_name}-{reducer_name}": {e}')
+                    # Store the active statistic-reducer combo.
+                    self._active_component_name = combined_name
+
+                    # If the Statistic is a ReducedStatistic (ie. an all-in-one) then store the result and continue.
+                    if isinstance(stat, ReducedStatistic):
+                        results_dict[stat_name]["self"] = stat.get_result()
+                        continue
+
+                    # Reduce the result.
+                    R = reducer.calculate(stat).squeeze()
+
+                    # Save results.
+                    results_dict[stat_name][reducer_name] = R
+
+                except Exception as e:
+                    self._add_error(e)
+
 
             reducer_pbar.close()
             elapsed += reducer_pbar.format_dict["elapsed"]
@@ -215,10 +368,17 @@ class Calculator:
 
             for rstat_name in rstat_pbar:
                 try:
-                    rstat_pbar.set_description(f"Processing [{self._name}: {rstat_name}]")
+                    rstat_pbar.set_description(
+                        f"Computing Reduced Statistics [{self._name}: {rstat_name}]")
 
                     # Get the next reduced statistical summary.
                     rstat = rstats[rstat_name]
+
+                    # Store the active reduced statistic.
+                    self._active_component_name = rstat_name
+
+                    # Register this calculator with the reduced statistic for warning propagation.
+                    rstat._set_active_calculator(self)
 
                     # Get result.
                     R = rstat.calculate(dataset).squeeze()
@@ -228,15 +388,18 @@ class Calculator:
                     results_dict[rstat_name]["self"] = R
 
                 except Exception as e:
-                    warnings.warn(f'Caught {type(e)} for ReducedStatistic "{rstat_name}": {e}')
+                    self._add_error(e)
+
 
             rstat_pbar.close()
             elapsed += rstat_pbar.format_dict["elapsed"]
 
         print(f"\nCalculation complete. Time taken: {elapsed:.4f}s")
+        print()
         self._results = self._build_results_table(results_dict)
         self._results_dict = results_dict
-        # inspect_calc_results(self)
+        self._report_errors()
+        self._report_warnings()
 
     @staticmethod
     def _build_results_table(results: dict) -> pd.DataFrame:
@@ -250,7 +413,8 @@ class Calculator:
                 summary_vec = reduced_result.reshape((1, size))
                 summaries_vec = np.hstack((summaries_vec, summary_vec))
                 first_level.extend([stat_name] * size)
-                second_level_names = [reducer_name] if size == 1 else [f"{reducer_name}_{i+1}" for i in range(size)]
+                second_level_names = [reducer_name] if size == 1 \
+                    else [f"{reducer_name}_{i+1}" for i in range(size)]
                 second_level.extend(second_level_names)
 
         columns = pd.MultiIndex.from_arrays(

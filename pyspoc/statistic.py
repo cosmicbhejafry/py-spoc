@@ -5,6 +5,7 @@ import runpy
 import numpy as np
 import gc
 import pkgutil
+import warnings
 
 from abc import ABC, abstractmethod
 from typing import Literal, TYPE_CHECKING
@@ -57,12 +58,17 @@ class Statistic(Component, ABC):
             if result is not None:
                 return result
 
-        # Else compute from scratch.
+        # Else compute from scratch with a copy of the data.
         data = dataset.get_data()
 
-        # Take a deep copy of the data.
-        result = self.compute(data)
-        result = np.array(result)
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            result = self.compute(data)
+
+            if captured and self._active_calculator is not None:
+                self._active_calculator._add_warnings(captured)
+
+        result = self._get_readonly_result_copy(result)
 
         # Cache result in the hierarchy.
         if dataset_results is None:
@@ -75,6 +81,11 @@ class Statistic(Component, ABC):
         # Cache result locally.
         self._cached_result = result
         return result
+
+    def _get_readonly_result_copy(self, result: np.ndarray) -> np.ndarray:
+        result_copy = np.array(result, copy=True)
+        result_copy.flags.writeable = False
+        return result_copy
 
     @classmethod
     def uncache(cls, dataset: Dataset, include_gc: bool = False):
@@ -160,11 +171,11 @@ class PairwiseStatistic(Statistic):
     def __init__(self,
                  dim: Literal["n", "p"] = "p",
                  is_ordered: bool = False,
-                 is_symmetric: bool = False):
+                 symmetry: Literal["no", "yes", "negative", "reciprocal"] = "no"):
 
         self._dim = dim
         self._is_ordered = is_ordered
-        self._is_symmetric = is_symmetric
+        self._symmetry = symmetry
         super().__init__()
 
     @property
@@ -176,23 +187,9 @@ class PairwiseStatistic(Statistic):
         return self._is_ordered
 
     @property
-    def is_symmetric(self) -> bool:
-        return self._is_symmetric
+    def symmetry(self) -> str:
+        return self._symmetry
     
-
-    def _reshape_data(self, data: np.ndarray) -> np.ndarray:
-
-        match self._dim:
-            case "p":
-                data = data.swapaxes(0, 1)
-
-            case "t":
-                data = data.swapaxes(0, 2)
-
-            case _:  # Consider adding an error if dim is not n, p, or t
-                pass
-
-        return data
 
     @abstractmethod
     def pairwise_compute(self,
@@ -203,28 +200,38 @@ class PairwiseStatistic(Statistic):
     def compute(self, data: np.ndarray) -> np.ndarray | float:
         """ Compute statistics over all pairwise permutations.
         """
-        data = self._reshape_data(data)
+        if self._dim == "n":
+            data = data.T
 
         if self._is_ordered:
-            data.sort(axis=0)
+            data = np.sort(data, axis=0)
 
-        m = data.shape[0]
+        m = data.shape[1]
         S = np.ndarray(shape=(m, m))
 
         for i in range(m):
-            x = data[i]
-            k = i + 1 if self._is_symmetric else 0
+            x = data[:,i]
+            k = 0 if self._symmetry == "no" else i
 
             for j in range(k, m):
-                y = data[j]
+                y = data[:,j]
                 s = self.pairwise_compute(x, y)
                 S[i, j] = s
 
-                if self._is_symmetric:
-                    S[j, i] = s
+                if i == j:
+                    continue
+                
+                match self._symmetry:
+                    case "yes":
+                        S[j, i] = s
+
+                    case "negative":
+                        S[j, i] = -s
+
+                    case "reciprocal":
+                        S[j, i] = 1/s
 
         return S
-
 
 
 class ReducedStatistic(Statistic, ABC):

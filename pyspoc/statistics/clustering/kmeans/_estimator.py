@@ -54,7 +54,7 @@ class KClusteringEstimator(
         self,
         k: int,
         method: Literal["kmeans", "kmedoids"] = "kmeans",
-        initializer: Literal["++", "random"] = "++",
+        initializer: Literal["k-means++", "random"] = "k-means++",
         max_iter: int = 300,
         random_seed: int | None = None,
     ):

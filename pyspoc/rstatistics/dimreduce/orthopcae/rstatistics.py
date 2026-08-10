@@ -117,17 +117,18 @@ def extract_pcae_scree_data(
 
     # Calculate pseudo "Variance Explained" percentage
     # R^2 style: (Baseline Error - Bottleneck Error) / Baseline Error
-
     if np.isclose(baseline_mse, 0.0):
-        variance_explained = np.zeros(
+        cum_variance_explained = np.zeros(
             len(loss_distribution),
             dtype=float,
         )
     else:
-        variance_explained = np.array([
+        cum_variance_explained = np.array([
             max(0.0, baseline_mse - mse) / baseline_mse
             for mse in loss_distribution
         ])
+
+    variance_explained = np.diff(cum_variance_explained, prepend=0)
 
     return OrthogonalPCAEFittedState(
         variance_explained = copy_array(variance_explained),

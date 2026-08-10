@@ -2,6 +2,9 @@ import numpy as np
 import warnings
 
 from typing import Literal
+from pyspoc.statistic import PairwiseStatistic
+from pyspoc.settings import settings
+
 
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
@@ -9,8 +12,7 @@ with warnings.catch_warnings(record=True) as w:
     from sklearn.gaussian_process import GaussianProcessRegressor
     from cdt.causality.pairwise.ANM import normalized_hsic
     from cdt.causality.pairwise import CDS, IGCI, RECI
-    from pyspoc.statistic import PairwiseStatistic
-
+    
     IMPORT_WARNINGS = w
 
 class AdditiveNoiseModel(PairwiseStatistic):
@@ -21,13 +23,14 @@ class AdditiveNoiseModel(PairwiseStatistic):
 
     def __init__(self):
         super().__init__(dim="p",
-                         is_ordered=True)
+                         is_ordered=True,
+                         symmetry="yes")
 
     # monkey-patch the anm_score function
     @staticmethod
     def corrected_anm_score(x, y):
         x_2d = x.reshape(-1, 1) if x.ndim == 1 else x
-        gp = GaussianProcessRegressor(random_state=42).fit(x_2d, y)
+        gp = GaussianProcessRegressor(random_state=settings.current.random_seed).fit(x_2d, y)
         y_predict = gp.predict(x_2d).reshape(-1, 1)
         indepscore = normalized_hsic(y_predict - y, x_2d)
         return indepscore
@@ -71,7 +74,7 @@ class InformationGeometricConditionalIndependence(PairwiseStatistic):
     labels = ["causal", "directed", "nonlinear", "unsigned", "unordered"]
 
     def __init__(self, dim: Literal["n", "p"] = "p"):
-        super().__init__(dim=dim, is_ordered=False)
+        super().__init__(dim=dim, is_ordered=False, symmetry="negative")
         self._igci = IGCI()
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:

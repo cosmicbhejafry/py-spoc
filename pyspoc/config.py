@@ -13,6 +13,7 @@ from typing import Iterable, Generator, cast
 from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
+from warnings import WarningMessage
 
 from pyspoc._base import Component
 from pyspoc.statistic import Statistic, ReducedStatistic
@@ -50,6 +51,7 @@ class Config:
         self._config_dict = dict()
         self._reducer_filtered_stats = dict()
         self._reducer_filters = dict()
+        self._raised_warnings: dict[str, WarningMessage]
 
         component_types = ["Statistic", "Reducer", "ReducedStatistic"]
         self._config_scheme = dict()
@@ -477,7 +479,7 @@ class Config:
         if module_reference not in self._cached_modules:
             self._cached_modules[module_reference] = module
 
-        component.set_scheme(scheme_name)
+        component._set_scheme(scheme_name)
         component_archetype_name = component_archetype.__name__
         full_component_name = self._get_full_component_name(module_reference, component_type_name)
         self._cached_module_classes[component_archetype_name][full_component_name] = component_type
@@ -842,8 +844,10 @@ class Config:
             return module
         
     @classmethod
-    def _get_package_module(cls,
-                             module_reference: str) -> ModuleType | None:
+    def _get_package_module(
+        cls,
+        module_reference: str) -> ModuleType | None:
+        
         # Get package modules.
         try:
             module = importlib.import_module(module_reference, __package__)
@@ -853,10 +857,47 @@ class Config:
                 print(f"    (The following warnings were raised: {[str(w.message) for w in module.IMPORT_WARNINGS]})")
 
             return module
-        except ModuleNotFoundError:
-            pass
+        except ModuleNotFoundError as error:
+            # ``import_module`` also raises ModuleNotFoundError when code inside
+            # the requested module imports an unavailable dependency. Treat
+            # only the requested module (or one of its parent packages) as a
+            # failed lookup; otherwise preserve the original dependency error
+            # and traceback for the caller.
+            if cls._is_requested_module_missing(module_reference, error):
+                return None
+            raise
         except Exception as e:
             raise e
+
+    @staticmethod
+    def _is_requested_module_missing(
+        module_reference: str,
+        error: ModuleNotFoundError,
+) -> bool:
+        """Return whether an import error identifies the requested module path.
+
+        Parameters
+        ----------
+        module_reference : str
+            Absolute dotted name passed to :func:`importlib.import_module`.
+        error : ModuleNotFoundError
+            Exception raised while importing that module.
+
+        Returns
+        -------
+        bool
+            ``True`` when the requested module itself, or a parent package in
+            its dotted path, is missing. An unrelated name denotes a missing
+            dependency imported by code within the requested module.
+        """
+        missing_name = error.name
+        if missing_name is None:
+            return False
+
+        return (
+            module_reference == missing_name
+            or module_reference.startswith(f"{missing_name}.")
+        )
         
     @classmethod
     def _get_loaded_module(cls,
@@ -983,8 +1024,10 @@ class Config:
         try:
             importlib.import_module(module_reference)
             return True
-        except ModuleNotFoundError:
-            return False
+        except ModuleNotFoundError as error:
+            if Config._is_requested_module_missing(module_reference, error):
+                return False
+            raise
         except Exception as e:
             raise e
 

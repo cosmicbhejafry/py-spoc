@@ -38,11 +38,11 @@ class OrthogonalPCAE(nn.Module):
         self.bottleneck = bottleneck_dim
         self.residual_dim = bottleneck_dim - 1
         self._rng = make_torch_generator(random_seed)
-
         self.mask_pool = self._get_refreshed_mask_pool()
+        encoding_width = int(2 ** (math.ceil(math.log2(input_dim)) + 1))
 
-        self.encoder_bn = nn.BatchNorm1d(64)
-        self.decoder_bn = nn.BatchNorm1d(64)
+        self.encoder_bn = nn.BatchNorm1d(encoding_width)
+        self.decoder_bn = nn.BatchNorm1d(encoding_width)
 
         # Stream A: Purely Linear Mean/Intercept Tracker (1 Node)
         self.enc_mean = nn.Linear(input_dim, bottleneck_dim, bias=False)
@@ -50,15 +50,22 @@ class OrthogonalPCAE(nn.Module):
         # Stream B: Non-Linear Orthogonal Bottleneck (Remaining Nodes)
 
         # Encoder Hidden Layer
-        self.enc_hidden = nn.Linear(input_dim, 64)
+        self.enc_hidden = nn.Linear(input_dim, encoding_width)
 
         # The project layer must be saved explicitly to calculate orthogonality
-        self.enc_project = nn.Linear(64, bottleneck_dim, bias=False)
+        self.enc_project = nn.Linear(encoding_width, bottleneck_dim, bias=False)
 
-        self.encoder = nn.Sequential(self.enc_hidden, self.encoder_bn, nn.Tanh(), self.enc_project)
+        self.encoder = nn.Sequential(
+            self.enc_hidden,
+            self.encoder_bn,
+            nn.Tanh(),
+            self.enc_project)
 
         self.decoder = nn.Sequential(
-            nn.Linear(bottleneck_dim, 64), self.decoder_bn, nn.Tanh(), nn.Linear(64, input_dim)
+            nn.Linear(bottleneck_dim, encoding_width),
+            self.decoder_bn,
+            nn.Tanh(),
+            nn.Linear(encoding_width, input_dim)
         )
 
         self._reset_parameters()

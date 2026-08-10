@@ -238,7 +238,9 @@ class RenyiEntropy(FractalMeasureBase):
                  use_adaptive_scaling: bool = True,
                  scale_method: Literal["datseries", "log-10"] = "datseries",
                  scale_length: int | None = None,
-                 scale_adaption_iters: int = 20):
+                 scale_adaption_iters: int = 20,
+                 **kwargs):
+        
         """Initialize a Rényi generalized-dimension statistic.
 
         Parameters
@@ -291,7 +293,8 @@ class RenyiEntropy(FractalMeasureBase):
                          use_adaptive_scaling=use_adaptive_scaling,
                          scale_method=scale_method,
                          scale_length=scale_length,
-                         scale_adaption_iters=scale_adaption_iters)
+                         scale_adaption_iters=scale_adaption_iters,
+                         **kwargs)
 
     @property
     def name(self) -> str:

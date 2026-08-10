@@ -63,7 +63,7 @@ class KClusteringSimilarity(KClusteringStatistic):
     def __init__(
         self,
         k: int,
-        initializer: Literal["k-means++"] | Literal["random"] = "k-means++",
+        initializer: Literal["k-means++","random"] = "k-means++",
         max_iter: int = 300,
         kernel: Literal[
             "rbf",

@@ -60,8 +60,9 @@ class Covariance(Statistic):
 
         if self.__estimator not in cov_dir:
             available_estimators = ", ".join(cov_dir)
-            raise AttributeError(f"The {self.__class__.__name__} estimator {self.__estimator} is not supported.\n"
-                                 f"Options include: {available_estimators}.")
+            raise AttributeError(
+                f"The {self.__class__.__name__} estimator {self.__estimator} is not supported.\n"
+                f"Options include: {available_estimators}.")
 
         cov_class = getattr(skcov, self.__estimator)()
         cov_obj = cov_class.fit(data)
@@ -119,7 +120,7 @@ class SpearmanR(PairwiseStatistic):
             self._labels += ["signed"]
 
         # Call the base class initialiser with required arguments.
-        super().__init__(dim="p", is_ordered=False, is_symmetric=True)
+        super().__init__(dim="p", is_ordered=False, symmetry="yes")
 
     # Implementing the name property.
     @property
@@ -169,7 +170,7 @@ class KendallTau(PairwiseStatistic):
         else:
             self._labels += ["signed"]
 
-        super().__init__(dim="p", is_ordered=False, is_symmetric=True)
+        super().__init__(dim="p", is_ordered=False, symmetry="yes")
 
     def name(self) -> str:
         return self._name

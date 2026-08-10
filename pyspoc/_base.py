@@ -18,8 +18,9 @@ from typeguard import typechecked
 
 
 if TYPE_CHECKING:
+    from pyspoc.calculator import Calculator
     from pyspoc.config import Config
-    from pyspoc._core.statistic import Statistic
+    from pyspoc.statistic import Statistic
     from pyspoc.dataset import Dataset
     import torch
 
@@ -116,14 +117,17 @@ class Component(ABC):
     #     instance._params = arg_dict
     #     return instance
 
-    def set_config(self, cfg: Config):
+    def _set_config(self, cfg: Config):
         self._cfg = cfg
+
+    def _set_active_calculator(self, calculator: Calculator):
+        self._active_calculator = calculator
 
     @property
     def cfg(self):
         return self._cfg
 
-    def set_scheme(self, scheme: str):
+    def _set_scheme(self, scheme: str):
         self._scheme = scheme
 
     @property

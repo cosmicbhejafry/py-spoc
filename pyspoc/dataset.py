@@ -198,10 +198,15 @@ class Dataset:
             return data
 
     def get_data(self) -> np.ndarray:
-        if self._data_copy is not None:
-            return self._data_copy
+        if self._data_copy is None:
+            self._data_copy = self._get_readonly_data_copy()
 
-        return self._data.copy()
+        return self._data_copy
+
+    def _get_readonly_data_copy(self) -> np.ndarray:
+        data_copy = np.array(self._data, copy=True)
+        data_copy.flags.writeable = False
+        return data_copy
 
     @staticmethod
     def convert_to_numpy(data: Union[np.ndarray, pd.DataFrame, str]) -> np.ndarray:

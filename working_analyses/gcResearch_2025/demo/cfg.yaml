@@ -26,11 +26,6 @@ Statistics:
           squared: False
 
   pyspoc.statistics.causal:
-    # Additive noise model
-    AdditiveNoiseModel:
-      schemes:
-        standard:
-
     # Information geometric conditional independence test
     InformationGeometricConditionalIndependence:
       schemes:
@@ -48,17 +43,12 @@ Statistics:
           metric: cosine
 
   pyspoc.statistics.model_fits:
-    LinearModel:
+    LinearModelError:
       schemes:
         linear:
           model: LinearRegression
         huber:
           model: HuberRegressor
-
-    GPModel:
-      schemes:
-        rbf:
-          kernel: RBF
 
   pyspoc.statistics.clustering.kmeans:
     KClusteringSimilarity:
@@ -85,9 +75,6 @@ Reducers:
       schemes:
         three:
           num_values: 3
-
-        two:
-          num_values: 2
 
     Determinant:
       schemes:
@@ -129,10 +116,10 @@ ReducedStatistics:
     PCAVarianceExplainedRatio:
       schemes:
         three:
-          components: [1,2,3]
+          components: 3
   
   pyspoc.rstatistics.dimreduce.orthopcae:
     OrthogonalPCAEVarianceExplainedRatio:
       schemes:
         three:
-          components: [1,2,3]
+          components: 3

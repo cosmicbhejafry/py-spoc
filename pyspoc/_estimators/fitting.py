@@ -50,6 +50,7 @@ class LazyFittedCachedEstimatorMixin(
 
         if attached_data is None:
             self._set_attached_dataset(data)
+            
         elif not type(self)._is_data_match(self, data):
             raise ValueError(
                 "Input data does not match the dataset associated "

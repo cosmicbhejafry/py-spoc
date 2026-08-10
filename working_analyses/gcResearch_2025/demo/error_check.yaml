@@ -1,0 +1,13 @@
+Statistics:
+  pyspoc.statistics.causal:
+    # Information geometric conditional independence test
+    InformationGeometricConditionalIndependence:
+      schemes:
+        standard:
+
+Reducers:
+  pyspoc.reducers.basic:
+    Determinant:
+      schemes:
+        scaled:
+          scaled: True

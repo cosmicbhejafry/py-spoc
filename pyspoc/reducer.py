@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 import numpy as np
 import copy
 import gc
@@ -32,10 +33,14 @@ class Reducer(Component, ABC):
                 return result
 
         statistic_result = statistic.get_result()
-        statistic_result_cp = copy.deepcopy(statistic_result) # NOTE: Check if this is still required.
-        #statistic_result_cp = np.atleast_3d(statistic_result_cp)
-        #statistic_sliced = self._slice_data(statistic_result_cp)
-        result = self.compute(statistic_result_cp)
+        statistic_result_cp = copy.deepcopy(statistic_result)
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            result = self.compute(statistic_result_cp)
+
+            if captured and self._active_calculator is not None:
+                self._active_calculator._add_warnings(captured)
+
         result = np.array(result)
 
         if statistic_results is None:
