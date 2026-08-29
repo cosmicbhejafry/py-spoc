@@ -1,8 +1,9 @@
 import numpy as np
 import scipy.stats as sp
 
-from pyspoc.reducer import Reducer
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.reducers.base import Reducer
+from pyspoc.rstatistics.base import ReducedStatistic
+
 
 class Moment(Reducer):
 
@@ -26,7 +27,7 @@ class Moment(Reducer):
     def labels(self) -> list[str]:
         return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         mom = sp.moment(data, order = self._moments)
         return mom
 
@@ -52,9 +53,12 @@ class SingularValues(Reducer, ReducedStatistic):
     def labels(self) -> list[str]:
         return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         svs = np.linalg.svd(data, compute_uv=False)
         return svs[:self.__num_values]
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)
 
 
 class EigenValues(Reducer):
@@ -79,7 +83,7 @@ class EigenValues(Reducer):
     def labels(self) -> list[str]:
         return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         eigs = np.linalg.eigvals(data)
         return eigs[:self.__num_values]
 
@@ -106,7 +110,7 @@ class Diag(Reducer):
     def labels(self) -> list[str]:
         return self._labels
     
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         diag = np.diag(data)
         return diag[:self.__num_values]
 
@@ -132,7 +136,7 @@ class Trace(Reducer):
     def labels(self) -> list[str]:
         return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         return np.trace(data)
 
 
@@ -162,7 +166,7 @@ class Determinant(Reducer):
     def labels(self) -> list[str]:
         return self._labels
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         sign, logabsdet = np.linalg.slogdet(data)
         absdet = np.exp(logabsdet)
 

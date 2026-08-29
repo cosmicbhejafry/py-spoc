@@ -6,26 +6,24 @@ import pandas as pd
 import os
 import yaml
 import inspect
+import pkgutil
 
 from scipy.stats import zscore
-from types import FunctionType
-from typing import Iterable, Any, Optional, Dict, TypeVar, TYPE_CHECKING
+from types import FunctionType, ModuleType
+from typing import Literal, Iterable, Any, Optional, Dict, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from textwrap import dedent
 from numbers import Number
-from copy import deepcopy
 from typeguard import typechecked
+from importlib import import_module
 
 
 if TYPE_CHECKING:
     from pyspoc.calculator import Calculator
     from pyspoc.config import Config
-    from pyspoc.statistic import Statistic
-    from pyspoc.dataset import Dataset
-    import torch
+    #from pyspoc.statistics.base import Statistic
+    #from pyspoc.dataset import Dataset
 
-
-T = TypeVar("T")
 
 # GLOBAL SETTINGS
 # TODO: Move this to settings.
@@ -72,7 +70,9 @@ class Component(ABC):
     Provides functionality for constructing configuration files.
     """
 
-    def __init__(self):
+    def __init__(self,
+                 internal_parallelism: Literal["serial", "parallel"] = "serial",
+                 thread_safety: Literal["safe", "unsafe"] = "unsafe"):
 
         name = self._get_property_val(self.name)
         check_type(name, str)
@@ -84,6 +84,8 @@ class Component(ABC):
         self._scheme: Optional[str] = None
         self._params: Dict
         self._cache = dict()
+        self._thread_safety = thread_safety
+        self._internal_parallelism = internal_parallelism
 
     # def __new__(cls, *args, **kwargs):
 
@@ -117,6 +119,76 @@ class Component(ABC):
     #     instance._params = arg_dict
     #     return instance
 
+
+    @classmethod
+    def get_available(cls, raise_errors: bool = False) -> tuple[
+        tuple[type[Component], ...],
+        dict[str, Exception],
+    ]:
+        component_type = cls._get_component_type()
+        base_package_name = component_type.__module__
+        module = import_module(base_package_name)
+        package = cls.get_containing_package(module)
+        discovered: set[type[Component]] = set()
+        failures: dict[str, Exception] = {}
+
+        if package is None:
+            error = RuntimeError(
+                "Unable to find associated package to search "
+                f"for {cls.__qualname__}s")
+
+            if raise_errors:
+                raise error
+            else:
+                failures[cls.__qualname__] = error
+                return (), failures
+
+
+        for module_info in pkgutil.walk_packages(
+            package.__path__,
+            prefix=f"{package.__name__}.",
+        ):
+            try:
+                module = import_module(module_info.name)
+            except (ImportError, ModuleNotFoundError) as error:
+                if raise_errors:
+                    raise error
+
+                failures[module_info.name] = error
+                continue
+
+            for _, candidate in inspect.getmembers(module, inspect.isclass):
+                if (
+                    candidate is not component_type
+                    and issubclass(candidate, component_type)
+                    and not inspect.isabstract(candidate)
+                    and candidate.__module__ == module.__name__
+                ):
+                    discovered.add(candidate)
+
+        classes = tuple(
+            sorted(discovered, key=lambda cls: cls.__module__ + cls.__qualname__)
+        )
+        return classes, failures
+
+    @staticmethod
+    def get_containing_package(module: ModuleType) -> ModuleType | None:
+        """
+        Return the module itself if it is a package,
+        otherwise its parent package.
+        """
+        
+        if hasattr(module, "__path__"):
+            return module
+
+        package_name = module.__package__
+
+        if not package_name:
+            return None
+
+        return import_module(package_name)
+    
+    
     def _set_config(self, cfg: Config):
         self._cfg = cfg
 
@@ -127,7 +199,7 @@ class Component(ABC):
     def cfg(self):
         return self._cfg
 
-    def _set_scheme(self, scheme: str):
+    def set_scheme(self, scheme: str):
         self._scheme = scheme
 
     @property
@@ -160,17 +232,9 @@ class Component(ABC):
         return prop
 
     @staticmethod
-    @abstractmethod
     def _get_component_type() -> type:
-        pass
+        return Component
 
-    @abstractmethod
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
-        pass
-
-    @abstractmethod
-    def calculate(self, data: Dataset | Statistic) -> np.ndarray:
-        pass
 
     def __str__(self):
         self_type = type(self)
@@ -686,11 +750,3 @@ def copy_array(array: np.ndarray | Iterable[Number]) -> np.ndarray:
 
     result = nparray.copy()
     return result
-
-
-def copy_tensor(tensor: torch.Tensor) -> torch.Tensor:
-    return tensor.detach().cpu().clone()
-
-
-def copy_object(obj: T) -> T:
-    return deepcopy(obj)

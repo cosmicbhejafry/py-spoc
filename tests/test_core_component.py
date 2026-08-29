@@ -4,7 +4,7 @@ import inspect
 
 import pytest
 
-from pyspoc._core.component import Component
+from pyspoc.core._component import Component
 
 
 class ExampleComponent(Component):

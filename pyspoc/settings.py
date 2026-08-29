@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, fields, replace
 from typing import Any, Literal, cast, get_type_hints
 
 from typeguard import TypeCheckError, check_type
-
 
 NumbaMode = Literal["auto", "numba", "python"]
 NumbaErrorModel = Literal["numpy", "python"]
@@ -29,25 +28,53 @@ class SettingsValues:
 
     #### Caching
     
-    max_cache_results : int, default=10
+    max_cache_results : int, default=20
         Maximum number of results retained by caches that use the package
         setting.
     statistic_caching : bool, default=True
         Whether Statistic results should be retained in cache.
+    max_statistic_cache_memory_fraction : float, default=0.1
+        Maximum fraction of an available-memory snapshot that may be occupied
+        by cached Statistic results. The snapshot is captured lazily when the
+        first result enters an empty cache and refreshed after a complete clear.
+    max_reducer_cache_memory_fraction : float, default=0.05
+        Maximum fraction of an available-memory snapshot occupied by cached
+        Reducer results during one cache lifetime.
     reducer_caching : bool, default=False
         Whether Reducer results should be retained in cache.
     numba_caching : bool, default=False
         Whether Numba should cache supported compiled functions on disk.
 
+    #### Threading
+
+    max_worker_threads : int or None, optional
+        Maximum Python worker threads used by pySPoC execution machinery. If
+        ``None``, use the logical CPUs available to the current process.
+    max_memory_fraction : float, default=0.5
+        Maximum fraction of available memory used by pySPoC for multi-core
+        processing. If the memory allocation required from the specified
+        maximum number of workers exceeds this threshold, the actual number
+        of workers will be reduced to comply.
+    
     #### Determinism
     
     random_seed : int, default=0
         Library-wide random seed used by statistics with non-deterministic
         solvers.
 
+    #### Result handling
+
+    result_array_policy : {"copy", "freeze"}, default="freeze"
+        Dictates how results from :class:`Statistic` and :class:`Reducer`
+        objects are placed in a read-only state. Freezing will place the
+        result itself into read-only while copy will generate a frozen copy,
+        allowing the original result to be garbage collected. It is advised
+        to copy only if results are a view on the original data or the result
+        must be modified in place before being returned.
+        
     #### Torch
     
-    torch_estimator_inference_device: {"cpu", "training}, default="cpu"
+    torch_estimator_inference_device: {"cpu", "training"}, default="cpu"
         Device to store cached PyTorch estimators on for later inference.
         The "training" setting means that estimators remain stored on
         the device used for training.
@@ -81,13 +108,22 @@ class SettingsValues:
     torch_estimator_inference_device: Literal["cpu", "training"] = "cpu"
 
     # Caching
-    max_cache_results: int = 20
+    max_estimator_cache_results: int = 20
     statistic_caching: bool = True
+    max_statistic_cache_memory_fraction: float = 0.1
     reducer_caching: bool = False
+    max_reducer_cache_memory_fraction: float = 0.05
     numba_caching: bool = False
+
+    # Threading
+    max_worker_threads: int | None = None
+    max_memory_fraction: float = 0.5
 
     # Determinism
     random_seed: int = 0
+
+    # Result handling
+    result_array_policy: Literal["copy", "freeze"] = "freeze"
 
     # Numba specific
     numba_mode: NumbaMode = "auto"
@@ -226,14 +262,76 @@ class Settings:
         return updated
 
     @contextmanager
-    def override(self, **changes: object) -> Iterator[None]:
+    def override(self, **changes: object) -> Generator[None, None, None]:
         """Temporarily override settings in the current execution context.
 
         Parameters
         ----------
         **changes : object, optional
             Setting names mapped to temporary values. Names and runtime types
-            are validated against :class:`SettingsValues`.
+            are validated against :class:`SettingsValues`. Possible changes
+            are documented below.
+        
+            #### Logging
+
+        verbose : bool, default=False
+            Whether supported operations should emit additional diagnostics.
+
+            #### Threading
+        
+        max_worker_threads : int or None, optional
+            Maximum Python worker threads used by pySPoC execution machinery. If
+            ``None``, use the logical CPUs available to the current process.
+        max_memory_fraction : float, default=0.5
+            Maximum fraction of available memory used by pySPoC for multi-core
+            processing. If the memory allocation required from the specified
+            maximum number of workers exceeds this threshold, the actual number
+            of workers will be reduced to comply.
+
+            #### Caching
+        
+        max_cache_results : int, default=20
+            Maximum number of results retained by caches that use the package
+            setting.
+        statistic_caching : bool, default=True
+            Whether Statistic results should be retained in cache.
+        max_statistic_cache_memory_fraction : float, default=0.1
+            Maximum fraction of available memory occupied by cached Statistic
+            results during one cache lifetime.
+        max_reducer_cache_memory_fraction : float, default=0.05
+            Maximum fraction of available memory occupied by cached Reducer
+            results during one cache lifetime.
+        reducer_caching : bool, default=False
+            Whether Reducer results should be retained in cache.
+        numba_caching : bool, default=False
+            Whether Numba should cache supported compiled functions on disk.
+
+            #### Determinism
+        
+        random_seed : int, default=0
+            Library-wide random seed used by statistics with non-deterministic
+            solvers.
+
+            #### Torch
+        
+        torch_estimator_inference_device: {"cpu", "training}, default="cpu"
+            Device to store cached PyTorch estimators on for later inference.
+            The "training" setting means that estimators remain stored on
+            the device used for training.
+
+            #### Numba
+
+        numba_mode : {"auto", "numba", "python"}, default="auto"
+            Execution policy for functions with both Numba and Python
+            implementations. ``"auto"`` permits fallback, ``"numba"`` requires
+            the Numba implementation, and ``"python"`` bypasses Numba.
+        numba_error_model : {"numpy", "python"}, default="numpy"
+            Error model supplied when compiling supported Numba functions.
+        numba_fastmath : bool, default=False
+            Whether supported Numba functions should enable fast-math
+            optimizations during compilation.
+        numba_boundschecking : bool, default=False
+            Whether supported Numba functions should perform bounds checking.
 
         Yields
         ------
@@ -323,6 +421,19 @@ class Settings:
                 raise TypeError(
                     f"Invalid value for setting {name!r}: {error}"
                 ) from error
+
+            if name in {
+                "max_memory_fraction",
+                "max_reducer_cache_memory_fraction",
+                "max_statistic_cache_memory_fraction",
+            }:
+                fraction = cast(float, value)
+
+                if not 0.0 < fraction <= 1.0:
+                    raise ValueError(
+                        f"Setting {name!r} must be greater than 0.0 and "
+                        f"less than or equal to 1.0, but got {fraction}."
+                    )
 
         # The loop above has performed the field-specific checks dynamically.
         # Static type checkers cannot narrow a Mapping[str, object] from those

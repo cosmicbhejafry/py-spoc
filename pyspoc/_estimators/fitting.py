@@ -4,7 +4,7 @@ from typing import TypeVar, final
 from abc import ABC, abstractmethod
 from threading import RLock
 
-from .caching import CachedEstimatorMixin
+from .._caching.caching import CachedEstimatorMixin
 
 
 _TEstimator = TypeVar("_TEstimator", bound="LazyFittedCachedEstimatorMixin")

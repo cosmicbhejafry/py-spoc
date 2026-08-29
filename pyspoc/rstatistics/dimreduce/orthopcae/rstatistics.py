@@ -9,7 +9,6 @@ from ._base import OrthogonalPCAEReducedStatistic
 from pyspoc._base import copy_array
 from pyspoc.statistics.dimreduce.orthopcae._state import OrthogonalPCAEFittedState
 
-
 if TYPE_CHECKING:
     from pyspoc.statistics.dimreduce.orthopcae._estimator import OrthogonalPCAEEstimator
 

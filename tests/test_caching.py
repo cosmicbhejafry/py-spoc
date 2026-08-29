@@ -9,7 +9,7 @@ from threading import Barrier
 
 import numpy as np
 
-from pyspoc._estimators.caching import CachedEstimatorMixin
+from pyspoc._caching.caching import CachedEstimatorMixin
 from pyspoc._random import RandomSeedMixin
 from pyspoc.settings import settings
 

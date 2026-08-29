@@ -7,17 +7,16 @@ import re
 import inspect
 import importlib
 import json
-import pyspoc._base as pyb
+import pyspoc.base as pyb
 
 from typing import Iterable, Generator, cast
 from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
-from warnings import WarningMessage
 
-from pyspoc._base import Component
-from pyspoc.statistic import Statistic, ReducedStatistic
-from pyspoc.reducer import Reducer
+from pyspoc.base import Component
+from pyspoc.rstatistics.base import Statistic, ReducedStatistic
+from pyspoc.reducers.base import Reducer
 
 
 class Config:
@@ -51,7 +50,6 @@ class Config:
         self._config_dict = dict()
         self._reducer_filtered_stats = dict()
         self._reducer_filters = dict()
-        self._raised_warnings: dict[str, WarningMessage]
 
         component_types = ["Statistic", "Reducer", "ReducedStatistic"]
         self._config_scheme = dict()
@@ -160,14 +158,14 @@ class Config:
         return cls.from_yaml_file(name, yaml_path)
 
     @classmethod
-    def from_archetypes(cls,
+    def from_archetypes(cls, 
                         name: str,
                         statistic_archetypes: list[str] | None = None,
                         reducer_archetypes: list[str] | None = None,
-                        scalar_statistic_archetypes: list[str] | None = None) -> Config:
+                        reduced_statistic_archetypes: list[str] | None = None) -> Config:
                 
-        if not scalar_statistic_archetypes:
-            scalar_statistic_archetypes = list()
+        if not reduced_statistic_archetypes:
+            reduced_statistic_archetypes = list()
 
         if not statistic_archetypes:
             statistic_archetypes = list()
@@ -176,7 +174,7 @@ class Config:
             reducer_archetypes = list()
         
         is_valid_config = any([
-           scalar_statistic_archetypes,
+           reduced_statistic_archetypes,
            statistic_archetypes and reducer_archetypes
         ])
         
@@ -188,7 +186,7 @@ class Config:
         instance = cls(name)
         component_dirs = ["statistics", "reducers", "rstatistics"]
         component_classes = [Statistic, Reducer, ReducedStatistic]
-        all_archetypes = [statistic_archetypes, reducer_archetypes, scalar_statistic_archetypes]
+        all_archetypes = [statistic_archetypes, reducer_archetypes, reduced_statistic_archetypes]
         archetype_triples = zip(component_dirs, component_classes, all_archetypes)
         
         for dir, component_class, archetypes in archetype_triples:
@@ -317,7 +315,7 @@ class Config:
         Arguments:
             reduced_statistic (ReducedStatistic): A ReducedStatistic object to add to the configuration.
             scheme_name (string): A unique name for the scheme attached to the object.
-        """
+        """        
         
         self._add_component(reduced_statistic, ReducedStatistic, scheme_name)
 
@@ -479,7 +477,7 @@ class Config:
         if module_reference not in self._cached_modules:
             self._cached_modules[module_reference] = module
 
-        component._set_scheme(scheme_name)
+        component.set_scheme(scheme_name)
         component_archetype_name = component_archetype.__name__
         full_component_name = self._get_full_component_name(module_reference, component_type_name)
         self._cached_module_classes[component_archetype_name][full_component_name] = component_type
@@ -820,17 +818,13 @@ class Config:
         if module:
             return module
 
-        # Check user current working directory module files.
+        # Check module files.
         module = cls._load_module_file(module_reference,
-                                       refresh_module=refresh_module,
-                                       suppress_warning=True)
+                                        refresh_module=refresh_module,
+                                        suppress_warning=True)
 
         if module:
             return module
-
-        raise ModuleNotFoundError(
-            f"Unable to find the module {module_reference} within the pyspoc library, "
-            "session memory or user current working directory.")
         
     @classmethod
     def _get_cached_module(cls,
@@ -844,10 +838,8 @@ class Config:
             return module
         
     @classmethod
-    def _get_package_module(
-        cls,
-        module_reference: str) -> ModuleType | None:
-        
+    def _get_package_module(cls,
+                             module_reference: str) -> ModuleType | None:
         # Get package modules.
         try:
             module = importlib.import_module(module_reference, __package__)
@@ -857,47 +849,10 @@ class Config:
                 print(f"    (The following warnings were raised: {[str(w.message) for w in module.IMPORT_WARNINGS]})")
 
             return module
-        except ModuleNotFoundError as error:
-            # ``import_module`` also raises ModuleNotFoundError when code inside
-            # the requested module imports an unavailable dependency. Treat
-            # only the requested module (or one of its parent packages) as a
-            # failed lookup; otherwise preserve the original dependency error
-            # and traceback for the caller.
-            if cls._is_requested_module_missing(module_reference, error):
-                return None
-            raise
+        except ModuleNotFoundError:
+            pass
         except Exception as e:
             raise e
-
-    @staticmethod
-    def _is_requested_module_missing(
-        module_reference: str,
-        error: ModuleNotFoundError,
-) -> bool:
-        """Return whether an import error identifies the requested module path.
-
-        Parameters
-        ----------
-        module_reference : str
-            Absolute dotted name passed to :func:`importlib.import_module`.
-        error : ModuleNotFoundError
-            Exception raised while importing that module.
-
-        Returns
-        -------
-        bool
-            ``True`` when the requested module itself, or a parent package in
-            its dotted path, is missing. An unrelated name denotes a missing
-            dependency imported by code within the requested module.
-        """
-        missing_name = error.name
-        if missing_name is None:
-            return False
-
-        return (
-            module_reference == missing_name
-            or module_reference.startswith(f"{missing_name}.")
-        )
         
     @classmethod
     def _get_loaded_module(cls,
@@ -932,14 +887,10 @@ class Config:
             return
 
         # Load and return module
-        try:
-            module_dict = run_path(module_path, run_name=module_path)
-            module = Namespace(**module_dict)
-            cls._cached_modules[module_path] = module
-
-        except FileNotFoundError:
-            return None
-
+        print(module_path)
+        module_dict = run_path(module_path, run_name=module_path)
+        module = Namespace(**module_dict)
+        cls._cached_modules[module_path] = module
         return module
 
     @classmethod
@@ -1024,10 +975,8 @@ class Config:
         try:
             importlib.import_module(module_reference)
             return True
-        except ModuleNotFoundError as error:
-            if Config._is_requested_module_missing(module_reference, error):
-                return False
-            raise
+        except ModuleNotFoundError:
+            return False
         except Exception as e:
             raise e
 

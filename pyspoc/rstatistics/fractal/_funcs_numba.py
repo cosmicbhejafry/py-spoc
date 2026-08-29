@@ -3,8 +3,10 @@ from __future__ import annotations
 import numpy as np
 import sys
 
-from numba import types, jit_module
-from numba.typed import Dict, List
+from numba import jit_module
+from numba.core import types
+from numba.typed.typeddict import Dict
+from numba.typed.typedlist import List
 
 from pyspoc.settings import settings
 from pyspoc._numba import install_numba_funcs

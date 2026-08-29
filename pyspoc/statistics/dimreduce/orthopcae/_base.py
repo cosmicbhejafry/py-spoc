@@ -7,7 +7,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Union, TYPE_CHECKING
 
-from pyspoc.statistic import Statistic
+from pyspoc.statistics.base import Statistic
 from ._mixin import OrthogonalPCAEMixin
 
 if TYPE_CHECKING:

@@ -2,9 +2,9 @@ import numpy as np
 import warnings
 
 from typing import Literal
-from pyspoc.statistic import PairwiseStatistic
+from pyspoc.statistics.base import PairwiseStatistic
 from pyspoc.settings import settings
-
+from pyspoc.statistics.distance.hsic.func import pairwise_hsic
 
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
@@ -17,21 +17,35 @@ with warnings.catch_warnings(record=True) as w:
 
 class AdditiveNoiseModel(PairwiseStatistic):
 
-    name = "Additive Noise Model"
-    identifier = "anm"
-    labels = ["unsigned", "causal", "unordered", "linear", "directed"]
+    _name = "Additive Noise Model"
+    _identifier = "anm"
+    _labels = ["unsigned", "causal", "unordered", "linear", "directed"]
 
     def __init__(self):
         super().__init__(dim="p",
                          is_ordered=True,
-                         symmetry="yes")
+                         symmetry_type="yes")
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
+    def labels(self) -> list[str]:
+        return self._labels
 
     # monkey-patch the anm_score function
     @staticmethod
     def corrected_anm_score(x, y):
         x_2d = x.reshape(-1, 1) if x.ndim == 1 else x
-        gp = GaussianProcessRegressor(random_state=settings.current.random_seed).fit(x_2d, y)
+        gp = GaussianProcessRegressor(
+            random_state=settings.current.random_seed).fit(x_2d, y)
         y_predict = gp.predict(x_2d).reshape(-1, 1)
+        
         indepscore = normalized_hsic(y_predict - y, x_2d)
         return indepscore
 
@@ -43,9 +57,21 @@ class AdditiveNoiseModel(PairwiseStatistic):
 
 class ConditionalDistributionSimilarity(PairwiseStatistic):
 
-    name = "Conditional Distribution Similarity Statistic"
-    identifier = "cds"
-    labels = ["unsigned", "causal", "unordered", "nonlinear", "directed"]
+    _name = "Conditional Distribution Similarity Statistic"
+    _identifier = "cds"
+    _labels = ["unsigned", "causal", "unordered", "nonlinear", "directed"]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
+    def labels(self) -> list[str]:
+        return self._labels    
 
     def __init__(self):
         super().__init__(dim="p", is_ordered=False)
@@ -56,9 +82,22 @@ class ConditionalDistributionSimilarity(PairwiseStatistic):
 
 class RegressionErrorCausalInference(PairwiseStatistic):
 
-    name = "Regression Error-based Causal Inference"
-    identifier = "reci"
-    labels = ["unsigned", "causal", "unordered", "nonlinear", "directed"]
+    _name = "Regression Error-based Causal Inference"
+    _identifier = "reci"
+    _labels = ["unsigned", "causal", "unordered", "nonlinear", "directed"]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
+    def labels(self) -> list[str]:
+        return self._labels
+
 
     def __init__(self):
         super().__init__(dim="p", is_ordered=False)
@@ -69,12 +108,24 @@ class RegressionErrorCausalInference(PairwiseStatistic):
 
 class InformationGeometricConditionalIndependence(PairwiseStatistic):
 
-    name = "Information-Geometric Conditional Independence"
-    identifier = "igci"
-    labels = ["causal", "directed", "nonlinear", "unsigned", "unordered"]
+    _name = "Information-Geometric Conditional Independence"
+    _identifier = "igci"
+    _labels = ["causal", "directed", "nonlinear", "unsigned", "unordered"]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
+    def labels(self) -> list[str]:
+        return self._labels
 
     def __init__(self, dim: Literal["n", "p"] = "p"):
-        super().__init__(dim=dim, is_ordered=False, symmetry="negative")
+        super().__init__(dim=dim, is_ordered=False, symmetry_type="negative")
         self._igci = IGCI()
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:

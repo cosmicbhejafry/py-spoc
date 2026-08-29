@@ -3,7 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Literal
 
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc._argchecking import (
     RuntimeTypeCheckedMixin,
     check_float,
@@ -461,3 +461,4 @@ class FractalMeasureBase(RuntimeTypeCheckedMixin, ReducedStatistic, ABC):
         
         # Raise error if both failed
         raise ValueError(self._ERROR_FRACTAL_DIM_FAILURE)
+    

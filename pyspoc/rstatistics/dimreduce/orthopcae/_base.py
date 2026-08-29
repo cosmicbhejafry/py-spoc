@@ -5,7 +5,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Union, TYPE_CHECKING
 
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc.statistics.dimreduce.orthopcae._mixin import OrthogonalPCAEMixin
 
 if TYPE_CHECKING:

@@ -1,7 +1,8 @@
 import numpy as np
 
 from pyspoc import Reducer
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
+
 
 class EffectiveRank(Reducer, ReducedStatistic):
 
@@ -78,41 +79,56 @@ class EffectiveRank(Reducer, ReducedStatistic):
     def name(self) -> str:
         return self._name
     
+    
     @property
     def identifier(self) -> str:
         return self._identifier
+    
     
     @property
     def labels(self) -> list[str]:
         return self._labels
     
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         s = np.linalg.svd(data, compute_uv=False)
         p = s / np.linalg.norm(s, ord=1) # pyright: ignore[reportCallIssue]
         log_p = np.zeros_like(p)
         np.log(p, out=log_p, where=p > 0)
         H = - np.sum(p * log_p)
         return np.exp(H)
+    
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)
 
 class StableRank(Reducer, ReducedStatistic):
     
     _name = "Stable Rank"
-    _identifier = "stable-rank"
+    _identifier = "srank"
     _labels = ["scalar"]
+
 
     @property
     def name(self) -> str:
         return self._name
     
+
     @property
     def identifier(self) -> str:
         return self._identifier
+
     
     @property
     def labels(self) -> list[str]:
         return self._labels
-    
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+
+        
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         frob = np.array(np.linalg.norm(x=data, ord="fro"))
         l2 = np.array(np.linalg.norm(data, ord=2)) # pyright: ignore[reportCallIssue]
         return (frob / l2) ** 2
+
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)

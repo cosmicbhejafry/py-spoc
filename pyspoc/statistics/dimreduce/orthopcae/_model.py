@@ -39,7 +39,7 @@ class OrthogonalPCAE(nn.Module):
         self.residual_dim = bottleneck_dim - 1
         self._rng = make_torch_generator(random_seed)
         self.mask_pool = self._get_refreshed_mask_pool()
-        encoding_width = int(2 ** (math.ceil(math.log2(input_dim)) + 1))
+        encoding_width = int(2 ** math.ceil(math.log2(input_dim)))
 
         self.encoder_bn = nn.BatchNorm1d(encoding_width)
         self.decoder_bn = nn.BatchNorm1d(encoding_width)

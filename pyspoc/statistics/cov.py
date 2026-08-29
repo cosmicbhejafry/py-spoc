@@ -6,14 +6,17 @@ import mne_connectivity as mnec
 from sklearn import covariance as skcov
 from typing import Union
 
-from pyspoc.statistic import Statistic, PairwiseStatistic
+from pyspoc.statistics.base import Statistic, PairwiseStatistic
 
 
 class Covariance(Statistic):
     """
-    Computes a variety of covariance statistics for static datasets (n x p) returning a p x p matrix.
-    If a time series (n x p x t) is provided, dynamic covariance will be returned instead as a p x p x t tensor.
-    Information on covariance estimators can be found at: https://scikit-learn.org/stable/modules/covariance.html
+    Computes a variety of covariance statistics for static datasets (n x p)
+    returning a p x p matrix. If a time series (n x p x t) is provided,
+    dynamic covariance will be returned instead as a p x p x t tensor.
+    
+    Information on covariance estimators can be found at:
+    https://scikit-learn.org/stable/modules/covariance.html
     """
 
     _name = "Covariance"
@@ -47,7 +50,7 @@ class Covariance(Statistic):
         return self._labels
 
     def compute(self, data: np.ndarray) -> np.ndarray | float:
-        cov_obj = self.__fit(data)
+        cov_obj = self._fit(data)
         cov = cov_obj.covariance_
 
         if self.__is_squared:
@@ -55,7 +58,7 @@ class Covariance(Statistic):
 
         return cov
 
-    def __fit(self, data: np.ndarray):
+    def _fit(self, data: np.ndarray):
         cov_dir = [x for x in skcov.__dir__() if inspect.isclass(getattr(skcov, x))] # pyright: ignore[reportAttributeAccessIssue]
 
         if self.__estimator not in cov_dir:
@@ -82,7 +85,7 @@ class Precision(Covariance):
                          squared=squared)
 
     def compute(self, dataset: np.ndarray) -> np.ndarray:
-        cov_obj = self.__fit(dataset)
+        cov_obj = self._fit(dataset)
         cov = cov_obj.precision_
 
         if self.__is_squared:
@@ -90,7 +93,7 @@ class Precision(Covariance):
 
         return cov
 
-class SpearmanR(PairwiseStatistic):
+class SpearmanR(Statistic):
     # Setting the name internally.
     _name = "Spearman's correlation coefficient"
 
@@ -120,7 +123,7 @@ class SpearmanR(PairwiseStatistic):
             self._labels += ["signed"]
 
         # Call the base class initialiser with required arguments.
-        super().__init__(dim="p", is_ordered=False, symmetry="yes")
+        super().__init__()
 
     # Implementing the name property.
     @property
@@ -141,55 +144,16 @@ class SpearmanR(PairwiseStatistic):
     # Arguments:
     #  - x: A given observation as an n x 1 numpy array OR a given variable as a p x 1 numpy.
     #  - y: A given observation as an n x 1 numpy array OR a given variable as a p x 1 numpy.
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
+    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
-        # Compute the Spearman rank correlation coefficient using Scipy library.
-        corr = sp.stats.spearmanr(x, y).correlation
+        # Compute the Spearman rank correlation using Scipy library.
+        corr = sp.stats.spearmanr(data).statistic
 
         # Square results if required.
         if self.__squared:
-            return corr ** 2
+            return np.square(corr)
 
         # Return value.
-        return corr
-
-
-class KendallTau(PairwiseStatistic):
-
-    _name = "Kendall's tau"
-    _identifier = "kendalltau"
-    _labels = ["basic", "unordered", "rank", "linear", "undirected"]
-
-    def __init__(self, squared: bool, dim: str = "p"):
-        self.__squared = squared
-        if squared:
-            self._identifier += ".sq"
-            self._labels += ["unsigned"]
-        else:
-            self._labels += ["signed"]
-
-        super().__init__(dim="p", is_ordered=False, symmetry="yes")
-
-    def name(self) -> str:
-        return self._name
-
-    def identifier(self) -> str:
-        return self._identifier
-
-    def labels(self) -> list[str]:
-        return self._labels
-
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
-
-        corr = sp.stats.kendalltau(x, y).correlation
-
-        if self.__squared:
-            return corr ** 2
-
         return corr
 
 
@@ -270,3 +234,51 @@ class PowerEnvelopeCorrelation(Statistic):
 
         # Returning the p by p matrix as numpy array.
         return adj
+
+
+class KendallTau(PairwiseStatistic):
+
+    _name = "Kendall's tau"
+    _identifier = "kendalltau"
+    _labels = ["basic", "unordered", "rank", "linear", "undirected"]
+
+    def __init__(
+            self,
+            squared: bool = False,
+            dim: str = "p",
+            nan_policy = "raise"):
+        
+        self._squared = squared
+        self._nan_policy = nan_policy
+
+        if squared:
+            self._identifier += ".sq"
+            self._labels += ["unsigned"]
+        else:
+            self._labels += ["signed"]
+
+        super().__init__(dim="p", is_ordered=False, symmetry_type="exact")
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @property
+    def labels(self) -> list[str]:
+        return self._labels
+
+    def pairwise_compute(self,
+                         x: np.ndarray,
+                         y: np.ndarray) -> Union[np.ndarray, float]:
+
+        corr = sp.stats.kendalltau(
+            x, y, nan_policy=self._nan_policy).correlation
+
+        if self._squared:
+            return corr ** 2
+
+        return corr

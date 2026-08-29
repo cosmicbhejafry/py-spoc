@@ -1,4 +1,4 @@
-from .caching import CachedEstimatorMixin as CachedEstimatorMixin
+from .._caching.caching import CachedEstimatorMixin as CachedEstimatorMixin
 from .fitting import (
     LazyFittedCachedEstimatorMixin as LazyFittedCachedEstimatorMixin,
 )

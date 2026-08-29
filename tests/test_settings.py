@@ -21,15 +21,20 @@ def test_configure_replaces_package_defaults() -> None:
     """Permanent changes should publish a new immutable defaults snapshot."""
     settings = Settings()
     original = settings.defaults
+    default_max_cache_results = original.max_estimator_cache_results
+    updated_max_cache_results = default_max_cache_results + 1
 
-    updated = settings.configure(verbose=True, max_cache_results=20)
+    updated = settings.configure(
+        verbose=True,
+        max_estimator_cache_results=updated_max_cache_results,
+    )
 
     assert updated is settings.defaults
     assert settings.current is updated
     assert updated.verbose is True
-    assert updated.max_cache_results == 20
+    assert updated.max_estimator_cache_results == updated_max_cache_results
     assert original.verbose is False
-    assert original.max_cache_results == 10
+    assert original.max_estimator_cache_results == default_max_cache_results
 
 
 def test_override_is_context_local_and_nested() -> None:
@@ -81,6 +86,14 @@ def test_changes_are_validated(
             pass
 
     assert settings.current is settings.defaults
+
+
+@pytest.mark.parametrize("fraction", [0.0, -0.1, 1.1])
+def test_memory_fraction_settings_are_bounded(fraction: float) -> None:
+    settings = Settings()
+
+    with pytest.raises(ValueError):
+        settings.configure(max_statistic_cache_memory_fraction=fraction)
 
 
 def test_thread_context_is_propagated_explicitly() -> None:

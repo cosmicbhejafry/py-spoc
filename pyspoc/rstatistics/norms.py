@@ -2,8 +2,8 @@ import numpy as np
 
 from typing import Literal
 
-from pyspoc.statistic import ReducedStatistic
-from pyspoc.reducer import Reducer
+from pyspoc.rstatistics.base import ReducedStatistic
+from pyspoc.reducers.base import Reducer
 
 
 class Norm(Reducer, ReducedStatistic):
@@ -23,9 +23,13 @@ class Norm(Reducer, ReducedStatistic):
         self._order : float | Literal["fro", "nuc"] | None = order
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         return np.array(np.linalg.norm(x=data,
                                        ord=self._order))
+
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)
 
 
 class EntryWiseMatrixNorm(Reducer, ReducedStatistic):
@@ -51,11 +55,15 @@ class EntryWiseMatrixNorm(Reducer, ReducedStatistic):
         self._q = q
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         component_wise_power = abs(data)**self._p
         inner_sums = component_wise_power.sum(axis=1)**(self._p / self._q)
         outer_sum = inner_sums.sum()**(1 / self._q)
         return outer_sum
+
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)
 
 
 class SchattenNorm(Reducer, ReducedStatistic):
@@ -80,7 +88,11 @@ class SchattenNorm(Reducer, ReducedStatistic):
         self._p = p
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         svs = np.linalg.svd(data, compute_uv=False)
         svs_power_sum = (svs**self._p).sum()
         return svs_power_sum**(1 / self._p)
+
+
+    def compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)

@@ -6,8 +6,9 @@ from typing import Union, Iterable
 from sklearn.decomposition import PCA
 from abc import ABC
 
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc.dataset import Dataset
+
 
 class PCABase(ReducedStatistic, ABC):
 

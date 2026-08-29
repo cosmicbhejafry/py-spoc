@@ -127,6 +127,19 @@ for i in range(n_files):
 if results is not None:
     results.to_csv("results.csv")
 #%%
-import plotting as p
+def parse_tuple_index(value: str) -> tuple:
+    return eval(
+        value,
+        {"__builtins__": {}},
+        {"nan": np.nan}
+    )
+#%%
+import pandas as pd
+import numpy as np
 
-p.plot_pca(results)
+results = pd.read_csv("results.csv", header=[0,1], index_col=0)
+results.index = pd.Index([parse_tuple_index(value) for value in results.index])
+
+# %%
+import plotting as p
+fig, p.plot_pca(results)

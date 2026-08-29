@@ -19,7 +19,6 @@ from typeguard import CollectionCheckStrategy, TypeCheckError, check_type
 from pyspoc import _base
 from pyspoc.settings import settings
 
-
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
 _TRealNumber = TypeVar("_TRealNumber", bound=Real)

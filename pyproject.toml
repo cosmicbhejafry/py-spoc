@@ -27,6 +27,7 @@ dependencies = [
   "scikit-learn-extra",
   "scipy",
   "numpy<2.0.0",
+  "numba",
   "pandas",
   "pyarrow",
   "fastparquet",
@@ -70,6 +71,10 @@ notebooks = [
   "matplotlib"
 ]
 
+profiling = [
+  "psutil"
+]
+
 extended = [
   "torch"
 ]
@@ -83,6 +88,7 @@ all = [
   "jupyter",
   "ipykernel",
   "matplotlib",
+  "psutil",
   "ruff",
   "torch"
 ]

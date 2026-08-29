@@ -5,7 +5,7 @@ from sklearn.gaussian_process import kernels, GaussianProcessRegressor
 from sklearn.metrics import mean_squared_error
 from sklearn import linear_model
 
-from pyspoc.statistic import PairwiseStatistic
+from pyspoc.statistics.base import PairwiseStatistic
 from pyspoc.settings import settings
 
 

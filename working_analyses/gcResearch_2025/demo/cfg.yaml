@@ -42,13 +42,17 @@ Statistics:
         cosine:
           metric: cosine
 
+  pyspoc.statistics.distance.hsic:
+    # HISC distance
+    HilbertSchmidtIndependenceCriterion:
+      schemes:
+        standard:
+
   pyspoc.statistics.model_fits:
     LinearModelError:
       schemes:
         linear:
           model: LinearRegression
-        huber:
-          model: HuberRegressor
 
   pyspoc.statistics.clustering.kmeans:
     KClusteringSimilarity:

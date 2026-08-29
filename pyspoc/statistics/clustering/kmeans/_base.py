@@ -7,7 +7,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from pyspoc.statistic import Statistic
+from pyspoc.statistics.base import Statistic
 from ._mixin import KClusteringMixin
 
 if TYPE_CHECKING:
