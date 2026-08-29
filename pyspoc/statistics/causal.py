@@ -6,14 +6,8 @@ from pyspoc.statistics.base import PairwiseStatistic
 from pyspoc.settings import settings
 from pyspoc.statistics.distance.hsic.func import pairwise_hsic
 
-with warnings.catch_warnings(record=True) as w:
-    warnings.simplefilter("always")
-    
-    from sklearn.gaussian_process import GaussianProcessRegressor
-    from cdt.causality.pairwise.ANM import normalized_hsic
-    from cdt.causality.pairwise import CDS, IGCI, RECI
-    
-    IMPORT_WARNINGS = w
+IMPORT_WARNINGS = []
+
 
 class AdditiveNoiseModel(PairwiseStatistic):
 
@@ -42,6 +36,14 @@ class AdditiveNoiseModel(PairwiseStatistic):
     @staticmethod
     def corrected_anm_score(x, y):
         x_2d = x.reshape(-1, 1) if x.ndim == 1 else x
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            from sklearn.gaussian_process import GaussianProcessRegressor
+            from cdt.causality.pairwise.ANM import normalized_hsic
+            IMPORT_WARNINGS.extend(w)
+        
         gp = GaussianProcessRegressor(
             random_state=settings.current.random_seed).fit(x_2d, y)
         y_predict = gp.predict(x_2d).reshape(-1, 1)
@@ -71,12 +73,17 @@ class ConditionalDistributionSimilarity(PairwiseStatistic):
 
     @property
     def labels(self) -> list[str]:
-        return self._labels    
+        return self._labels
 
     def __init__(self):
         super().__init__(dim="p", is_ordered=False)
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            from cdt.causality.pairwise import CDS
+            IMPORT_WARNINGS.extend(w)
+
         return float(CDS().cds_score(x, y))
 
 
@@ -103,6 +110,11 @@ class RegressionErrorCausalInference(PairwiseStatistic):
         super().__init__(dim="p", is_ordered=False)
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            from cdt.causality.pairwise import RECI
+            IMPORT_WARNINGS.extend(w)
+
         return RECI().b_fit_score(x, y)
 
 
@@ -126,7 +138,15 @@ class InformationGeometricConditionalIndependence(PairwiseStatistic):
 
     def __init__(self, dim: Literal["n", "p"] = "p"):
         super().__init__(dim=dim, is_ordered=False, symmetry_type="negative")
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            from cdt.causality.pairwise import IGCI
+            IMPORT_WARNINGS.extend(w)
+
         self._igci = IGCI()
 
     def pairwise_compute(self, x: np.ndarray, y: np.ndarray) -> np.ndarray | float:
+        
+
         return self._igci.predict_proba((x, y))
