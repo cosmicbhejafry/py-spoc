@@ -1,5 +1,7 @@
 # Under Development! - Python Statistics for POint Clouds - PySPoC
 
+<img width="2597" height="3465" alt="Pyspoc_highLevel" src="https://github.com/user-attachments/assets/44a08dbe-6ae6-47dc-8a65-90914efbbe70" />
+
 The main role of the library is to provide a framework for easily computing a variety of 
 statistical summaries on datasets, building on PySPI. 
 
