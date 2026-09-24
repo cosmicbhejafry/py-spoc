@@ -14,3 +14,4 @@ class PCAtSNEDiff():
 
 # ari = adjusted_rand_score(labels_pca, labels_tsne)
 # nmi = normalized_mutual_info_score(labels_pca, labels_tsne)
+

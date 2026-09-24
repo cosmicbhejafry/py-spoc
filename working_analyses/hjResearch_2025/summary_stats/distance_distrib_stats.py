@@ -15,25 +15,22 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         'canberra', 'chebyshev', 
         'cityblock', 'correlation', 'cosine', 
         'euclidean', 'mahalanobis', 
-        'minkowski 0.25', 'seuclidean', 'sqeuclidean',
-        'minkowski 4.0'
+        'seuclidean', 'sqeuclidean'
     ]
 
-    def __init__(self, metric: str = "euclidean"):
+    VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid'}    
 
-        if metric.startswith('minkowski'):
-            try:
-                metricval = self.metric.split(' ')[0]
-                pval = float(self.metric.split(' ')[1])
-            except:
-                raise ValueError(f'Invalid metric {metric} : specify as minkowski <SPACE> p')
+    def __init__(self, metric: str = "euclidean",minkowski_p=None):
+
+        self.metric = metric
             
-        elif metric not in self.VALID_METRICS:
+        if metric not in self.VALID_METRICS:
             raise ValueError(
                 f"Invalid metric '{metric}'. Must be one of: {', '.join(self.VALID_METRICS)}"
             )
+        if metric == 'minkowski' and minkowski_p is None:
+            raise ValueError("metric='minkowski' requires 'minkowski_p' to be passed")
 
-        self.metric = metric
         # self.point = point
     
     def calculate(self, dataset: Dataset):
@@ -77,7 +74,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
 
     def _get_center_from_point(self,X,point=None):
 
-        if point==None:
+        if point is None:
             return np.zeros(shape=(1,X.shape[1]))
         
         elif point=='global_mean_centroid':
@@ -100,8 +97,8 @@ class KLMeanMedianDistances(DistanceDistributionBase):
     identifier = ""
     labels = ["skew"]
 
-    def __init__(self,metric):
-        super().__init__(metric=metric)
+    def __init__(self,metric,minkowski_p=None):
+        super().__init__(metric=metric,minkowski_p=minkowski_p)
 
     def compute(self, data: np.ndarray) -> np.ndarray:
         """computes 
@@ -133,11 +130,12 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
         "skew" : lambda dists : skew(dists),
         "kurtosis" : lambda dists : kurtosis(dists),
     }
-
-    def __init__(self, metric, point, stats: list[str] = ["skew"]):
-        super().__init__(metric=metric)
+        
+    def __init__(self,metric, point, stats: list[str] = ["skew"],minkowski_p=None):
+        super().__init__(metric=metric,minkowski_p=minkowski_p)
         self.point = point
         self.stats = stats
+
 
     def compute(self, data: np.ndarray) -> np.ndarray:
         dists = self._dist_from_point(data, self.point)
@@ -157,8 +155,9 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
     identifier = "dist-point-summ"
     labels = ["scalar", "distance"]
 
-    def __init__(self, metric, point,type='kde'):
-        super().__init__(metric=metric)
+    def __init__(self,metric, point, type='kde',minkowski_p=None):
+        super().__init__(metric=metric,minkowski_p=minkowski_p)
+
         self.point=point
         self.type = type
 
@@ -175,9 +174,9 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
             peaks, _ = find_peaks(ys)
             n_modes = len(peaks)
 
-        elif self.type == 'max_line_intersections':
-            # TODO: implement
-            n_modes = -1.0
+        # elif self.type == 'max_line_intersections':
+        #     # TODO: implement
+        #     n_modes = -1.0
 
         # TODO: USE DERIVATIVES AND INFLECTION POINTS?
         # dy = np.gradient(y, x)        # First derivative
