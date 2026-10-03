@@ -1,8 +1,8 @@
 name: pyspoc_env
 channels:
   - conda-forge
-  - defaults
 dependencies:
+  - python=3.11
   - pip
   - h5py
   - scikit-learn
@@ -15,8 +15,8 @@ dependencies:
   - pyyaml
   - tqdm
   - jpype1
+  - openjdk
   - dill
-  - oct2py
   - seaborn
   - future
   - pytest
@@ -28,7 +28,7 @@ dependencies:
   - matplotlib  
   - ipykernel
   - plotly
+  - nbstripout
   - pip:
     - hyppo
     - cdt==0.5.23
-    - nbstripout
