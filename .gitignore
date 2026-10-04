@@ -23,5 +23,6 @@ README.md.bak
 # TODO - CHANGE LATER, BUT IGNORE RIGHT NOW AS IT HAS LOCAL FILE PATH NAMES THAT I DONT WANT TO PUBLISH
 /working_analyses/hjResearch_2025/notebooks/testing_summary_stats/*.yml
 /working_analyses/hjResearch_2025/data/archived_synthetic_data/synthetic_data/*
+/working_analyses/hjResearch_2025/data/simulated_data/all_data/*
 
 notes_todos.md
