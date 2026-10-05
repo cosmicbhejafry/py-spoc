@@ -101,7 +101,9 @@ class KLMeanMedianDistances(DistanceDistributionBase):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
 
     def compute(self, data: np.ndarray) -> np.ndarray:
-        """computes 
+        """
+        Return KL Divergence of distance distributions from global mean centroid and global median centroid 
+        (q- how would this behave in high dim data? might be very trivial bcz of curse of dimensionality?)
         """
         dists_mean = self._dist_from_point(data, 'global_mean_centroid')
         dists_median = self._dist_from_point(data, 'global_median_centroid')
@@ -138,6 +140,24 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
 
 
     def compute(self, data: np.ndarray) -> np.ndarray:
+        
+        """
+        Compute distance distribution, choose between:
+            pairwise
+            distribution from global mean centroid
+            distribution from global median centroid
+            origin
+            or, provide custom np.ndarray
+        
+        Valid metrics: 
+            'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 
+            'euclidean', 'mahalanobis', 'seuclidean', 'sqeuclidean'
+        
+        Summarize computed distance distribution using: 
+            mean, median, IQR, std, min, max, skew, kurtosis        
+        """
+                
+        
         dists = self._dist_from_point(data, self.point)
 
         if set(self.stats) <= (set(self.summary_fns_dict.keys())):        
@@ -162,7 +182,22 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         self.type = type
 
     def compute(self, data: np.ndarray) -> np.ndarray:
-
+        """
+        Compute distance distribution, choose between:
+            pairwise
+            distribution from global mean centroid
+            distribution from global median centroid
+            origin
+            or, provide custom np.ndarray
+        
+        Valid metrics: 
+            'canberra', 'chebyshev', 'cityblock', 'correlation', 'cosine', 
+            'euclidean', 'mahalanobis', 'seuclidean', 'sqeuclidean'
+        
+        Summarize computed distance distribution using: 
+            number of peaks in the gaussian KDE using silverman method    
+        """
+            
         dists = self._dist_from_point(data, self.point)
 
         dists1 = dists.flatten()

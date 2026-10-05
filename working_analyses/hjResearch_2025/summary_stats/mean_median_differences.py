@@ -26,7 +26,12 @@ class GlobalMeanMedianDiff(ReducedStatistic):
 
     def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
-        """max difference of mean and median across marginal distributions (per feature)"""
+        """
+        For each feature of the input data matrix, compute the difference of mean and median
+        Return max absolute difference
+         
+        (intuition- max difference of mean and median across marginal distributions per feature)        
+        """
 
         feat_wise_diff = np.mean(data,axis=0) - np.median(data,axis=0)
 

@@ -61,7 +61,7 @@ def save_dataset(X, generator, params, seed, root, category=None,extra_arrays=No
             extra_files.append(fy)
 
     # manifest row
-    dataset_id = f"N{n}_P{p}/{generator}/{cfg}/seed{seed}"
+    dataset_id = f"{generator}/{cfg}/seed{seed}_N{n}_P{p}"
     row = {
         "dataset_id": dataset_id,
         "generator": generator,
