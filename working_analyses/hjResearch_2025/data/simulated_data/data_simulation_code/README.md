@@ -29,4 +29,18 @@ all_data/configs.json (NOT WRITTEN BY DEFAULT BECAUSE OF SIZE)
 maps params{i} with the parameter used for a specific data_generation_type
 
 implementation notes:
-- HJ currently using a lightweight conda env called datagen-hcda to run the notebooks
+- HJ currently using a lightweight conda env called hcda-datagen to run the notebooks
+- saving all data in ephemeral space
+
+```
+conda create -n hcda-datagen -c conda-forge python=3.11 numpy scipy scikit-learn pandas matplotlib jupyterlab ipykernel -y
+conda activate datagen
+python -m ipykernel install --user --name hcda-datagen
+```
+
+quick instructions to get this to work on imperial hpc:
+
+go to https://jupyter.cx3.rcs.ic.ac.uk/hub/home and click on 'token' (top left)
+generate api token, use that to tunnel jupyter from vscode to the server
+i followed this tutorial- https://www.anaconda.com/docs/anaconda-platform/admin/integrations/jupyterhub/jupyter-vscode
+
