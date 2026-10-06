@@ -24,5 +24,6 @@ README.md.bak
 /working_analyses/hjResearch_2025/notebooks/testing_summary_stats/*.yml
 /working_analyses/hjResearch_2025/data/archived_synthetic_data/synthetic_data/*
 /working_analyses/hjResearch_2025/data/simulated_data/all_data/*
+/working_analyses/hjResearch_2025/data/simulated_data/data_simulation_code/empty_nbs_move*
 
 notes_todos.md
