@@ -104,3 +104,24 @@ def delete_dataset(dataset_folder_name, root):
         reg = json.load(open(reg_path))
         reg.pop(dataset_folder_name, None)
         json.dump(reg, open(reg_path, "w"), indent=2)
+        
+# def delete_dataset_param(dataset_folder_name, root):
+# TODO
+#     root = str(root)
+
+#     # 1. delete the generator folder under every N_P folder
+#     for d in glob.glob(os.path.join(root,dataset_folder_name)):
+#         shutil.rmtree(d)
+
+#     # 2. drop its manifest rows
+#     man_path = os.path.join(root, "manifest.csv")
+#     if os.path.exists(man_path):
+#         df = pd.read_csv(man_path)
+#         df[df.generator != dataset_folder_name].to_csv(man_path, index=False)
+
+#     # 3. drop its configs
+#     reg_path = os.path.join(root, "configs.json")
+#     if os.path.exists(reg_path):
+#         reg = json.load(open(reg_path))
+#         reg.pop(dataset_folder_name, None)
+#         json.dump(reg, open(reg_path, "w"), indent=2)
