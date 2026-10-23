@@ -14,6 +14,7 @@ from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
 from typeguard import TypeCheckError
+from pathlib import Path
 
 import pyspoc._argchecking as argchk
 from pyspoc.settings import settings
@@ -127,7 +128,7 @@ class Config:
         return instance
     
     @classmethod
-    def from_yaml_file(cls, name: str, yaml_file_path: str) -> Config:
+    def from_yaml_file(cls, name: str, yaml_file_path: str | Path) -> Config:
         """
         Creates and returns a new Config object from a YAML file.
 
@@ -159,8 +160,10 @@ class Config:
                 distance
                 misc
         """
-        yaml_path = f"../run_config/{name}.yaml"
-        return cls.from_yaml_file(name, yaml_path)
+        
+        yaml_path = Path(f"run_config/{name}.yaml")
+        yaml_resource = lib.get_library_resource(yaml_path)
+        return cls.from_yaml_file(name, yaml_resource)
 
     @classmethod
     def from_archetypes(cls, 

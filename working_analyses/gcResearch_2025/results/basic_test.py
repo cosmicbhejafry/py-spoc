@@ -10,7 +10,7 @@ calc = Calculator(
     dataset=data,
     name="testing",
 )
-cfg = Config.from_yaml_file("testing_cfg", "cfg.yml")
+cfg = Config.from_internal("test_cfg")
 calc.compute(cfg)
 #%%
 import pandas as pd
