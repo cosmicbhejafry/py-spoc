@@ -1,39 +1,44 @@
 from __future__ import annotations
 
 import numpy as np
-import warnings
 import pandas as pd
 import os
-import yaml
 import inspect
+import pkgutil
+import re
 
-from scipy.stats import zscore
-from types import FunctionType
-from typing import Iterable, Any, Optional, Dict, TypeVar, TYPE_CHECKING
+from collections.abc import Callable, Collection
+from functools import wraps
+from types import FunctionType, ModuleType, MethodType, MappingProxyType
+from typing import Self, Literal, Iterable, Any, Optional, Dict, TypeVar, cast, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from textwrap import dedent
 from numbers import Number
-from copy import deepcopy
 from typeguard import typechecked
+from yaml import safe_load
+from warnings import warn
+from enum import Enum
+from pathlib import Path
+from importlib import import_module
+from importlib.resources.abc import Traversable
+
+from pyspoc._descriptors import hybridmethod
+from pyspoc._argchecking import RuntimeTypeCheckedMixin
+from pyspoc._random import RandomSeedMixin
+from pyspoc._utils import lib
+from pyspoc.settings import settings
+from pyspoc._exceptions import MissingComponentPropertyError
+from pyspoc._tag import Tag, Type, Signature
 
 
 if TYPE_CHECKING:
+    from pyspoc.calculator import Calculator
     from pyspoc.config import Config
-    from pyspoc._core.statistic import Statistic
-    from pyspoc.dataset import Dataset
-    import torch
 
 
-T = TypeVar("T")
-
-# GLOBAL SETTINGS
-# TODO: Move this to settings.
-IGNORE_IMPORT_WARNINGS = False
-
-# URLs
-PYSS_GITHUB_ISSUES_URL = "https://github.com/cosmicbhejafry/py-spoc/issues/"
-CUSTOM_COMPONENTS_URL = "https://github.com/cosmicbhejafry/py-spoc/blob/main/README.md"
-STATISTIC_FILTERING_URL = ""
+_INITIALIZATION_CAPTURED_ATTRIBUTE = "_pyspoc_initialization_captured"
+TInit = TypeVar("TInit", bound=Callable[..., None])
+TTag = TypeVar("TTag", bound=Tag | Type | Signature)
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +68,10 @@ STATISTIC_FILTERING_URL = ""
 # while this class provides the public stateful interface.
 # ---------------------------------------------------------------------------
 
-class Component(ABC):
+class Component(
+    RuntimeTypeCheckedMixin,
+    RandomSeedMixin,
+    ABC):
 
     """
     Base object for both Statistic and Reducer components.
@@ -71,82 +79,647 @@ class Component(ABC):
     Provides functionality for constructing configuration files.
     """
 
-    def __init__(self):
+    # Constructors temporarily shadow this default on each instance. Declaring
+    # it here makes the internal lifecycle attribute visible to static type
+    # checkers without retaining per-instance state after initialization.
+    _component_init_capture_depth: int = 0
+    _warned_properties_missing = False
+    _warned_properties_error = False
+    _properties_mapping: MappingProxyType[str, dict[str, str | list]] = MappingProxyType({})
 
-        name = self._get_property_val(self.name)
-        check_type(name, str)
 
-        labels = self._get_property_val(self.labels)
-        check_iterable(labels, str)
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Instrument directly declared constructors for argument capture.
+
+        A constructor inherited unchanged from a parent has already been
+        instrumented where it was declared. Wrapping only constructors present
+        in the new subclass namespace avoids rebinding a concrete call against
+        an unrelated parent signature.
+        """
+        super().__init_subclass__(**kwargs)
+
+        declared_init = cls.__dict__.get("__init__")
+
+        if not inspect.isfunction(declared_init):
+            return
+
+        if getattr(declared_init, _INITIALIZATION_CAPTURED_ATTRIBUTE, False):
+            return
+
+        cls.__init__ = cls._wrap_initialization_argument_capture(declared_init)
+        cls._load_properties()
+
+    @classmethod
+    def _wrap_initialization_argument_capture(cls, init: TInit) -> TInit:
+        """Wrap a constructor and record its normalized call arguments.
+
+        Arguments are bound using Python's own signature machinery, so
+        positional-only, keyword-only, variadic, and defaulted parameters are
+        represented consistently. In a cooperative ``super()`` chain, only
+        the outermost constructor call is retained as the public Component
+        configuration.
+        """
+        signature = inspect.signature(init)
+
+        @wraps(init)
+        def wrapped_init(
+            self: Component,
+            *args: Any,
+            **kwargs: Any,
+        ) -> None:
+            # Bind before initialization. Invalid calls therefore raise the
+            # normal Python TypeError without publishing partial parameters.
+            bound = signature.bind(self, *args, **kwargs)
+            bound.apply_defaults()
+
+            normalized_arguments = dict(bound.arguments)
+            normalized_arguments.pop("self", None)
+
+            # Wrapped parent constructors are entered through ``super()``.
+            # Track their nesting so they cannot overwrite the concrete
+            # constructor arguments supplied by the user.
+            depth = self._component_init_capture_depth
+            self._component_init_capture_depth = depth + 1
+
+            try:
+                init(self, *args, **kwargs)
+
+                # Publish configuration only after successful construction.
+                if depth == 0:
+                    self._params = normalized_arguments
+            finally:
+                remaining_depth = self._component_init_capture_depth - 1
+
+                if remaining_depth == 0:
+                    del self._component_init_capture_depth
+                else:
+                    self._component_init_capture_depth = remaining_depth
+
+        setattr(wrapped_init, _INITIALIZATION_CAPTURED_ATTRIBUTE, True)
+        return cast(TInit, wrapped_init)
+    
+
+    def __init__(
+            self,
+            internal_parallelism: Literal["serial", "parallel"] = "serial",
+            thread_safety: Literal["safe", "unsafe"] = "unsafe"):
 
         self._cfg: Optional[Config] = None
+        self._active_calculator: Calculator | None = None
         self._scheme: Optional[str] = None
-        self._params: Dict
+        self._params: Dict = {}
         self._cache = dict()
-
-    # def __new__(cls, *args, **kwargs):
-
-    #     # Get class arguments
-    #     arg_dict = dict()
-    #     arg_list = list(args)
-    #     arg_spec = inspect.getfullargspec(cls.__init__)
-    #     arg_names = [arg for arg in arg_spec.args if arg != "self"]
-    #     arg_defaults = list(arg_spec.defaults) if arg_spec.defaults else list()
-    #     n_args = len(arg_names)
-
-    #     # Set defaults in dict
-    #     for i in range(n_args, 0, -1):
-    #         arg_name = arg_names[i - 1]
-    #         default = arg_defaults.pop() if arg_defaults else None
-    #         arg_dict[arg_name] = default
-
-    #     if arg_spec.kwonlydefaults:
-    #         arg_dict.update(arg_spec.kwonlydefaults)
-
-    #     # Get arg values
-    #     for i, arg in enumerate(arg_list):
-    #         arg_name = arg_names[i]
-    #         arg_dict[arg_name] = arg
-
-    #     # Get kwarg values
-    #     for kwarg_name, kwarg in kwargs.items():
-    #         arg_dict[kwarg_name] = kwarg
-
-    #     instance = super().__new__(cls)
-    #     instance._params = arg_dict
-    #     return instance
-
-    def set_config(self, cfg: Config):
-        self._cfg = cfg
+        self._thread_safety = thread_safety
+        self._internal_parallelism = internal_parallelism
+      
 
     @property
     def cfg(self):
         return self._cfg
-
-    def set_scheme(self, scheme: str):
-        self._scheme = scheme
+    
 
     @property
     def scheme(self):
         return self._scheme
+    
 
     @property
     def params(self) -> dict:
-        return self._params
+        """Return a shallow copy of the normalized constructor arguments."""
+        return self._params.copy()
+    
 
+    # NOTE: Change this to get_name() soon. Will require refactoring a lot of areas.
     @property
     def name(self) -> str:
         return self.__class__.__name__
 
-    @property
+
+    @classmethod
+    def get_name(cls) -> str:
+        return cls.__name__
+
+
+    @classmethod
+    def get_long_name(cls) -> str:
+        """Return the long, human-readable name for the Component class.
+        
+        A valid Component class must either:
+        - Implement _long_name: A `str` class-level private field.
+        - Implement get_long_name(): A public class method overriding this method, returning `str`.
+        - Add the 'long_name' string property under your Component in the relevant YAML property
+            file.
+        """
+        error_response = settings.current.properties_missing_response
+
+        try:
+            return getattr(cls, "_yaml_long_name")
+        except AttributeError:
+            try:
+                return getattr(cls, "_long_name")
+            except AttributeError as e:
+                if error_response == "ignore":
+                    return ""
+
+                missing_err = MissingComponentPropertyError(
+                    cls, "long_name", str)
+                
+                if error_response == "throw":
+                    raise missing_err from e
+
+                warn(missing_err.message)
+                return ""
+
+
+    @classmethod
+    def get_signatures(cls) -> tuple[Signature, ...]:
+        """Return the signatures for the Component class.
+        
+        A valid Component class must either:
+        - Implement _signatures: A `tuple[Signature, ...]` class-level private field.
+        - Implement get_signatures(): A public class method overriding this method,
+            returning `tuple[Signature, ...]`.
+        - Add the 'signatures' list[str] property under your Component in the relevant YAML property
+            file, containing only valid `Signature` strings.
+
+        See :class:`Signature` for a list of available signatures.
+        """
+        error_response = settings.current.properties_missing_response
+
+        try:
+            return getattr(cls, "_yaml_signatures")
+        except AttributeError:
+            try:
+                return getattr(cls, "_signatures")
+            except AttributeError as e:
+                if error_response == "ignore":
+                    return tuple()
+
+                missing_err = MissingComponentPropertyError(
+                    cls, "signatures", tuple[Signature, ...])
+                
+                if error_response == "throw":
+                    raise missing_err from e
+
+                warn(missing_err.message)
+                return tuple()
+
+
+    @hybridmethod
+    def get_identifier(cls_or_self: Self | type[Self]) -> str:
+        """Return the identifier for a Component class or instance."""
+        owner = cls_or_self if isinstance(cls_or_self, type) else type(cls_or_self)
+        error_response = settings.current.properties_missing_response
+
+        try:
+            return owner._get_identifier(cls_or_self)
+        except AttributeError as e:
+            if error_response == "ignore":
+                return ""
+
+            missing_err = MissingComponentPropertyError(
+                owner, "identifier", str, True)
+            
+            if error_response == "throw":
+                raise missing_err from e
+
+            warn(missing_err.message)
+            return ""
+
+    
+    @staticmethod
+    def _get_identifier(
+        cls_or_self: Component | type[Component]) -> str:
+        """Return the short identifier for the Component class.
+        
+        A valid Component class must either:
+        - Implement _identifier: A `str` class-level private field.
+        - Implement _get_identifier(): A private static method overriding this method,
+            returning `str`.
+        - Add the 'identifier' string property under your Component in the relevant YAML
+            property file.
+        """
+        try:
+            return getattr(cls_or_self, "_yaml_identifier")
+        except AttributeError:
+            return getattr(cls_or_self, "_identifier")
+
+
+    @hybridmethod
+    def get_type(cls_or_self: Self | type[Self]) -> Type:
+        """Return the type of a Component class or instance."""
+        owner = cls_or_self if isinstance(cls_or_self, type) else type(cls_or_self)
+        error_response = settings.current.properties_missing_response
+        
+        try:
+            return owner._get_type(cls_or_self)
+        except AttributeError as e:
+            if error_response == "ignore":
+                return Type.DESCRIPTIVE
+
+            missing_err = MissingComponentPropertyError(
+                owner, "type", Type, True)
+            
+            if error_response == "throw":
+                raise missing_err from e
+
+            warn(missing_err.message)
+            return Type.DESCRIPTIVE
+
+    
+    @staticmethod
+    def _get_type(cls_or_self: Component | type[Component]) -> Type:
+        """
+        Return the types of a Component class or instance.
+
+        A valid Component class must either:
+        - Implement _type: A `Type` class-level private field.
+        - Implement _get_type(): A private static method overriding this method, returning `Type`.
+        - Add the 'type' string property under your Component in the relevant YAML property file,
+            resricted to valid `Type` strings.
+
+        See :class:`Type` for a list of available types.
+        """
+        try:
+            return getattr(cls_or_self, "_yaml_type")
+        except AttributeError:
+            return getattr(cls_or_self, "_type")
+
+
+    @hybridmethod
+    def get_tags(cls_or_self: Self | type[Self]) -> tuple[Tag, ...]:
+        """Return the tags of a Component class or instance."""
+        owner = cls_or_self if isinstance(cls_or_self, type) else type(cls_or_self)
+        error_response = settings.current.properties_missing_response
+        
+        try:
+            return owner._get_tags(cls_or_self)
+        except AttributeError as e:
+            if error_response == "ignore":
+                return tuple()
+            
+            missing_err = MissingComponentPropertyError(
+                owner, "tags", tuple[Tag, ...], True)
+            
+            if error_response == "throw":
+                raise missing_err from e
+
+            warn(missing_err.message)
+            return tuple()
+
+
+    @staticmethod
+    def _get_tags(cls_or_self: Component | type[Component]) -> tuple[Tag, ...]:
+        """
+        Return the tags of a Component class or instance.
+
+        A valid Component class must either:
+        - Implement _tags: A `tuple[Tag, ...]` class-level private field.
+        - Implement _get_tags(): A private static method overriding this method,
+            returning `tuple[Tag, ...]`.
+        - Add the 'tags' list[str] property under your Component in the relevant YAML property
+            file, containing only valid `Tag` strings.
+
+        See :class:`Tag` for a list of available tags.
+        """
+        try:
+            return getattr(cls_or_self, "_yaml_tags")
+        except AttributeError:
+            return getattr(cls_or_self, "_tags")
+
+
+    @staticmethod
+    def _get_modified_tags(
+            current_tags: Collection[TTag],
+            add_tags: Collection[TTag] | TTag | None = None,
+            remove_tags: Collection[TTag] | TTag | None = None) -> tuple[TTag, ...]:
+        
+        tags_difference = (set() if remove_tags is None
+            else set(remove_tags) if isinstance(remove_tags, Collection)
+            else {remove_tags})
+
+        tags_union: set[TTag] = (set() if add_tags is None
+            else set(add_tags) if isinstance(add_tags, Collection)
+            else {add_tags})
+
+        new_tags = set(current_tags).difference(tags_difference).union(tags_union)
+        return tuple(new_tags)
+
+
+    def set_scheme(self, scheme: str):
+        self._scheme = scheme
+
+
+    @classmethod
+    def get_available(cls, raise_errors: bool = False) -> tuple[
+        tuple[type[Component], ...],
+        dict[str, Exception]]:
+
+        component_type = cls._get_component_type()
+        base_package_name = component_type.__module__
+        module = import_module(base_package_name)
+        package = cls._get_containing_package(module)
+        discovered: set[type[Component]] = set()
+        failures: dict[str, Exception] = {}
+
+        if package is None:
+            error = RuntimeError(
+                "Unable to find associated package to search "
+                f"for {cls.__qualname__}s")
+
+            if raise_errors:
+                raise error
+            else:
+                failures[cls.__qualname__] = error
+                return (), failures
+
+
+        for module_info in pkgutil.walk_packages(
+            package.__path__,
+            prefix=f"{package.__name__}.",
+        ):
+            try:
+                module = import_module(module_info.name)
+            except Exception as error:
+                if raise_errors:
+                    raise error
+
+                failures[module_info.name] = error
+                continue
+
+            for _, candidate in inspect.getmembers(module, inspect.isclass):
+                try:
+                    if (
+                        candidate is not component_type
+                        and issubclass(candidate, component_type)
+                        and not inspect.isabstract(candidate)
+                        and candidate.__module__ == module.__name__
+                    ):
+                        discovered.add(candidate)
+                except Exception as error:
+                    if raise_errors:
+                        raise error
+
+                    failures[module_info.name] = error
+                    continue
+
+        classes = tuple(
+            sorted(discovered, key=lambda cls: cls.__module__ + cls.__qualname__)
+        )
+        return classes, failures
+
+    
+    @classmethod
+    def reload_properties(cls):
+        cls._load_properties(reload=True)
+        
+    
+    @classmethod
+    def _load_properties(cls, reload: bool = False):
+        #from inspect import isabstract
+
+        #is_abstract_cls = isabstract(cls)
+        property_schema = cls._get_property_schema()
+        properties = cls._get_properties(reload)
+        throw_load_errors = settings.current.properties_load_error_response
+
+        if not properties:
+            return
+
+        error_msg_template = (f"{cls.__name__} encountered an Enum conversion error " +
+            "attempting to load property '{property_name}':\n" +
+            "{property_value}\n" +
+            f"Check {cls.__name__} properties " + "in {yaml_path} for errors.")
+        
+        for property_name, property_type, _ in property_schema:
+            result = None
+            standardised_name = re.sub(r"[\W_]", "", property_name).lower()
+            property_name.lower().strip()
+            result = properties.get(standardised_name)
+            formatted_name = "_yaml_" + property_name
+
+            if isinstance(result, Collection) and not isinstance(result, str):
+                values = []
+                
+                for element in result:
+                    if element is None:
+                        continue
+
+                    try:
+                        value = (property_type(element)
+                            if issubclass(property_type, Enum)
+                            else element)
+                        values.append(value)
+                    except ValueError as e:
+                        yaml_path = "pyspoc" / cls._get_properties_yaml_path()
+                        error_msg = error_msg_template.format(
+                            property_name=property_name,
+                            property_value=e.args[0],
+                            yaml_path=yaml_path)
+
+                        if throw_load_errors == "throw":
+                            raise ValueError(error_msg) from e
+                        elif throw_load_errors == "warn":
+                            warn(error_msg)
+
+                        continue
+
+                setattr(cls, formatted_name, tuple(values))
+
+            else:
+                if result is None:
+                    continue
+
+                try:
+                    value = (property_type(result)
+                        if issubclass(property_type, Enum)
+                        else result)
+                except ValueError as e:
+                    yaml_path = "pyspoc" / cls._get_properties_yaml_path()
+                    error_msg = error_msg_template.format(
+                        property_name=property_name,
+                        property_value=e.args[0],
+                        yaml_path=yaml_path)
+                    
+                    if throw_load_errors == "throw":
+                        raise ValueError(error_msg) from e
+                    elif throw_load_errors == "warn":
+                        warn(error_msg)
+
+                    continue
+                    
+                setattr(cls, formatted_name, value)
+    
+    
+    @classmethod
+    def _get_properties(cls, reload: bool = False):
+        if (reload
+            or not isinstance(cls._properties_mapping, MappingProxyType)
+            or not cls._properties_mapping):
+            cls._load_properties_yaml()
+                
+        found = cls._properties_mapping.get(cls.__module__ + "." + cls.__qualname__)
+
+        if not found:
+            found = cls._properties_mapping.get(cls.__qualname__)
+
+        return found
+
+
+    @classmethod
+    def _load_properties_yaml(cls):
+        resource = cls._get_properties_yaml_resource()
+
+        if resource is None:
+            return
+        
+        try:
+            with resource.open(mode="r") as f:
+                properties_dict = safe_load(f)
+                formatted_dict, exceptions = cls._standardise_properties_dict(properties_dict)
+                cls._properties_mapping = MappingProxyType(formatted_dict)
+
+                if exceptions:
+                    raise ExceptionGroup(
+                        "A number of errors were encountered loading properties YAML",
+                        exceptions)
+
+        except Exception as err:
+            yaml_path = cls._get_properties_yaml_path()
+            error_prefix = ("Loading properties YAML file threw an error:\n\t" +
+                f"File: {yaml_path}")
+
+            match settings.current.properties_load_error_response:
+                case "error":
+                    raise err
+
+                case "warn":
+                    if cls._warned_properties_error:
+                        return
+                    
+                    cls._warned_properties_error = True
+
+                    if isinstance(err, ExceptionGroup):
+                        msg = err.message + "\n\t" + "\n\t".join(
+                            [str(e) + (f" ({e.__notes__[0]})" if hasattr(e, "__notes__") else "")
+                                for e in err.exceptions])
+                    else:
+                        msg = str(err)
+
+                    warn(error_prefix + f"\n\tException: {msg}")
+
+
+    @classmethod
+    def _get_properties_yaml_resource(cls) -> Traversable | None:
+        yaml_path = cls._get_properties_yaml_path()
+        resource = None
+        
+        try:
+            resource = lib.get_library_resource(yaml_path)
+        except FileNotFoundError as e:
+            new_error_msg = f"Properties YAML file could not be found at: {yaml_path}"
+            cls._handle_properties_missing(new_error_msg, e)
+                
+        return resource
+    
+
+    @classmethod
+    def _handle_properties_missing(
+        cls,
+        new_error_msg: str,
+        base_error: FileNotFoundError):
+
+        match settings.current.properties_missing_response:
+            case "error":
+                raise FileNotFoundError(new_error_msg) from base_error
+
+            case "warn":
+                if not cls._warned_properties_missing:
+                    cls._warned_properties_missing = True
+                    warn(new_error_msg)
+
+
+    @classmethod
+    def _standardise_properties_dict(
+        cls,
+        current_dict: dict[str, Any]) -> tuple[dict[str, Any], list[Exception]]:
+        
+        standardised_dict = {}
+        exceptions = []
+        
+        for key, properties in current_dict.items():
+            if not isinstance(properties, dict):
+                continue
+
+            standardised_dict[key] = {}
+
+            for property_key, val in properties.items():
+
+                try:
+                    formatted_property = re.sub(r"[\W_]", "", property_key).lower()
+
+                    if val is None:
+                        continue
+
+                    prop_dict = standardised_dict[key]
+
+                    match formatted_property:
+                        case "identifier" | "type":
+                            prop_dict[formatted_property] = (
+                                val.lower() if isinstance(val, str) else val)
+
+                        case "tags" | "signatures":
+                            prop_dict[formatted_property] = tuple(
+                                v.lower() for v in val if isinstance(v, str))
+
+                        case _:
+                            prop_dict[formatted_property] = val
+
+                except Exception as e:
+                    e.add_note(f"Component: {key}, Property: {property_key}, Value: {val}")
+                    exceptions.append(e)
+
+        return standardised_dict, exceptions
+
+
+    @classmethod
     @abstractmethod
-    def identifier(self) -> str:
+    def _get_property_schema(cls) -> tuple[
+        tuple[str, type, MethodType | FunctionType], ...]:
         pass
 
-    @property
+
+    @classmethod
     @abstractmethod
-    def labels(self) -> list[str]:
+    def _get_properties_yaml_path(cls) -> Path:
         pass
+ 
+
+    @staticmethod
+    def _get_containing_package(module: ModuleType) -> ModuleType | None:
+        """
+        Return the module itself if it is a package,
+        otherwise its parent package.
+        """
+        
+        if hasattr(module, "__path__"):
+            return module
+
+        package_name = module.__package__
+
+        if not package_name:
+            return None
+
+        return import_module(package_name)
+    
+    
+    def _set_config(self, cfg: Config):
+        self._cfg = cfg
+
+
+    def _set_active_calculator(self, calculator: Calculator):
+        self._active_calculator = calculator
+
 
     @staticmethod
     def _get_property_val(prop: Any) -> Any:
@@ -156,17 +729,9 @@ class Component(ABC):
         return prop
 
     @staticmethod
-    @abstractmethod
     def _get_component_type() -> type:
-        pass
+        return Component
 
-    @abstractmethod
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
-        pass
-
-    @abstractmethod
-    def calculate(self, data: Dataset | Statistic) -> np.ndarray:
-        pass
 
     def __str__(self):
         self_type = type(self)
@@ -184,17 +749,38 @@ class Component(ABC):
 
     @classmethod
     def __info__(cls):
+        """Describe the component class and its constructor parameters.
+
+        Returns
+        -------
+        str
+            Formatted component identity, required parameter names, and
+            optional parameters with their declared defaults.
+
+        Notes
+        -----
+        Constructor inspection follows decorated signatures. Variadic
+        collectors are omitted because they do not declare individual options.
+        """
         full_name = get_fully_qualified_type_name(cls)
         component_type_name = cls._get_component_type().__name__
-        args = get_obj_init_args(cls)
         required_args = list()
         optional_args = dict()
 
-        for arg, default in args.items():
-            if default:
-                optional_args[arg] = default
+        # signature follows __wrapped__, exposing the constructor contract
+        # rather than the *args/**kwargs used by instrumentation wrappers.
+        for parameter in inspect.signature(cls.__init__).parameters.values():
+            if parameter.name == "self" or parameter.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            # Missing defaults use a sentinel, not truthiness: None, False,
+            # zero, and empty containers are all legitimate optional defaults.
+            if parameter.default is inspect.Parameter.empty:
+                required_args.append(parameter.name)
             else:
-                required_args.append(arg)
+                optional_args[parameter.name] = parameter.default
 
         return dedent(
             f"""
@@ -236,31 +822,40 @@ def has_required_func_args(func: FunctionType) -> bool:
 
 
 def get_obj_init_args(class_obj: type) -> dict[str, Any]:
+    """Return named constructor defaults, following decorated signatures.
 
-    # Get class init argument specification
-    arg_spec = inspect.getfullargspec(class_obj.__init__)
-    args = dict()
+    Parameters
+    ----------
+    class_obj : type
+        Class whose constructor parameters should be inspected.
 
-    # Add standard args
-    n_defaults = len(arg_spec.defaults) if arg_spec.defaults else 0
+    Returns
+    -------
+    dict[str, Any]
+        Named constructor parameters mapped to their defaults. Required
+        parameters are mapped to ``None`` for compatibility with Config.
+        The receiver and variadic collectors are omitted.
 
-    optional_args = arg_spec.args[-n_defaults:] if n_defaults > 0 else list()
-    required_args = arg_spec.args[:-n_defaults] if n_defaults > 0 else arg_spec.args
-
-    for arg in required_args:
-        args[arg] = None
-
-    if arg_spec.defaults:
-        for i, arg in enumerate(optional_args):
-            args[arg] = arg_spec.defaults[i]
-
-    # Add keyword arguments
-    if arg_spec.kwonlydefaults:
-        for i, arg in enumerate(arg_spec.kwonlyargs):
-            args[arg] = arg_spec.kwonlydefaults.get(arg)
-
-    args.pop("self", None)
-    return args
+    Notes
+    -----
+    Positional and keyword-only parameters are included. The legacy ``None``
+    marker cannot distinguish a required parameter from an optional parameter
+    whose actual default is ``None``; inspect the signature when that
+    distinction is needed, as :meth:`Component.__info__` does.
+    """
+    # inspect.signature follows wrapper metadata, unlike inspection of the
+    # wrapper's own argument list, so instrumentation does not hide defaults.
+    return {
+        parameter.name: (
+            None if parameter.default is inspect.Parameter.empty
+            else parameter.default
+        )
+        for parameter in inspect.signature(class_obj.__init__).parameters.values()
+        if parameter.name != "self" and parameter.kind not in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        )
+    }
 
 
 def retrieve_arg_name(var, max_steps: int = 2):
@@ -284,206 +879,6 @@ def retrieve_arg_name(var, max_steps: int = 2):
             break
 
     return var_name
-
-def get_type_name(arg_val):
-    return type(arg_val).__name__
-
-
-def check_type(arg_val: object,
-               arg_types: type | Iterable[type],
-               arg_name: Optional[str] = None,
-               is_try: bool = False,
-               custom_error_msg: Optional[str] = None) -> Optional[bool]:
-
-    if not arg_name:
-        arg_name = retrieve_arg_name(arg_val)
-
-    if not isinstance(arg_types, Iterable):
-        arg_types = [arg_types]
-
-    type_names = list()
-
-    for arg_type in arg_types:
-        type_name = arg_type.__name__
-        type_names.append(type_name)
-
-        if isinstance(arg_val, arg_type):
-            return True
-
-    if is_try:
-        return False
-
-    actual_type = get_type_name(arg_val)
-
-    if custom_error_msg is not None:
-        raise TypeError(custom_error_msg)
-
-    raise TypeError(f"{arg_name} should be one of {type_names} types, received {actual_type}.")
-
-def check_iterable(iterable: Iterable,
-                   iterable_type: Optional[type] = None,
-                   arg_name: Optional[str] = None,
-                   is_try: bool = False,
-                   custom_error_msg: Optional[str] = None) -> Optional[bool]:
-
-    if not arg_name:
-        arg_name = retrieve_arg_name(iterable)
-
-    try:
-        iterator = iter(iterable)
-
-    except TypeError as e:
-        if is_try:
-            return False
-
-        if custom_error_msg is not None:
-            raise TypeError(custom_error_msg) from e
-
-        raise TypeError(f"{arg_name} should be an iterable type but type {type(iterable)} "
-                        "does not support iteration.") from e
-
-    if not iterable_type:
-        if is_try:
-            return True
-
-        return
-
-    element = iterator.__next__()
-    is_correct_type = check_type(arg_name=arg_name,
-                                 arg_types=iterable_type,
-                                 arg_val=element,
-                                 is_try=True)
-
-    if not is_correct_type:
-        if is_try:
-            return False
-
-        expected_type = iterable_type.__name__
-        actual_type = get_type_name(element)
-        raise TypeError(f"{arg_name} should be an Iterable[{expected_type}] "
-                        f"type but got Iterable[{actual_type}]")
-
-    if is_try:
-        return True
-
-def check_natural_number(arg_value: int,
-                         arg_name: Optional[str] = None,
-                         is_try: bool = False) -> Optional[bool]:
-
-    if not arg_name:
-        arg_name = retrieve_arg_name(arg_value)
-
-    if arg_value < 1:
-        if is_try:
-            return False
-
-        raise ValueError(f"{arg_name} should be a positive integer value, received {arg_value}.")
-
-    if is_try:
-        return True
-
-
-def _contains_nan(a, nan_policy='propagate'):
-    policies = ['propagate', 'raise', 'omit']
-    if nan_policy not in policies:
-        raise ValueError("nan_policy must be one of {%s}" %
-                         ', '.join("'%s'" % s for s in policies))
-    try:
-        # Calling np.sum to avoid creating a huge array into memory
-        # e.g. np.isnan(a).any()
-        with np.errstate(invalid='ignore'):
-            contains_nan = np.isnan(np.sum(a))
-    except TypeError:
-        # If the check cannot be properly performed we fall back to omitting
-        # nan values and raising a warning. This can happen when attempting to
-        # sum things that are not numbers (e.g. as in the function `mode`).
-        contains_nan = False
-        nan_policy = 'omit'
-        warnings.warn("The input array could not be properly checked for nan "
-                      "values. nan values will be ignored.", RuntimeWarning)
-
-    if contains_nan and nan_policy == 'raise':
-        raise ValueError("The input contains nan values")
-
-    return contains_nan, nan_policy
-
-
-def strshort(instr,mlength):
-    """Shorten a string using ellipsis
-    """
-    if isinstance(instr,list):
-        outstr = []
-        for i in range(len(instr)):
-            cstr = instr[i]
-            outstr.append((cstr[:mlength-6] + '...' + cstr[-3:]) if len(cstr) > mlength else cstr)
-    else:
-        outstr = (instr[:mlength-6] + '...' + instr[-3:]) if len(instr) > mlength else instr
-    return outstr
-
-
-def acf(x, mode='positive'):
-    """Return the autocorrelation function
-    """
-    if x.ndim > 1:
-        x = np.squeeze(x)
-
-    x = zscore(x)
-    acf = np.correlate(x,x,mode='full') # pyright: ignore
-    acf = acf / acf[acf.size//2]
-
-    if mode == 'positive':
-        return acf[acf.size//2:]
-    else:
-        return acf
-
-
-def swap_chars(s, i_1, i_2):
-    """Swap to characters in a string.
-
-    Example:
-        >>> print(swap_chars('heLlotHere', 2, 6))
-        'heHlotLere'
-    """
-    if i_1 > i_2:
-        i_1, i_2 = i_2, i_1
-    return ''.join([s[0:i_1], s[i_2], s[i_1+1:i_2], s[i_1], s[i_2+1:]])
-
-
-def normalise(a, axis=0, nan_policy='propogate'):
-
-    contains_nan, nan_policy = _contains_nan(a, nan_policy)
-
-    if contains_nan and nan_policy == 'omit':
-        return (a - np.nanmin(a,axis=axis)) / (np.nanmax(a,axis=axis) - np.nanmin(a,axis=axis))
-    else:
-        return (a - np.min(a,axis=axis)) / (np.max(a,axis=axis) - np.min(a,axis=axis))
-
-
-def standardise(a, dimension=0, df=1):
-    """Z-standardise a numpy array along a given dimension.
-
-    Standardise array along the axis defined in dimension using the denominator
-    (N - df) for the calculation of the standard deviation.
-
-    Args:
-        a : numpy array
-            dataset to be standardised
-        dimension : int [optional]
-            dimension along which array should be standardised
-        df : int [optional]
-            degrees of freedom for the denominator of the standard derivation
-
-    Returns:
-        numpy array
-            standardised dataset
-    """
-    # Avoid division by standard deviation if the process is constant.
-    a_sd = a.std(axis=dimension, ddof=df)
-
-    if np.isclose(a_sd, 0):
-        return a - a.mean(axis=dimension)
-    else:
-        return (a - a.mean(axis=dimension)) / a_sd
 
 
 def convert_mdf_to_ddf(df):
@@ -534,147 +929,6 @@ def get_available_optional_deps():
     return optional_deps
 
 
-def filter_spis(keywords, output_name = None, configfile= None):
-    """
-    Filter a YAML using a list of keywords, and save the reduced set as a new
-    YAML with a user-specified name (or a random one if not provided) in the
-    current directory.
-
-    Args:
-        keywords (list): A list of keywords (as strings) to filter the YAML.
-        output_name (str, optional): The desired name for the output file.
-            Defaults to a random name.
-        configfile (str, optional): The path to the input YAML file. Defaults to the `config.yaml'
-            in the pyspi dir.
-
-    Raises:
-        ValueError: If `keywords` is not a list or if no SPIs match the keywords.
-        FileNotFoundError: If the specified `configfile` or the default `config.yaml` is not found.
-        IOError: If there's an error reading the YAML file.
-    """
-    # handle invalid keyword input
-    if not keywords:
-        raise ValueError("At least one keyword must be provided.")
-    if not all(isinstance(keyword, str) for keyword in keywords):
-        raise ValueError("All keywords must be strings.")
-    if not isinstance(keywords, list):
-        raise ValueError("Keywords must be provided as a list of strings.")
-
-    # if no configfile and no keywords are provided, use the default 'config.yaml' in pyspi location
-    if configfile is None:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        default_config = os.path.join(script_dir, 'config.yaml')
-        if not os.path.isfile(default_config):
-            raise FileNotFoundError(f"Default 'config.yaml' file not found in {script_dir}.")
-        configfile = default_config
-        source_file_info = f"Default 'config.yaml' file from {script_dir} " + \
-            "was used as the source file."
-    else:
-        source_file_info = f"User-specified config file '{configfile}' was used as the source file."
-
-    # load in user-specified yaml
-    try:
-        with open(configfile) as f:
-            yf = yaml.load(f, Loader=yaml.FullLoader)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"Config file '{configfile}' not found.") from e
-    except Exception as e:
-        # handle all other exceptions
-        raise IOError(f"An error occurred while trying to read '{configfile}': {e}") from e
-
-    # new dictionary to be converted to final YAML
-    filtered_subset = {}
-    spis_found = 0
-
-    for module in yf:
-        module_spis = {}
-        for spi in yf[module]:
-            spi_labels = yf[module][spi].get('labels')
-            if all(keyword in spi_labels for keyword in keywords):
-                module_spis[spi] = yf[module][spi]
-                if yf[module][spi].get('configs'):
-                    spis_found += len(yf[module][spi].get('configs'))
-                else:
-                    spis_found += 1
-
-        if module_spis:
-            filtered_subset[module] = module_spis
-
-    # check that > 0 SPIs found
-    if spis_found == 0:
-        raise ValueError(f"0 SPIs were found with the specific keywords: {keywords}.")
-
-    # construct output file path
-    if output_name is None:
-        # use a unique name
-        output_name = "config_" + os.urandom(4).hex()
-
-    output_file = os.path.join(os.getcwd(), f"{output_name}.yaml")
-
-    # write to YAML
-    with open(output_file, "w") as outfile:
-        yaml.dump(filtered_subset, outfile, default_flow_style=False, sort_keys=False)
-
-    # output relevant information
-    print(f"""\nOperation Summary:
------------------
-- {source_file_info}
-- Total SPIs Matched: {spis_found} SPI(s) were found with the specific keywords: {keywords}.
-- New File Created: A YAML file named `{output_name}.yaml` has been saved in the current directory: `{output_file}'
-- Next Steps: To utilise the filtered set of SPIs, please initialise a new Calculator instance with the following command:
-`Calculator(configfile='{output_file}')`
-""")
-
-
-def inspect_calc_results(calc):
-    total_num_spis = calc.n_ss
-    num_vars = calc.dataset.n_variables_subsample
-    ss_results = dict({'Successful': list(), 'NaNs': list(), 'Partial NaNs': list()})
-    for key in calc.ss.keys():
-        if calc.results[key].isna().all().all():
-            ss_results['NaNs'].append(key)
-
-        elif calc.results[key].isnull().values.sum() > num_vars:
-            # off-diagonal NaNs
-            ss_results['Partial NaNs'].append(key)
-
-        else:
-            # returned numeric values (i.e., not NaN)
-            ss_results['Successful'].append(key)
-
-    # print summary
-    double_line_60 = "="*60
-    single_line_60 = "-"*60
-    print("\nSPI Computation Results Summary")
-    print(double_line_60)
-    print(f"\nTotal number of SPIs attempted: {total_num_spis}")
-    print(f"Number of SPIs successfully computed: {len(ss_results['Successful'])} "
-          f"({len(ss_results['Successful']) / total_num_spis * 100:.2f}%)")
-    print(single_line_60)
-    print("Category       | Count | Percentage")
-    print(single_line_60)
-
-    for category, spis in ss_results.items():
-        count = len(spis)
-        percentage = (count / total_num_spis) * 100
-        print(f"{category:14} | {count:5} | {percentage:6.2f}%")
-
-    print(single_line_60)
-
-    if ss_results['NaNs']:
-        print(f"\n[{len(ss_results['NaNs'])}] SPI(s) produced NaN outputs:")
-        print(single_line_60)
-        for i, spi in enumerate(ss_results['NaNs']):
-            print(f"{i+1}. {spi}")
-        print(single_line_60 + "\n")
-
-    if ss_results['Partial NaNs']:
-        print(f"\n[{len(ss_results['Partial NaNs'])}] SPIs which produced partial NaN outputs:")
-        print(single_line_60)
-        for i, spi in enumerate(ss_results['Partial NaNs']):
-            print(f"{i+1}. {spi}")
-        print(single_line_60 + "\n")
-
 @typechecked
 def copy_array(array: np.ndarray | Iterable[Number]) -> np.ndarray:
     nparray = np.array(array) if not isinstance(array, np.ndarray) \
@@ -682,11 +936,3 @@ def copy_array(array: np.ndarray | Iterable[Number]) -> np.ndarray:
 
     result = nparray.copy()
     return result
-
-
-def copy_tensor(tensor: torch.Tensor) -> torch.Tensor:
-    return tensor.detach().cpu().clone()
-
-
-def copy_object(obj: T) -> T:
-    return deepcopy(obj)

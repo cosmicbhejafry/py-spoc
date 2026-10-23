@@ -15,8 +15,8 @@ _ERROR_SCALING_FAILURE = "No scaling could be determined for the provided datase
 
 
 def find_elbow_idx(
-    x: np.ndarray,
-    y: np.ndarray,
+    x: np.ndarray[tuple[int], np.dtype[np.floating]],
+    y: np.ndarray[tuple[int], np.dtype[np.floating]],
     *,
     direction: str = "decreasing",
     smooth: bool = True,
@@ -95,11 +95,10 @@ def find_elbow_idx(
         y_work,
         direction=direction,
         tolerance=monotonic_tolerance):
-
         return
 
     y_norm = (y_work - y_min) / (y_max - y_min)
-    points = np.column_stack([x_norm, y_norm])
+    points = np.column_stack((x_norm, y_norm)) # pyright: ignore[reportCallIssue]
     start = points[0]
     end = points[-1]
     chord = end - start
@@ -109,7 +108,10 @@ def find_elbow_idx(
         return
     
     # Perpendicular distance from each point to the line through start/end.
-    distances = np.cross(chord, points - start)
+    offsets = points - start
+    distances = (
+        chord[0] * offsets[:, 1]
+        - chord[1] * offsets[:, 0]) / chord_norm
     left_elbow_idx = 0
     right_elbow_idx = n
     
@@ -133,10 +135,10 @@ def find_elbow_idx(
 
 
 def compute_ols_results(
-        neg_log_scales: np.ndarray,
-        H: np.ndarray) -> tuple[float, float]:
+        log_scales: np.ndarray,
+        H: np.ndarray) -> tuple[np.floating, np.floating]:
     
-    constant_added = sm.add_constant(neg_log_scales)
+    constant_added = sm.add_constant(log_scales)
     ols = sm.OLS(H, constant_added)
     results = ols.fit()
     coeffs = results.params
@@ -145,51 +147,138 @@ def compute_ols_results(
     return slope, r2
 
 
-def get_adaptive_scales(
+def get_adaptive_box_scales(
         xs: np.ndarray,
         *,
         method: Literal["datseries", "log-10"],
         k: int = 50,
         max_iter: int = 5,
         max_iter_alert: bool = False,
-        **kwargs):
+        **kwargs
+) -> np.ndarray[tuple[int], np.dtype[np.floating]]:
     
-    scale_func = get_log10_scales if method == "log-10" \
-        else get_datseries_scales
-    i = 0
+    scale_func = (get_log10_scales
+        if method == "log-10"
+        else get_datseries_scales)
     scales = scale_func(xs, k=k, **kwargs)
     n = xs.shape[0]
+    lower_bound = 1
+    upper_bound = n
 
-    while i < max_iter:
-        
-        results = fnb.get_bounded_idxs(xs, scales, 1, n)
-        
-        if None in results:
-            raise ValueError("Unable to establish informative scales.")
+    scales, _ = get_adapted_results(
+        xs=xs,
+        seed_scales=scales,
+        calling_method="renyi",
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        k=k,
+        max_iter=max_iter,
+        max_iter_alert=max_iter_alert,
+        reverse_scale=True)
+
+    return scales
+
+
+def get_adaptive_corr_sum_results(
+        xs: np.ndarray,
+        *,
+        method: Literal["datseries", "log-10"],
+        k: int = 50,
+        max_iter: int = 5,
+        max_iter_alert: bool = False,
+        **kwargs
+) -> tuple[np.ndarray[tuple[int], np.dtype[np.floating]],
+           np.ndarray[tuple[int], np.dtype[np.integer]]]:
     
-        start_idx, end_idx, start_box_cnt, end_box_cnt = results
-        start_scale, end_scale = scales[start_idx], scales[end_idx]
-        length = end_idx - start_idx + 1
-        range = start_box_cnt - end_box_cnt
+    scale_func = (get_log10_scales
+        if method == "log-10"
+        else get_datseries_scales)
+    scales = scale_func(xs, k=k, **kwargs)
+    n = xs.shape[0]
+    lower_bound = 1
+    upper_bound = int(n * (n-1) / 2)
+    scales, counts = get_adapted_results(
+        xs=xs,
+        seed_scales=scales,
+        calling_method="corrsum",
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        k=k,
+        max_iter=max_iter,
+        max_iter_alert=max_iter_alert,
+        reverse_scale=False)
+
+    if counts is None:
+        raise RuntimeError("Unable to establish informative counts.")
+        
+    return scales, counts
+
+
+def get_adapted_results(
+        xs: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+        seed_scales: np.ndarray[tuple[int], np.dtype[np.floating]],
+        *,
+        calling_method: Literal["renyi", "corrsum", "evt"],
+        lower_bound: int,
+        upper_bound: int,
+        k: int = 50,
+        max_iter: int = 5,
+        max_iter_alert: bool = False,
+        reverse_scale: bool = False,
+        **kwargs
+) -> (tuple[np.ndarray[tuple[int], np.dtype[np.floating]],
+            np.ndarray[tuple[int], np.dtype[np.integer]] | None]):
+
+    i = 0
+    scales = seed_scales
+    counts = None
+
+    while True:
+        
+        if calling_method == "renyi":
+            results = fnb.get_box_bounds(
+                xs, scales, lower_bound, upper_bound, boxes_sorted=True)
+            high_count_idx, low_count_idx, high_count, low_count = results
+        elif calling_method == "corrsum":
+            results = fnb.get_radii_bounds_and_counts(
+                xs, scales, lower_bound, upper_bound, radii_sorted=True)
+            high_count_idx, low_count_idx, high_count, low_count, counts = results
+        
+        if None in (high_count_idx, low_count_idx, high_count, low_count):
+            raise RuntimeError("Unable to establish informative scales.")
+    
+        high_count_scale, low_count_scale = scales[high_count_idx], scales[low_count_idx]
+        length = abs(low_count_idx - high_count_idx) + 1
+        range = high_count - low_count
 
         # Expand scales as end of the scaling curve not met.
-        if start_box_cnt < 0.95 * n:
-            start_scale /= 2
+        if high_count < 0.95 * upper_bound:
+            high_count_scale = (high_count_scale / 2
+                if reverse_scale
+                else high_count_scale * 2)
 
         # Expand scales as start of the scaling curve not met.
-        if end_box_cnt > 1:
-            end_scale *= 2
-        
-        if range >= 0.85 * n and length >= k + 1:
+        if low_count > lower_bound:
+            low_count_scale = (low_count_scale * 2
+                if reverse_scale
+                else low_count_scale / 2)
+                
+        if range >= 0.9 * upper_bound and length >= k + 1:
             break
         
-        scales = get_exp_scales(start_scale, end_scale, k)
         i += 1
+
+        if i >= max_iter:
+            break
+        
+        scales = (get_exp_scales(high_count_scale, low_count_scale, k)
+            if reverse_scale
+            else get_exp_scales(low_count_scale, high_count_scale, k))
 
     if max_iter_alert and i == max_iter:
         print("Maximum iterations were reached.")
         
-    return scales
+    return scales, counts
     
 
 def get_exp_scales(

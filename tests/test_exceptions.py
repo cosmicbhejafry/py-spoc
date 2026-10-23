@@ -1,6 +1,6 @@
 """Tests for pySPoC's public exception types."""
 
-from pyspoc import OptionalDependencyMissingError
+from pyspoc._exceptions import OptionalDependencyMissingError
 
 
 def test_optional_dependency_error_is_a_structured_import_error() -> None:

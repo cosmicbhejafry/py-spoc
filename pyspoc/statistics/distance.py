@@ -1,177 +1,140 @@
 import numpy as np
 
-from typing import Union
+from typing import Union, Literal, Any
 from sklearn.metrics import pairwise_distances
-from hyppo.independence import (
-    MGC,
-    Dcorr,
-    HHG,
-    Hsic,
+
+from pyspoc.settings import settings
+from pyspoc.statistics.base import Statistic, PairwiseStatistic
+from pyspoc._tag import Tag, Type
+
+# NOTE (GSC): The hyppo library is quite slow and likely these statistics will need to be
+# implemented natively in order to be viable.
+
+
+AVAILABLE_DISTANCES = (
+    "euclidean",
+    "nan_euclidean",
+    "manhattan",
+    "cosine",
+    "braycurtis",
+    "canberra",
+    "chebyshev",
+    "correlation",
+    "dice",
+    "hamming",
+    "jaccard",
+    "haversine",
+    "mahalanobis",
+    "matching",
+    "minkowski",
+    "rogerstanimoto",
+    "russellrao",
+    "seuclidean",
+    "sokalsneath",
+    "sqeuclidean",
+    "yule"
 )
-
-from pyspoc.statistic import Statistic, PairwiseStatistic
-
 
 class PairwiseDistance(Statistic):
 
-    __name = "Pairwise distance"
-    __identifier = "pdist"
-    __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
+    _long_name = "Pairwise distance"
+    _identifier = "pdist"
+    _tags = (Tag.DISTANCE, Tag.SYMMETRICAL)
+    _type = Type.DESCRIPTIVE
+    _signatures = ()
 
-    def __init__(self, metric="euclidean"):
-        self.__metric = metric
-        self.__identifier += f".{metric}"
-        super().__init__()
+    def __init__(
+            self,
+            metric: Literal[
+                "euclidean",
+                "nan_euclidean",
+                "manhattan",
+                "cubic",
+                "cosine",
+                "braycurtis",
+                "canberra",
+                "chebyshev",
+                "correlation",
+                "dice",
+                "hamming",
+                "jaccard",
+                "haversine",
+                "mahalanobis",
+                "matching",
+                "minkowski",
+                "rogerstanimoto",
+                "russellrao",
+                "seuclidean",
+                "sokalsneath",
+                "sqeuclidean",
+                "yule"] = "euclidean",
+            force_finite: bool = False,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+            **kwargs: Any):
+        
+        self._metric = metric
+        self._internal_metric = metric
+        self._force_finite = force_finite
+        self._identifier += f".{metric}"
+        self._kwargs = kwargs
 
+        if metric in ("correlation", "cosine"):
+            self._tags = self._get_modified_tags(
+                self._tags,
+                add_tags=Tag.ASSOCIATION)
+
+        if metric == "cubic":
+            self._kwargs["p"] = 3
+            self._internal_metric = "minkowski"
+            
+        super().__init__(dim=dim, nan_policy=nan_policy)
+
+
+    @staticmethod
+    def available_distances() -> tuple[str, ...]:
+        return AVAILABLE_DISTANCES
+
+    def _compute(self, data: np.ndarray) -> np.ndarray:
+        n_jobs = settings.current.max_worker_threads or -1
+        return pairwise_distances(
+            data.T,
+            metric=self._internal_metric,
+            n_jobs=n_jobs,
+            ensure_all_finite=self._force_finite)
+
+
+
+class GromovWassersteinTau(PairwiseStatistic):
+    """Gromov-Wasserstein distance (GWTau)"""
+
+    _name = "Gromov-Wasserstein Distance"
+    _identifier = "gwtau"
+    _labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
+    _tags = (Tag.ORDERED,)
+
+    def __init__(
+            self,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
+
+    @property
     def name(self) -> str:
-        return self.__name
+        return self._name
 
+    @property
     def identifier(self) -> str:
-        return self.__identifier
+        return self._identifier
 
-    def labels(self) -> list[str]:
-        return self.__labels
-
-    def compute(self, data: np.ndarray) -> np.ndarray:
-        return pairwise_distances(data, metric=self.__metric)
-
-
-""" TODO: include optional kernels in each method
-"""
-
-
-class HilbertSchmidtIndependenceCriterion(PairwiseStatistic):
-    """Hilbert-Schmidt Independence Criterion (HSIC)"""
-
-    __name = "Hilbert-Schmidt Independence Criterion"
-    __identifier = "hsic"
-    __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
-
-    def __init__(self, dim: str, biased: bool):
-        self.__biased = biased
-
-        if biased:
-            self.__identifier += ".biased"
-
-        super().__init__(dim=dim,
-                         is_ordered=False)
-
-    def name(self) -> str:
-        return self.__name
-
-    def identifier(self) -> str:
-        return self.__identifier
-
-    def labels(self) -> list[str]:
-        return self.__labels
-
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
-
-        stat = Hsic(bias=self.__biased).statistic(x, y)
-        return stat
-
-
-class HellerHellerGorfine(PairwiseStatistic):
-    """Heller-Heller-Gorfine independence criterion"""
-
-    __name = "Heller-Heller-Gorfine Independence Criterion"
-    __identifier = "hhg"
-    __labels = ["unsigned", "distance", "unordered", "nonlinear", "directed"]
-
-    def __init__(self, dim: str):
-        super().__init__(dim=dim,
-                         is_ordered=False)
-
-    def name(self) -> str:
-        return self.__name
-
-    def identifier(self) -> str:
-        return self.__identifier
-
-    def labels(self) -> list[str]:
-        return self.__labels
-
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
-
-        stat = HHG().statistic(x, y)
-        return stat # type: ignore
-
-
-class DistanceCorrelation(PairwiseStatistic):
-    """Distance correlation"""
-
-    __name = "Distance correlation"
-    __identifier = "dcorr"
-    __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
-
-    def __init__(self, dim: str, biased: bool):
-        self.__biased = biased
-
-        if biased:
-            self.__identifier += ".biased"
-
-        super().__init__(dim=dim,
-                         is_ordered=False)
-
-    def name(self) -> str:
-        return self.__name
-
-    def identifier(self) -> str:
-        return self.__identifier
-
-    def labels(self) -> list[str]:
-        return self.__labels
-
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
-
-        stat = Dcorr(bias=self.__biased).statistic(x, y)
-        return stat
-
-
-class MultiscaleGraphCorrelation(PairwiseStatistic):
-    """Multiscale graph correlation"""
-
-    __name = "Multiscale graph correlation"
-    __identifier = "mgc"
-    __labels = ["distance", "unsigned", "unordered", "nonlinear", "undirected"]
-
-    def __init__(self, dim: str):
-        super().__init__(dim=dim,
-                         is_ordered=False)
-
-    def name(self) -> str:
-        return self.__name
-
-    def identifier(self) -> str:
-        return self.__identifier
-
-    def labels(self) -> list[str]:
-        return self.__labels
-
-    def pairwise_compute(self,
-                         x: np.ndarray,
-                         y: np.ndarray) -> Union[np.ndarray, float]:
-
-        stat = MGC().statistic(x, y)
-        return stat
-
-
-class GromovWasserstainTau(PairwiseStatistic):
-    """Gromov-Wasserstain distance (GWTau)"""
-
-    __name = "Gromov-Wasserstain Distance"
-    __identifier = "gwtau"
-    __labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
-
-    def __init__(self):
-        super().__init__(dim="p",
-                         is_ordered=False)
+    @property
+    def tags(self) -> list[str]:
+        return self._labels
 
     @staticmethod
     def vec_geo_dist(x):
@@ -210,13 +173,13 @@ class GromovWasserstainTau(PairwiseStatistic):
         traji = np.column_stack([timei, xi])
         trajj = np.column_stack([timej, xj])
 
-        vi = GromovWasserstainTau.vec_geo_dist(traji)
-        vj = GromovWasserstainTau.vec_geo_dist(trajj)
-        gw = GromovWasserstainTau.wass_sorted(vi, vj)
+        vi = GromovWassersteinTau.vec_geo_dist(traji)
+        vj = GromovWassersteinTau.vec_geo_dist(trajj)
+        gw = GromovWassersteinTau.wass_sorted(vi, vj)
     
         return gw
 
-    def pairwise_compute(self,
+    def _pairwise_compute(self,
                          x: np.ndarray,
                          y: np.ndarray) -> Union[np.ndarray, float]:
 

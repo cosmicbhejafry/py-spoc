@@ -53,7 +53,7 @@ def test_constructor_exposes_fractal_configuration(slope_estimation_method):
         minimum_scaling_region=0.3,
         minimum_scaling_points=24,
         use_adaptive_scaling=False,
-        scale_method="log-10",
+        initial_scale_method="log-10",
         scale_length=60,
         scale_adaption_iters=5,
     )
@@ -100,7 +100,7 @@ def test_constructor_rejects_invalid_numeric_arguments(kwargs, expected_exceptio
     "kwargs",
     (
         {"slope_estimation_method": "unknown"},
-        {"scale_method": "linear"},
+        {"initial_scale_method": "linear"},
         {"use_adaptive_scaling": 1},
     ),
 )
@@ -169,7 +169,7 @@ def test_elbow_region_must_meet_size_requirements(
     )
     monkeypatch.setattr(
         RenyiEntropy,
-        "_compute_density_estimate",
+        "_compute_density_estimates",
         lambda self, data, selected_scales: np.arange(selected_scales.shape[0]),
     )
 
@@ -178,7 +178,7 @@ def test_elbow_region_must_meet_size_requirements(
         use_adaptive_scaling=False,
         scale_length=50,
     )
-    result = statistic.compute(np.zeros((10, 2)))
+    result = statistic._compute(np.zeros((10, 2)))
 
     assert result == float(expected_points)
     assert ols_point_counts[-1] == expected_points
@@ -245,9 +245,11 @@ def test_python_and_numba_backends_agree(data_factory, q):
 
 
 @pytest.mark.parametrize("q", REPRESENTATIVE_Q_VALUES)
-def test_fine_scale_saturation_avoids_box_id_overflow(data_factory, q):
+def test_fine_scale_entropy_without_nested_grid_assumptions(data_factory, q):
     data = data_factory(100, 2, 23)
-    descending_scales = np.exp(np.linspace(100, -100, 21))
+    # Box IDs must remain representable: arbitrary grids no longer use the
+    # removed early-saturation shortcut to avoid extreme-scale overflow.
+    descending_scales = np.exp(np.linspace(3, -8, 21))
     expected_saturated_entropy = np.log(data.shape[0])
 
     with settings.override(numba_mode="python"):
@@ -305,7 +307,7 @@ def test_fractal_entropy_is_non_increasing_in_q(fractal_factory):
 @pytest.mark.parametrize("q", REPRESENTATIVE_Q_VALUES)
 def test_renyi_entropy_computes_positive_finite_dimension(fractal_factory, q):
     for _, data, _ in fractal_factory():
-        calculated_dimension = RenyiEntropy(q=q).compute(data)
+        calculated_dimension = RenyiEntropy(q=q)._compute(data)
 
         assert np.isfinite(calculated_dimension)
         assert calculated_dimension > 0
@@ -315,7 +317,7 @@ def test_box_counting_dimension_matches_fractal_reference(fractal_factory):
     failures = []
 
     for fractal_name, data, expected_dimension in fractal_factory():
-        calculated_dimension = RenyiEntropy(q=0).compute(data)
+        calculated_dimension = RenyiEntropy(q=0)._compute(data)
         lower_bound = 0.75 * expected_dimension
         upper_bound = 1.25 * expected_dimension
 

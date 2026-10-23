@@ -24,7 +24,7 @@ class ResultStatistic(OrthogonalPCAEStatistic):
         return "orthopcae-test"
 
     @property
-    def labels(self) -> tuple[str, ...]:
+    def tags(self) -> tuple[str, ...]:
         return ("scalar", "non-linear")
 
     def _get_result(
@@ -150,7 +150,7 @@ def test_compute_resolves_dimensions_and_delegates_to_cached_estimator(
         get_or_create,
     )
 
-    result = statistic.compute(data)
+    result = statistic._compute(data)
 
     assert result is expected
     assert statistic._estimator_ is estimator
@@ -189,7 +189,7 @@ def test_compute_uses_current_random_seed_when_not_overridden(
     )
 
     with settings.override(random_seed=29):
-        statistic.compute(data)
+        statistic._compute(data)
 
     assert get_or_create.call_args.kwargs["random_seed"] == 29
 
@@ -210,10 +210,10 @@ def test_compute_does_not_permanently_remove_unavailable_components(
         Mock(return_value=estimator),
     )
 
-    statistic.compute(np.ones((2, 2), dtype=np.float32))
+    statistic._compute(np.ones((2, 2), dtype=np.float32))
     assert statistic._components == (1, 3)
     assert statistic.received_components == (1,)
 
-    statistic.compute(np.ones((5, 4), dtype=np.float32))
+    statistic._compute(np.ones((5, 4), dtype=np.float32))
     assert statistic._components == (1, 3)
     assert statistic.received_components == (1, 3)

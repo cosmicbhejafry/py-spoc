@@ -10,7 +10,6 @@ from threading import Barrier
 import numpy as np
 
 from pyspoc._estimators.caching import CachedEstimatorMixin
-from pyspoc._random import RandomSeedMixin
 from pyspoc.settings import settings
 
 
@@ -52,7 +51,7 @@ class SlowEstimator(CachedEstimatorMixin):
         self.alpha = alpha
 
 
-class PositionalSeedEstimator(RandomSeedMixin, CachedEstimatorMixin):
+class PositionalSeedEstimator(CachedEstimatorMixin):
     """Cached estimator combining a positional-only argument and seed."""
 
     _freeze_random_seed = True
@@ -226,7 +225,7 @@ def test_cache_capacity_uses_current_settings_limit():
     VerboseAgnosticEstimator._reset_cache()
     data = np.array([[1.0, 2.0]])
 
-    with settings.override(max_cache_results=2):
+    with settings.override(max_estimator_cache_results=2):
         first = VerboseAgnosticEstimator.get_or_create(data, alpha=0.1)
         second = VerboseAgnosticEstimator.get_or_create(data, alpha=0.2)
         third = VerboseAgnosticEstimator.get_or_create(data, alpha=0.3)

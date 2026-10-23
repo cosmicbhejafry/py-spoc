@@ -2,8 +2,9 @@ import numpy as np
 
 from typing import Literal
 
-from pyspoc.statistic import ReducedStatistic
-from pyspoc.reducer import Reducer
+from pyspoc.rstatistics.base import ReducedStatistic
+from pyspoc.reducers.base import Reducer
+from pyspoc.settings import settings
 
 
 class Norm(Reducer, ReducedStatistic):
@@ -16,16 +17,28 @@ class Norm(Reducer, ReducedStatistic):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
-    def __init__(self, order: float | Literal["fro", "nuc"] | None):
+    def __init__(
+            self,
+            order: float | Literal["fro", "nuc"] | None,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+                    
         self._order : float | Literal["fro", "nuc"] | None = order
-        super().__init__()
+        super().__init__(dim=dim, nan_policy=nan_policy)
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
-        return np.array(np.linalg.norm(x=data,
-                                       ord=self._order))
+    def reduce(self, data: np.ndarray) -> np.ndarray | np.floating | float:
+        return np.array(
+            np.linalg.norm(
+                x=data.astype(np.float64),
+                ord=self._order))
+
+
+    def _compute(self, data: np.ndarray) -> np.ndarray | np.floating | float:
+        return self.reduce(data)
 
 
 class EntryWiseMatrixNorm(Reducer, ReducedStatistic):
@@ -43,19 +56,34 @@ class EntryWiseMatrixNorm(Reducer, ReducedStatistic):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
-    def __init__(self, p: int, q: int):
+    def __init__(
+            self,
+            p: int,
+            q: int,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
         self._p = p
         self._q = q
-        super().__init__()
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
-        component_wise_power = abs(data)**self._p
+    def reduce(
+            self,
+            data: np.ndarray) -> np.ndarray | np.floating | float:
+        component_wise_power = abs(data.astype(np.float64))**self._p
         inner_sums = component_wise_power.sum(axis=1)**(self._p / self._q)
         outer_sum = inner_sums.sum()**(1 / self._q)
         return outer_sum
+
+
+    def _compute(self, data: np.ndarray) -> np.ndarray | np.floating | float:
+        return self.reduce(data)
 
 
 class SchattenNorm(Reducer, ReducedStatistic):
@@ -73,14 +101,25 @@ class SchattenNorm(Reducer, ReducedStatistic):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
-    def __init__(self, p: float):
+    def __init__(
+            self,
+            p: int,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
         self._p = p
-        super().__init__()
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
-        svs = np.linalg.svd(data, compute_uv=False)
+    def reduce(self, data: np.ndarray) -> np.ndarray | np.floating | float:
+        svs = np.linalg.svd(data.astype(np.float64), compute_uv=False)
         svs_power_sum = (svs**self._p).sum()
         return svs_power_sum**(1 / self._p)
+
+    def _compute(self, data: np.ndarray) -> np.ndarray | np.floating | float:
+        return self.reduce(data)

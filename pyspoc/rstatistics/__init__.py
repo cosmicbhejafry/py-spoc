@@ -5,7 +5,7 @@ import inspect
 from pathlib import Path
 from types import ModuleType
 
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
 
 
 _IMPORT_ERRORS: dict[str, Exception] = {}

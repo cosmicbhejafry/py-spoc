@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, fields, replace
 from typing import Any, Literal, cast, get_type_hints
-
 from typeguard import TypeCheckError, check_type
+from pathlib import Path
 
 
 NumbaMode = Literal["auto", "numba", "python"]
 NumbaErrorModel = Literal["numpy", "python"]
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,37 +23,138 @@ class SettingsValues:
     Attributes
     ----------
 
-    #### Logging
+    ### Library
 
     verbose : bool, default=False
         Whether supported operations should emit additional diagnostics.
+    ignore_import_warnings : bool, default=False
+        Whether warnings should be ignored for missing imports. If `True`, functionality
+        requiring missing imports will be silently unused, including certain Components.
 
-    #### Caching
+    ### Labelling
+
+    statistic_properties_yaml_path : :class:`Path`, \
+        default=`Path("pyspoc/properties/statistics.yml")`
+        Path relative to PySPoC for the YAML Statistic properties configuration file
+        containing the following properties:
+        - Long Name
+        - Identifier
+        - Type
+        - Tags
+        - Signature
+        
+        Properties implemented directly in the Statistic definition
+        will take precedence, otherwise properties will automatically load
+        from the YAML file with the following mapping:
+        - #### YAML Property -> Private Statistic Field -> Public Statistic Function
+        - Long Name -> `_long_name` -> `get_long_name()`
+        - Identifier -> `_identifier` -> `get_identifier()`
+        - Type -> `_type` -> `get_type()`
+        - Tags -> `_tags` -> `get_tags()`
+        - Signature -> `_signature` -> `get_signature()`
+
+    reducer_properties_yaml_path : :class:`Path`, \
+        default=`Path("pyspoc/properties/reducers.yml")`
+        Path relative to PySPoC for the YAML Reducer properties configuration file
+        containing the following properties:
+        - Long Name
+        - Identifier
+        - Type
+        - Tags
+        - Signatures
+        - Statistics Filter
+        - Statistic Types Filter
+        - Statistic Tags Filter
+        - Statistic Signatures Filter
+        
+        Properties implemented directly in the Reducer definition
+        will take precedence, otherwise properties will automatically load
+        from the YAML file with the following mapping:
+            - #### YAML Property -> Private Statistic Field -> Public Statistic Function
+            - Long Name -> `_long_name` -> `get_long_name()`
+            - Identifier -> `_identifier` -> `get_identifier()`
+            - Type -> `_type` -> `get_type()`
+            - Tags -> `_tags` -> `get_tags()`
+            - Signature -> `_signature` -> `get_signature()`
+            - Statistic Filters: Statistics -> `_filters_statistics` -> `get_filtered_statistics()`
+            - Statistic Filters: Types -> `_filters_statistic_types` -> \
+                `get_filtered_statistic_types()`
+            - Statistic Filters: Tags -> `_filters_statistic_tags` -> \
+                `get_filtered_statistic_tags()`
+            - Statistic Filters: Signatures -> `_filters_statistic_signatures` \
+                -> `get_filtered_statistic_signatures()`
+
+    ### Caching
     
-    max_cache_results : int, default=10
+    max_cache_results : int, default=20
         Maximum number of results retained by caches that use the package
         setting.
     statistic_caching : bool, default=True
         Whether Statistic results should be retained in cache.
+    max_statistic_cache_memory_fraction : float, default=0.1
+        Maximum fraction of an available-memory snapshot that may be occupied
+        by cached Statistic results. The snapshot is captured lazily when the
+        first result enters an empty cache and refreshed after a complete clear.
+    max_reducer_cache_memory_fraction : float, default=0.05
+        Maximum fraction of an available-memory snapshot occupied by cached
+        Reducer results during one cache lifetime.
     reducer_caching : bool, default=False
         Whether Reducer results should be retained in cache.
     numba_caching : bool, default=False
         Whether Numba should cache supported compiled functions on disk.
 
-    #### Determinism
+    ### Threading
+
+    max_worker_threads : int or None, optional
+        Maximum Python worker threads used by pySPoC execution machinery. If
+        ``None``, use the logical CPUs available to the current process.
+    max_memory_fraction : float, default=0.5
+        Maximum fraction of available memory used by pySPoC for multi-core
+        processing. If the memory allocation required from the specified
+        maximum number of workers exceeds this threshold, the actual number
+        of workers will be reduced to comply.
+    
+    ### Determinism
     
     random_seed : int, default=0
         Library-wide random seed used by statistics with non-deterministic
         solvers.
 
-    #### Torch
+    ### Result handling
+
+    data_nan_policy : {"raise", "row-omit", "col-omit"}, default="raise"
+        Treatment of missing elements in the data matrix. Prior to any data transposition:
+        `"row-omit"` removes complete rows containing a NaN;
+        `"col-omit"` removes complete columns containing a NaN;
+        `"raise"` throws a :class:`ValueError` on encountering a NaN.
+    result_array_policy : {"copy", "freeze"}, default="freeze"
+        Dictates how results from :class:`Statistic` and :class:`Reducer`
+        objects are placed in a read-only state. Freezing will place the
+        result itself into read-only while copy will generate a frozen copy,
+        allowing the original result to be garbage collected. It is advised
+        to copy only if results are a view on the original data or the result
+        must be modified in place before being returned.
+    result_validation : {"output", "two-sided"}, default="output"
+        Dictates how `Component` results are validated. If `"output"` then
+        `Component` outputs are checked prior to return. If `"two-sided"` then
+        inputs to `Component`s are also checked, meaning an intermediary result is
+        checked at both the previous output stage and current input stage.
+    pairwise_error_policy : {"first", "all", "ignore"}, default="all"
+        Dictates how errors are thrown during pairwise compute.
+        If `"first"`, the first error is immediately thrown, aborting the
+        remaining computation. If `"all"`, errors are accumulated and
+        returned as an `ExceptionGroup` error instead. Finally, if `"ignore"`
+        then errors are ignored and the final result is populated with `np.nan`
+        in erroneous entries.
+        
+    ### Torch
     
-    torch_estimator_inference_device: {"cpu", "training}, default="cpu"
+    torch_estimator_inference_device: {"cpu", "training"}, default="cpu"
         Device to store cached PyTorch estimators on for later inference.
         The "training" setting means that estimators remain stored on
         the device used for training.
 
-    #### Numba
+    ### Numba
 
     numba_mode : {"auto", "numba", "python"}, default="auto"
         Execution policy for functions with both Numba and Python
@@ -74,26 +176,46 @@ class SettingsValues:
     :meth:`Settings.override` to create a temporary context-local snapshot.
     """
 
-    # Logging
+    # Library
     verbose: bool = False
+    ignore_import_warnings: bool = False
+
+    # Property Labels
+    properties_missing_response: Literal["throw", "warn", "ignore"] = "warn"
+    properties_load_error_response: Literal["throw", "warn", "ignore"] = "warn"
+    statistic_properties_yaml_path = Path("properties/statistics.yml")
+    reducer_properties_yaml_path = Path("properties/reducer.yml")
 
     # Torch settings
     torch_estimator_inference_device: Literal["cpu", "training"] = "cpu"
 
     # Caching
-    max_cache_results: int = 20
+    max_estimator_cache_results: int = 20
     statistic_caching: bool = True
+    max_statistic_cache_memory_fraction: float = 0.1
     reducer_caching: bool = False
+    max_reducer_cache_memory_fraction: float = 0.05
     numba_caching: bool = False
+
+    # Threading
+    max_worker_threads: int | None = None
+    max_memory_fraction: float = 0.5
 
     # Determinism
     random_seed: int = 0
+
+    # Result handling
+    data_nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"
+    result_array_policy: Literal["copy", "freeze"] = "freeze"
+    result_validation: Literal["output", "both"] = "output"
+    pairwise_error_policy: Literal["first", "all", "ignore"] = "all"
 
     # Numba specific
     numba_mode: NumbaMode = "auto"
     numba_error_model: NumbaErrorModel = "numpy"
     numba_fastmath: bool = False
     numba_boundschecking: bool = False
+
 
 
 class Settings:
@@ -226,14 +348,106 @@ class Settings:
         return updated
 
     @contextmanager
-    def override(self, **changes: object) -> Iterator[None]:
+    def override(self, **changes: object) -> Generator[None, None, None]:
         """Temporarily override settings in the current execution context.
 
         Parameters
         ----------
         **changes : object, optional
             Setting names mapped to temporary values. Names and runtime types
-            are validated against :class:`SettingsValues`.
+            are validated against :class:`SettingsValues`. Possible changes
+            are documented below.
+        
+            #### Library
+
+        verbose : bool, default=False
+            Whether supported operations should emit additional diagnostics.
+        ignore_import_warnings : bool, default=False
+            Whether warnings should be ignored for missing imports. If `True`, functionality
+            requiring missing imports will be silently unused, including certain Components.
+
+            #### Threading
+        
+        max_worker_threads : int or None, optional
+            Maximum Python worker threads used by pySPoC execution machinery. If
+            ``None``, use the logical CPUs available to the current process.
+        max_memory_fraction : float, default=0.5
+            Maximum fraction of available memory used by pySPoC for multi-core
+            processing. If the memory allocation required from the specified
+            maximum number of workers exceeds this threshold, the actual number
+            of workers will be reduced to comply.
+
+            #### Caching
+        
+        max_cache_results : int, default=20
+            Maximum number of results retained by caches that use the package
+            setting.
+        statistic_caching : bool, default=True
+            Whether Statistic results should be retained in cache.
+        max_statistic_cache_memory_fraction : float, default=0.1
+            Maximum fraction of available memory occupied by cached Statistic
+            results during one cache lifetime.
+        max_reducer_cache_memory_fraction : float, default=0.05
+            Maximum fraction of available memory occupied by cached Reducer
+            results during one cache lifetime.
+        reducer_caching : bool, default=False
+            Whether Reducer results should be retained in cache.
+        numba_caching : bool, default=False
+            Whether Numba should cache supported compiled functions on disk.
+
+            #### Determinism
+        
+        random_seed : int, default=0
+            Library-wide random seed used by statistics with non-deterministic
+            solvers.
+
+            #### Result handling
+
+        data_nan_policy : {"raise", "row-omit", "col-omit"}, default="raise"
+            Treatment of missing elements in the data matrix. Prior to any data transposition:
+            `"row-omit"` removes complete rows containing a NaN;
+            `"col-omit"` removes complete columns containing a NaN;
+            `"raise"` throws a :class:`ValueError` on encountering a NaN.
+        result_array_policy : {"copy", "freeze"}, default="freeze"
+            Dictates how results from :class:`Statistic` and :class:`Reducer`
+            objects are placed in a read-only state. Freezing will place the
+            result itself into read-only while copy will generate a frozen copy,
+            allowing the original result to be garbage collected. It is advised
+            to copy only if results are a view on the original data or the result
+            must be modified in place before being returned.
+        result_validation : {"output", "two-sided"}, default="output"
+            Dictates how `Component` results are validated. If `"output"` then
+            `Component` outputs are checked prior to return. If `"two-sided"` then
+            inputs to `Component`s are also checked, meaning an intermediary result is
+            checked at both the previous output stage and current input stage.
+        pairwise_error_policy : {"first", "all", "ignore"}, default="all"
+            Dictates how errors are thrown during pairwise compute.
+            If `"first"`, the first error is immediately thrown, aborting the
+            remaining computation. If `"all"`, errors are accumulated and
+            returned as an `ExceptionGroup` error instead. Finally, if `"ignore"`
+            then errors are ignored and the final result is populated with `np.nan`
+            in erroneous entries.
+
+            #### Torch
+        
+        torch_estimator_inference_device: {"cpu", "training}, default="cpu"
+            Device to store cached PyTorch estimators on for later inference.
+            The "training" setting means that estimators remain stored on
+            the device used for training.
+
+            #### Numba
+
+        numba_mode : {"auto", "numba", "python"}, default="auto"
+            Execution policy for functions with both Numba and Python
+            implementations. ``"auto"`` permits fallback, ``"numba"`` requires
+            the Numba implementation, and ``"python"`` bypasses Numba.
+        numba_error_model : {"numpy", "python"}, default="numpy"
+            Error model supplied when compiling supported Numba functions.
+        numba_fastmath : bool, default=False
+            Whether supported Numba functions should enable fast-math
+            optimizations during compilation.
+        numba_boundschecking : bool, default=False
+            Whether supported Numba functions should perform bounds checking.
 
         Yields
         ------
@@ -323,6 +537,19 @@ class Settings:
                 raise TypeError(
                     f"Invalid value for setting {name!r}: {error}"
                 ) from error
+
+            if name in {
+                "max_memory_fraction",
+                "max_reducer_cache_memory_fraction",
+                "max_statistic_cache_memory_fraction",
+            }:
+                fraction = cast(float, value)
+
+                if not 0.0 < fraction <= 1.0:
+                    raise ValueError(
+                        f"Setting {name!r} must be greater than 0.0 and "
+                        f"less than or equal to 1.0, but got {fraction}."
+                    )
 
         # The loop above has performed the field-specific checks dynamically.
         # Static type checkers cannot narrow a Mapping[str, object] from those

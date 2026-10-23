@@ -103,7 +103,7 @@ class KLMeanMedianDistances(DistanceDistributionBase):
     def __init__(self,metric):
         super().__init__(metric=metric)
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         """computes 
         """
         dists_mean = self._dist_from_point(data, 'global_mean_centroid')
@@ -139,7 +139,7 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
         self.point = point
         self.stats = stats
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         dists = self._dist_from_point(data, self.point)
 
         if set(self.stats) <= (set(self.summary_fns_dict.keys())):        
@@ -162,7 +162,7 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         self.point=point
         self.type = type
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
 
         dists = self._dist_from_point(data, self.point)
 

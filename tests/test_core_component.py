@@ -4,7 +4,7 @@ import inspect
 
 import pytest
 
-from pyspoc._core.component import Component
+from pyspoc.core._component import Component
 
 
 class ExampleComponent(Component):
@@ -15,7 +15,7 @@ class ExampleComponent(Component):
         *,
         enabled: bool = True,
     ) -> None:
-        super().__init__("example", ("test",))
+        super().__init__("Example component", "example", ("test",))
         self.count = count
         self.factor = factor
         self.enabled = enabled
@@ -27,7 +27,7 @@ class ExampleComponent(Component):
 
 class IntermediateComponent(Component):
     def __init__(self, short_name: str) -> None:
-        super().__init__(short_name, ("intermediate",))
+        super().__init__("Intermediate component", short_name, ("intermediate",))
 
     @classmethod
     def _get_component_type(cls) -> type:
@@ -43,7 +43,7 @@ class ConcreteComponent(IntermediateComponent):
 
 class VariadicComponent(Component):
     def __init__(self, name: str, *values: int, **options: str) -> None:
-        super().__init__(name, ("variadic",))
+        super().__init__("Variadic component", name, ("variadic",))
 
     @classmethod
     def _get_component_type(cls) -> type:
@@ -52,7 +52,7 @@ class VariadicComponent(Component):
 
 class FailingComponent(Component):
     def __init__(self, value: int) -> None:
-        super().__init__("failing", ("test",))
+        super().__init__("Failing component", "failing", ("test",))
         raise RuntimeError("initialization failed")
 
     @classmethod
@@ -115,7 +115,8 @@ def test_failed_initialization_does_not_publish_call_arguments() -> None:
         component.__init__(5)
 
     assert component.params == {}
-    assert not hasattr(component, "_component_init_capture_depth")
+    assert "_component_init_capture_depth" not in vars(component)
+    assert component._component_init_capture_depth == 0
 
 
 def test_short_name_property_returns_stored_value() -> None:

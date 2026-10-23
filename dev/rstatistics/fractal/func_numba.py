@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 from importlib import reload
 
 data = np.random.standard_normal(size=(10000,10))
-scales = fpy.get_adaptive_scales(data, method="datseries", k=1000)
+scales = fpy.get_adaptive_box_scales(data, method="datseries", k=1000)
 scales = scales[::-1]
 #data = fgen.mandelbrot()
 # %%
 renyi_entr =  renyi.RenyiEntropy(scale_length=500)
-renyi_entr.compute(data)
+renyi_entr._compute(data)
 #fpy._sort_data(data, debug_numba="raise")
 
 # %%
@@ -72,7 +72,7 @@ sig
 #%%
 fnb._get_bounded_idxs(data, scales, 1, 100)
 #%%
-scales = fpy.get_adaptive_scales(data, method="datseries", k=1000)
+scales = fpy.get_adaptive_box_scales(data, method="datseries", k=1000)
 #%%
 from typing import Literal, Iterable
 from scipy.stats import gaussian_kde

@@ -1,7 +1,11 @@
 import numpy as np
 
+from typing import Literal
+
 from pyspoc import Reducer
-from pyspoc.statistic import ReducedStatistic
+from pyspoc.settings import settings
+from pyspoc.rstatistics.base import ReducedStatistic
+
 
 class EffectiveRank(Reducer, ReducedStatistic):
 
@@ -74,45 +78,78 @@ class EffectiveRank(Reducer, ReducedStatistic):
     _identifier = "erank"
     _labels = ["scalar"]
 
+    def __init__(
+            self,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
+        super().__init__(dim=dim, nan_policy=nan_policy)
+
     @property
     def name(self) -> str:
         return self._name
+    
     
     @property
     def identifier(self) -> str:
         return self._identifier
     
+    
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
     
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         s = np.linalg.svd(data, compute_uv=False)
         p = s / np.linalg.norm(s, ord=1) # pyright: ignore[reportCallIssue]
         log_p = np.zeros_like(p)
         np.log(p, out=log_p, where=p > 0)
         H = - np.sum(p * log_p)
         return np.exp(H)
+    
+
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)
 
 class StableRank(Reducer, ReducedStatistic):
     
     _name = "Stable Rank"
-    _identifier = "stable-rank"
+    _identifier = "srank"
     _labels = ["scalar"]
+
+
+    def __init__(
+            self,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
 
     @property
     def name(self) -> str:
         return self._name
     
+
     @property
     def identifier(self) -> str:
         return self._identifier
+
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
-    
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+
+        
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
         frob = np.array(np.linalg.norm(x=data, ord="fro"))
         l2 = np.array(np.linalg.norm(data, ord=2)) # pyright: ignore[reportCallIssue]
         return (frob / l2) ** 2
+
+
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
+        return self.reduce(data)

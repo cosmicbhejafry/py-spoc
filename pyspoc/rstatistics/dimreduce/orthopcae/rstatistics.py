@@ -9,29 +9,15 @@ from ._base import OrthogonalPCAEReducedStatistic
 from pyspoc._base import copy_array
 from pyspoc.statistics.dimreduce.orthopcae._state import OrthogonalPCAEFittedState
 
-
 if TYPE_CHECKING:
     from pyspoc.statistics.dimreduce.orthopcae._estimator import OrthogonalPCAEEstimator
 
 
 class OrthogonalPCAEVarianceExplainedRatio(OrthogonalPCAEReducedStatistic):
 
-    _name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
+    _long_name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
     _identifier = "opcae-var"
-    _labels = ["vector", "non-linear"]
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def labels(self) -> tuple[str, ...]:
-        return tuple(self._labels)
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-
+    
     def _get_result(
             self,
             fitted_estimator: OrthogonalPCAEEstimator,
@@ -45,21 +31,8 @@ class OrthogonalPCAEVarianceExplainedRatio(OrthogonalPCAEReducedStatistic):
 
 class OrthogonalPCAEVarianceElbow(OrthogonalPCAEReducedStatistic):
 
-    _name = "Orthogonal Principal Component Autoencoder Variance Explained Elbow"
+    _long_name = "Orthogonal Principal Component Autoencoder Variance Explained Elbow"
     _identifier = "opcae-var-elbow"
-    _labels = ["scalar", "non-linear"]
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def labels(self) -> tuple[str, ...]:
-        return tuple(self._labels)
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
 
     def _get_result(
             self,
@@ -117,17 +90,18 @@ def extract_pcae_scree_data(
 
     # Calculate pseudo "Variance Explained" percentage
     # R^2 style: (Baseline Error - Bottleneck Error) / Baseline Error
-
     if np.isclose(baseline_mse, 0.0):
-        variance_explained = np.zeros(
+        cum_variance_explained = np.zeros(
             len(loss_distribution),
             dtype=float,
         )
     else:
-        variance_explained = np.array([
+        cum_variance_explained = np.array([
             max(0.0, baseline_mse - mse) / baseline_mse
             for mse in loss_distribution
         ])
+
+    variance_explained = np.diff(cum_variance_explained, prepend=0)
 
     return OrthogonalPCAEFittedState(
         variance_explained = copy_array(variance_explained),

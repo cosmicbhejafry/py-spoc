@@ -19,6 +19,8 @@ def test_variance_elbow_selects_scalar_estimator_result(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """The elbow statistic should expose the estimator's selected dimension."""
     statistic = OrthogonalPCAEVarianceElbow(
+        dim="p",
+        nan_policy="raise",
         batch_size=4,
         components=2,
         max_bottleneck_dim=2,
@@ -36,14 +38,16 @@ def test_variance_elbow_selects_scalar_estimator_result(
     )
 
     assert result == 2
-    assert statistic.identifier == "opcae-var-elbow"
-    assert "scalar" in statistic.labels
+    assert statistic.get_identifier() == "opcae-var-elbow"
+    assert np.isscalar(result)
 
 
 def test_variance_explained_selects_requested_components(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """The enclosing statistic should apply one-based component selection."""
     statistic = OrthogonalPCAEVarianceExplainedRatio(
+        dim="p",
+        nan_policy="raise",
         batch_size=4,
         components=[1, 3],
         max_bottleneck_dim=3,

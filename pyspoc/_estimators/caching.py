@@ -14,13 +14,14 @@ import numpy as np
 import inspect
 import sys
 
-from typing import Any, ParamSpec, TypeVar, Union, Callable, Concatenate
+from typing import Self, Any, ParamSpec, TypeVar, Union, Callable, Concatenate
 from collections.abc import Hashable
 from datetime import datetime
 from functools import wraps
 from threading import RLock
 
-from pyspoc._initialization import AutoInitializedMixin
+from pyspoc._argchecking import RuntimeTypeCheckedMixin
+from pyspoc._random import RandomSeedMixin
 from pyspoc.settings import settings
 
 
@@ -35,7 +36,10 @@ PYSPOC_LRU_ATTRIBUTE = "_pyspoc_lru"
 PYSPOC_ATTACHED_DATA_ATTRIBUTE = "_pyspoc_attached_dataset"
 
 
-class CachedEstimatorMixin(AutoInitializedMixin):
+class CachedEstimatorMixin(
+    RandomSeedMixin,
+    RuntimeTypeCheckedMixin):
+
     """Provide configurable, constructor-aware caching for estimator instances.
 
     Every subclass constructor is wrapped automatically by
@@ -75,6 +79,8 @@ class CachedEstimatorMixin(AutoInitializedMixin):
 
     _pyspoc_cache: dict[int, set[CachedEstimatorMixin]] = dict()
     _pyspoc_cache_lock = RLock()
+    _freeze_random_seed = True
+    
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Wrap a subclass constructor to record normalized arguments.
@@ -114,10 +120,10 @@ class CachedEstimatorMixin(AutoInitializedMixin):
 
     @classmethod
     def get_or_create(
-            cls: type[_T_cache_enabled],
+            cls,
             data: np.ndarray,
             *args,
-            **kwargs) -> _T_cache_enabled:
+            **kwargs) -> Self:
         """Return an equivalent cached estimator or construct a new one.
 
         Parameters
@@ -222,32 +228,6 @@ class CachedEstimatorMixin(AutoInitializedMixin):
             The base implementation uses the canonical equivalence arguments.
         """
         return cls._canonicalize_cache_args(estimator_kwargs)
-
-
-    @classmethod
-    def _resolve_cache_init_args(
-            cls,
-            init_args: dict[str, Any]) -> dict[str, Any]:
-        """Resolve dynamic constructor defaults before cache lookup.
-
-        Parameters
-        ----------
-        init_args : dict[str, Any]
-            Normalized constructor arguments, including declared defaults.
-
-        Returns
-        -------
-        dict[str, Any]
-            Resolved arguments used for cache identity and construction. The
-            returned mapping must contain exactly the supplied argument names.
-
-        Notes
-        -----
-        Subclass and mixin overrides should call ``super()`` so independent
-        argument-resolution policies compose through the method-resolution
-        order.
-        """
-        return init_args.copy()
 
 
     @classmethod
@@ -383,7 +363,7 @@ class CachedEstimatorMixin(AutoInitializedMixin):
 
     @classmethod
     def _update_cache(cls, estimator: CachedEstimatorMixin
-        ) -> dict[int, set[CachedEstimatorMixin]] | None:
+    ) -> dict[int, set[CachedEstimatorMixin]] | None:
 
         """Add an estimator to the candidate bucket for a hash.
 
@@ -516,6 +496,7 @@ class CachedEstimatorMixin(AutoInitializedMixin):
 
         return lru.timestamp()
 
+
     def _set_lru(self, lru: datetime):
         """Record when the estimator was last used.
 
@@ -530,15 +511,13 @@ class CachedEstimatorMixin(AutoInitializedMixin):
             The timestamp is stored on the estimator in place.
         """
         setattr(self, PYSPOC_LRU_ATTRIBUTE, lru)
-        
-
-    
+           
 
     @classmethod
-    def _get_cached(cls: type[_T_cache_enabled],
-                    data: np.ndarray,
-                    estimator_args: dict[str, Any]
-                    ) -> Union[list[_T_cache_enabled], None]:
+    def _get_cached(
+        cls,
+        data: np.ndarray,
+        estimator_args: dict[str, Any]) -> list[Self] | None:
         """Return all candidates matching the arguments and dataset.
 
         The constructor hash is only a preliminary filter. Each candidate must
@@ -848,10 +827,10 @@ class CachedEstimatorMixin(AutoInitializedMixin):
 
     @classmethod
     def _instantiate(
-            cls: type[_T_cache_enabled],
+            cls,
             data: np.ndarray,
             args,
-            kwargs) -> _T_cache_enabled:
+            kwargs) -> Self:
         """Construct an estimator and register it with the bounded cache.
 
         Parameters
@@ -918,7 +897,7 @@ class CachedEstimatorMixin(AutoInitializedMixin):
                 cached_estimators.extend(estimators)
                 size += n_est
 
-            excess = size - settings.current.max_cache_results
+            excess = size - settings.current.max_estimator_cache_results
 
             if excess <= 0:
                 return

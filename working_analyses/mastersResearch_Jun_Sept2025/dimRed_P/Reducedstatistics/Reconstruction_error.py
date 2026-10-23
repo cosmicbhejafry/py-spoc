@@ -28,7 +28,7 @@ class Reconstruction_error(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return ["my_new_reducer_label_1",
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
@@ -63,7 +63,7 @@ class Reconstruction_error(ReducedStatistic):
         '''
         return self.recon_MSE(X, X_reconstructed) / self.recon_MSE(X, np.zeros(X.shape))
 
-    def compute(self, data: np.ndarray) -> float:
+    def _compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data and reconstruct the original one from the result
         X = data

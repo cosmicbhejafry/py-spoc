@@ -24,14 +24,14 @@ class pValueBinRatios(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return ["causal",
                 "pc_algorithm",
                 "p_value",
                 "bins"
                 "ratios"]
 
-    def compute(self, data: np.ndarray) -> float:
+    def _compute(self, data: np.ndarray) -> float:
         # Run the PC algorithm and extract the p-values from the verbose output
         # Use contextlib to not print the full verbose output
         with contextlib.redirect_stdout(StringIO()) as captured:

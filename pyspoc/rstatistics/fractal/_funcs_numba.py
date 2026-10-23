@@ -3,8 +3,10 @@ from __future__ import annotations
 import numpy as np
 import sys
 
-from numba import types, jit_module
-from numba.typed import Dict, List
+from numba import jit_module
+from numba.core import types
+from numba.typed.typeddict import Dict
+from numba.typed.typedlist import List
 
 from pyspoc.settings import settings
 from pyspoc._numba import install_numba_funcs
@@ -12,6 +14,224 @@ from pyspoc._utils.arrays.numba import array_equal_numba
 
 
 list_type = types.ListType(types.int64)
+
+
+def get_radii_bounds_and_counts(
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+        radii: np.ndarray[tuple[int], np.dtype[np.floating]],
+        min_count: int,
+        max_count: int,
+        radii_sorted: bool = False
+) -> tuple[int, int, int, int, np.ndarray[tuple[int], np.dtype[np.integer]]]:
+    """
+    Locate scale-index bounds based on occupied-box count thresholds.
+
+    Parameters
+    ----------
+    data : np.ndarray[tuple[int, int], np.dtype[np.floating]]
+        Point array of shape ``(n, p)``.
+    radii : np.ndarray[tuple[int], np.dtype[np.floating]]
+        One-dimensional scale grid. The occupied-point count is assumed to vary
+        monotonically along this grid.
+    min_count : int
+        Lowest accepted occupied-point count. The returned interval ends at the
+        first scale whose point count is greater than or equal to this threshold.
+    max_count : int
+        Highest accepted occupied-point count. The returned interval starts at the
+        first scale whose point count is less than or equal to this threshold.
+    radii_sorted: bool, default=False
+        Indicates that the `radii` array is already sorted.
+    
+    Returns
+    -------
+    tuple[int, int, int, int, np.ndarray[tuple[int], np.dtype[np.integer]]]
+        Inclusive ``(high_count_idx, low_count_idx)`` of ``radii``,
+        ``(high_count, low_count)`` that satisfy the criteria, and the point counts
+        as the fifth component.
+
+    Notes
+    -----
+    The function computes the lower and upper index limits that satisfies the bounds.
+    This is used to trim saturated regions where the pount count is near one or near
+    the number of unique point pairs (`n * (n-1) / 2`).
+    """
+
+    ordered_radii = np.sort(radii) if not radii_sorted else radii
+    k = ordered_radii.shape[0]
+
+    if min_count > max_count:
+        raise ValueError("max_count must be greater than or equal to min_count.")
+
+    n = data.shape[0]
+    counts = np.zeros(shape=k, dtype=np.int64)
+    sq_radii = np.square(ordered_radii)
+    
+    for i in range(n):
+        for j in range(i+1, n):
+            r = np.pow(data[i] - data[j], 2).sum()
+            radii_idx = np.searchsorted(
+                sq_radii,
+                r,
+                side="right").item()
+            
+            if radii_idx >= k:
+                continue
+
+            counts[radii_idx] += 1
+
+    counts = counts.cumsum()
+
+    low_count_idx = int(
+        min(
+            max(
+                np.searchsorted(counts, min_count, side="right").item(),
+                0),
+            k-1)
+        )
+
+    if low_count_idx > 0:
+        if counts[low_count_idx-1] == min_count:
+            low_count_idx -= 1
+
+    high_count_idx = int(
+        min(
+            np.searchsorted(counts, max_count, side="left").item(),
+            k-1))
+   
+    if counts[high_count_idx] > max_count:
+        high_count_idx -= 1
+    
+    low_count = counts[low_count_idx]
+    high_count = counts[high_count_idx]
+    return high_count_idx, low_count_idx, high_count, low_count, counts
+    
+
+def get_box_bounds(
+        data: np.ndarray[tuple[int, int]],
+        boxes: np.ndarray[tuple[int]],
+        min_count: int,
+        max_count: int,
+        boxes_sorted: bool = False
+) -> tuple[int, int, int, int]:
+    """
+    Locate scale-index bounds based on occupied-box count thresholds.
+
+    Parameters
+    ----------
+    data : np.ndarray[tuple[int, int]]
+        Point array of shape ``(n, p)``.
+    boxes : np.ndarray[tuple[int]]
+        One-dimensional scale grid. The occupied-box count is assumed to vary
+        monotonically along this grid.
+    min_count : int
+        Lowest accepted occupied-box count. The returned interval ends at the
+        first scale whose box count is greater than or equal to this threshold.
+    max_count : int
+        Highest accepted occupied-box count. The returned interval starts at the
+        first scale whose box count is less than or equal to this threshold.
+    boxes_sorted: bool, default=False
+        Indicates that the `boxes` array is already sorted.
+    
+    Returns
+    -------
+    tuple[int, int, int, int]
+        Inclusive ``(high_count_idx, low_count_idx)`` of ``boxes`` and
+        ``(high_count, low_count)`` that satisfy the criteria.
+
+    Notes
+    -----
+    The function computes the lower and upper index limits that satisfies the bounds.
+    This is used to trim saturated regions where the box count is near one or near the
+    number of points.
+    """
+    # Start index and count relates to the smallest viable scale and highest box count.
+    # End index and count relates to the largest viable scale and lowest box count.
+    ordered_scales = np.sort(boxes) if not boxes_sorted else boxes
+    k = ordered_scales.shape[0]
+
+    if min_count > max_count:
+        raise ValueError("max_count must be greater than or equal to min_count.")
+    
+    high_count_idx = None
+    low_count_idx = None
+
+    # Highest box count in the scales.
+    high_count = get_box_count(data, ordered_scales[0])
+
+    if high_count < min_count:
+        return 0, 0, high_count, high_count
+
+    if high_count <= max_count:
+        high_count_idx = 0
+
+    # Lowest box count in the scales.
+    low_count = get_box_count(data, ordered_scales[-1])
+
+    if max_count is None:
+        max_count = low_count
+    elif low_count > max_count:
+        return k - 1, k - 1, low_count, low_count
+
+    if low_count >= min_count:
+        low_count_idx = k - 1
+
+    if high_count_idx is not None and low_count_idx is not None:
+        return high_count_idx, low_count_idx, high_count, low_count
+
+    # Otherwise, scan from smallest scale (most boxes) to largest scale (least boxes).
+    for i in range(1, k-1):
+        scale = ordered_scales[i]
+        box_count = get_box_count(data, scale)
+
+        if box_count > max_count: # More boxes required than allowed.
+            continue
+
+        if high_count_idx is None:
+            high_count_idx = i
+            high_count = box_count
+
+        if box_count < min_count: # Less boxes required than allowed.
+            break
+
+        low_count_idx = i
+        low_count = box_count
+    
+    if high_count_idx is None:
+        return k - 1, k - 1, low_count, low_count
+
+    if low_count_idx is None:
+        return high_count_idx, high_count_idx, high_count, high_count
+
+    return high_count_idx, low_count_idx, high_count, low_count
+
+
+def get_box_count(data: np.ndarray, scale: float) -> int:
+    """
+    Count occupied boxes for a dataset at a single box scale.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Point array of shape ``(n, p)``.
+    scale : float
+        Positive box side length used to discretize ``data``.
+
+    Returns
+    -------
+    int
+        Number of unique occupied boxes at ``scale``.
+
+    Notes
+    -----
+    Box IDs are computed as ``floor(data / scale)`` and grouped exactly using
+    :func:`_hash_rows` and :func:`_get_counts`.
+    """
+    boxes = np.floor(data / scale).astype(np.int64)
+    hashes = get_row_hashes(boxes)
+    cnts = get_box_tallies(boxes, hashes)
+    non_zero = cnts[cnts > 0]
+    box_cnt = non_zero.shape[0]
+    return box_cnt
 
 
 def get_row_hashes(x: np.ndarray) -> np.ndarray:
@@ -121,200 +341,170 @@ def get_box_tallies(box_ids: np.ndarray, hashes: np.ndarray) -> np.ndarray:
     return cnts
 
 
-def get_box_count(data: np.ndarray, scale: float) -> int:
-    """
-    Count occupied boxes for a dataset at a single box scale.
+# def get_bounded_idxs(
+#         data: np.ndarray,
+#         scales: np.ndarray,
+#         lower_bound: int | None = None,
+#         upper_bound: int | None = None) -> \
+#             tuple[int | None, int | None, int | None, int | None]:
+#     """
+#     Locate scale-index bounds based on occupied-box count thresholds.
 
-    Parameters
-    ----------
-    data : np.ndarray
-        Point array of shape ``(n, p)``.
-    scale : float
-        Positive box side length used to discretize ``data``.
-
-    Returns
-    -------
-    int
-        Number of unique occupied boxes at ``scale``.
-
-    Notes
-    -----
-    Box IDs are computed as ``floor(data / scale)`` and grouped exactly using
-    :func:`_hash_rows` and :func:`_get_counts`.
-    """
-    boxes = np.floor(data / scale).astype(np.int64)
-    hashes = get_row_hashes(boxes)
-    cnts = get_box_tallies(boxes, hashes)
-    non_zero = cnts[cnts > 0]
-    box_cnt = non_zero.shape[0]
-    return box_cnt
-
-
-def get_bounded_idxs(
-        data,
-        scales,
-        lower_bound: int | None = None,
-        upper_bound: int | None = None) -> \
-            tuple[int | None, int | None, int | None, int | None]:
-    """
-    Locate scale-index bounds based on occupied-box count thresholds.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Point array of shape ``(n, p)``.
-    scales : np.ndarray
-        One-dimensional scale grid. The occupied-box count is assumed to vary
-        monotonically along this grid.
-    lower_bound : int or None, default=None
-        Lower accepted occupied-box count. The returned interval ends at the
-        first scale whose box count is greater than or equal to this threshold.
-    upper_bound : int or None, default=None
-        Upper accepted occupied-box count. The returned interval starts at the
-        first scale whose box count is less than or equal to this threshold.
+#     Parameters
+#     ----------
+#     data : np.ndarray
+#         Point array of shape ``(n, p)``.
+#     scales : np.ndarray
+#         One-dimensional scale grid. The occupied-box count is assumed to vary
+#         monotonically along this grid.
+#     lower_bound : int or None, default=None
+#         Lower accepted occupied-box count. The returned interval ends at the
+#         first scale whose box count is greater than or equal to this threshold.
+#     upper_bound : int or None, default=None
+#         Upper accepted occupied-box count. The returned interval starts at the
+#         first scale whose box count is less than or equal to this threshold.
     
-    Returns
-    -------
-    tuple[int | None, int | None, int | None, int | None]
-        Inclusive ``(start_idx, end_idx)`` of ``scales`` and
-        ``(start_box_count, end_box_count)`` that satisfy the criteria. If no
-        entries satisfy the criteria, a ``None`` tuple is returned.
+#     Returns
+#     -------
+#     tuple[int | None, int | None, int | None, int | None]
+#         Inclusive ``(start_idx, end_idx)`` of ``scales`` and
+#         ``(start_box_count, end_box_count)`` that satisfy the criteria. If no
+#         entries satisfy the criteria, a ``None`` tuple is returned.
 
-    Notes
-    -----
-    When both bounds are supplied, the function recursively computes the lower
-    and upper index limits and combines them. This is used to trim saturated
-    regions where the box count is near one or near the number of points.
+#     Notes
+#     -----
+#     When both bounds are supplied, the function recursively computes the lower
+#     and upper index limits and combines them. This is used to trim saturated
+#     regions where the box count is near one or near the number of points.
 
-    If no bounds are provided, the original scales are returned.
-    """
+#     If no bounds are provided, the original scales are returned.
+#     """
     
-    k = scales.shape[0]
-    blank_return = None, None, None, None
+#     k = scales.shape[0]
+#     blank_return = None, None, None, None
 
-    if lower_bound is None and upper_bound is None:
-        return 0, k - 1, None, None
+#     if lower_bound is None and upper_bound is None:
+#         return 0, k - 1, None, None
     
-    if lower_bound is not None and upper_bound is not None:
+#     if lower_bound is not None and upper_bound is not None:
 
-        if lower_bound > upper_bound:
-            return blank_return
+#         if lower_bound > upper_bound:
+#             return blank_return
 
-        lower_start_idx, lower_end_idx, _, end_box_cnt = \
-            get_bounded_idxs(data, scales, lower_bound=lower_bound)
-        upper_start_idx, upper_end_idx, start_box_cnt, _ = \
-            get_bounded_idxs(data, scales, upper_bound=upper_bound)
+#         lower_start_idx, lower_end_idx, _, end_box_cnt = \
+#             get_bounded_idxs(data, scales, lower_bound=lower_bound)
+#         upper_start_idx, upper_end_idx, start_box_cnt, _ = \
+#             get_bounded_idxs(data, scales, upper_bound=upper_bound)
 
-        if upper_start_idx is None or lower_end_idx is None:
-            return blank_return
+#         if upper_start_idx is None or lower_end_idx is None:
+#             return blank_return
 
-        if abs(upper_start_idx - lower_end_idx) <= 1:
-            if start_box_cnt < lower_bound:
-                return blank_return
+#         if abs(upper_start_idx - lower_end_idx) <= 1:
+#             if start_box_cnt < lower_bound:
+#                 return blank_return
             
-            if end_box_cnt > upper_bound:
-                return blank_return
+#             if end_box_cnt > upper_bound:
+#                 return blank_return
             
-        if start_box_cnt == end_box_cnt:
-            return min(lower_start_idx, upper_start_idx), \
-                max(lower_end_idx, upper_end_idx), \
-                start_box_cnt, start_box_cnt
+#         if start_box_cnt == end_box_cnt:
+#             return min(lower_start_idx, upper_start_idx), \
+#                 max(lower_end_idx, upper_end_idx), \
+#                 start_box_cnt, start_box_cnt
         
-        return upper_start_idx, lower_end_idx, start_box_cnt, end_box_cnt
+#         return upper_start_idx, lower_end_idx, start_box_cnt, end_box_cnt
         
-    start_idx = 0
-    end_idx = k - 1
-    first_box_cnt = get_box_count(data, scales[start_idx])
-    final_box_cnt = get_box_count(data, scales[end_idx])
-    start_box_cnt = None
-    end_box_cnt = None
+#     start_idx = 0
+#     end_idx = k - 1
+#     first_box_cnt = get_box_count(data, scales[start_idx])
+#     final_box_cnt = get_box_count(data, scales[end_idx])
+#     start_box_cnt = None
+#     end_box_cnt = None
 
-    while end_idx > start_idx + 1:
-        middle = int((end_idx - start_idx) / 2) + start_idx
-        box_cnt = get_box_count(data, scales[middle])
+#     while end_idx > start_idx + 1:
+#         middle = int((end_idx - start_idx) / 2) + start_idx
+#         box_cnt = get_box_count(data, scales[middle])
             
-        # Lower bound search.
-        if lower_bound is not None:
-            if box_cnt > lower_bound:
-                start_idx = middle
-                start_box_cnt = box_cnt
-            else:
-                end_idx = middle
-                end_box_cnt = box_cnt
+#         # Lower bound search.
+#         if lower_bound is not None:
+#             if box_cnt > lower_bound:
+#                 start_idx = middle
+#                 start_box_cnt = box_cnt
+#             else:
+#                 end_idx = middle
+#                 end_box_cnt = box_cnt
 
-            if box_cnt == lower_bound:
-                end_box_cnt = box_cnt
+#             if box_cnt == lower_bound:
+#                 end_box_cnt = box_cnt
 
-        # Upper bound search.
-        # NOTE: Elif condition used to assist numba with int vs. int? comparison.
-        elif upper_bound is not None:
-            if box_cnt < upper_bound:
-                end_idx = middle
-                end_box_cnt = box_cnt
-            else:
-                start_idx = middle
-                start_box_cnt = box_cnt
+#         # Upper bound search.
+#         # NOTE: Elif condition used to assist numba with int vs. int? comparison.
+#         elif upper_bound is not None:
+#             if box_cnt < upper_bound:
+#                 end_idx = middle
+#                 end_box_cnt = box_cnt
+#             else:
+#                 start_idx = middle
+#                 start_box_cnt = box_cnt
 
-            if box_cnt == upper_bound:
-                start_box_cnt = box_cnt
+#             if box_cnt == upper_bound:
+#                 start_box_cnt = box_cnt
 
-    if lower_bound is not None:
+#     if lower_bound is not None:
+#         first_box_cnt = get_box_count(data, scales[0])
         
-        first_box_cnt = get_box_count(data, scales[0])
+#         if end_idx == 1:
+#             if first_box_cnt == lower_bound:
+#                 return 0, 0, first_box_cnt, first_box_cnt
+#             if end_box_cnt >= lower_bound:
+#                 return 0, 1, first_box_cnt, end_box_cnt
+#             else:
+#                 return blank_return
+            
+#         if end_idx == k - 1:
+#             final_box_cnt = get_box_count(data, scales[k - 1])
+
+#             if final_box_cnt >= lower_bound:
+#                 return 0, k - 1, first_box_cnt, final_box_cnt
+#             else:
+#                 return 0, k - 2, first_box_cnt, start_box_cnt
+            
+#         else:
+#             if end_box_cnt < lower_bound:
+#                 end_idx -= 1
+#                 end_box_cnt = get_box_count(data, scales[end_idx])
+
+#             return 0, end_idx, first_box_cnt, end_box_cnt
+
+#     # NOTE: Assists numba with int vs. int? comparison.
+#     elif upper_bound is not None:
         
-        if end_idx == 1:
-            if first_box_cnt == lower_bound:
-                return 0, 0, first_box_cnt, first_box_cnt
-            if end_box_cnt >= lower_bound:
-                return 0, 1, first_box_cnt, end_box_cnt
-            else:
-                return blank_return
-            
-        if end_idx == k - 1:
-            final_box_cnt = get_box_count(data, scales[k - 1])
-
-            if final_box_cnt >= lower_bound:
-                return 0, k - 1, first_box_cnt, final_box_cnt
-            else:
-                return 0, k - 2, first_box_cnt, start_box_cnt
-            
-        else:
-            if end_box_cnt < lower_bound:
-                end_idx -= 1
-                end_box_cnt = get_box_count(data, scales[end_idx])
-
-            return 0, end_idx, first_box_cnt, end_box_cnt
-
-    # NOTE: Assists numba with int vs. int? comparison.
-    elif upper_bound is not None:
+#         final_box_cnt = get_box_count(data, scales[k - 1])
         
-        final_box_cnt = get_box_count(data, scales[k - 1])
-        
-        if start_idx == k - 2:
-            if final_box_cnt == upper_bound:
-                return k - 1, k - 1, final_box_cnt, final_box_cnt
-            if start_box_cnt <= upper_bound:
-                return k - 2, k - 1, start_box_cnt, final_box_cnt
-            else:
-                return blank_return
+#         if start_idx == k - 2:
+#             if final_box_cnt == upper_bound:
+#                 return k - 1, k - 1, final_box_cnt, final_box_cnt
+#             if start_box_cnt <= upper_bound:
+#                 return k - 2, k - 1, start_box_cnt, final_box_cnt
+#             else:
+#                 return blank_return
 
-        if start_idx == 0:
-            first_box_cnt = get_box_count(data, scales[0])
+#         if start_idx == 0:
+#             first_box_cnt = get_box_count(data, scales[0])
             
-            if first_box_cnt <= upper_bound:
-                return 0, k - 1, first_box_cnt, final_box_cnt
-            else:
-                return 1, k - 1, end_box_cnt, final_box_cnt
+#             if first_box_cnt <= upper_bound:
+#                 return 0, k - 1, first_box_cnt, final_box_cnt
+#             else:
+#                 return 1, k - 1, end_box_cnt, final_box_cnt
             
-        else:
-            if start_box_cnt > upper_bound:
-                start_idx += 1
-                start_box_cnt = get_box_count(data, scales[start_idx])
+#         else:
+#             if start_box_cnt > upper_bound:
+#                 start_idx += 1
+#                 start_box_cnt = get_box_count(data, scales[start_idx])
                 
-            return start_idx, k - 1, start_box_cnt, final_box_cnt
+#             return start_idx, k - 1, start_box_cnt, final_box_cnt
         
-    else:
-        return blank_return
+#     else:
+#         return blank_return
 
 
 def is_nearly_monotonic(

@@ -1,0 +1,244 @@
+Statistics:
+  pyspoc.statistics.association.covariance:
+    EllipticEnvelope:
+      schemes:
+        ee:
+          squared: false
+          invert: false
+          assume_centered: false
+          support_fraction: null
+          contamination: 0.1
+          random_seed: null
+          dim: p
+          nan_policy: raise
+    OAS:
+      schemes:
+        oas:
+          squared: false
+          invert: false
+          assume_centered: false
+          dim: p
+          nan_policy: raise
+    LedoitWolf:
+      schemes:
+        lw:
+          squared: false
+          invert: false
+          assume_centered: false
+          block_size: 1000
+          dim: p
+          nan_policy: raise
+    ShrunkCovariance:
+      schemes:
+        sc:
+          squared: false
+          invert: false
+          assume_centered: false
+          shrinkage: 0.1
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.association.correlation:
+    KendallTau:
+      schemes:
+        std:
+          dim: p
+          nan_policy: raise
+          squared: false
+          alternative: two-sided
+    SpearmanR:
+      schemes:
+        std:
+          dim: p
+          nan_policy: raise
+          squared: false
+          alternative: two-sided
+    PowerEnvelopeCorrelation:
+      schemes:
+        orth:
+          dim: p
+          nan_policy: raise
+          orth: true
+          log: false
+          absolute: false
+  pyspoc.statistics.errors.regressors:
+    LinearRegressorError:
+      schemes:
+        LinearRegression:
+          model: LinearRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        RidgeCV:
+          model: RidgeCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        Lasso:
+          model: Lasso
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        ElasticNet:
+          model: ElasticNet
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        LarsCV:
+          model: LarsCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        LassoLarsIC:
+          model: LassoLarsIC
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        OrthogonalMatchingPursuit:
+          model: OrthogonalMatchingPursuit
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        ARDRegression:
+          model: ARDRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        BayesianRidge:
+          model: BayesianRidge
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.distance:
+    PairwiseDistance:
+      schemes:
+        manhattan:
+          metric: manhattan
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        nan_euclidean:
+          metric: nan_euclidean
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        cubic:
+          metric: cubic
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        chebyshev:
+          metric: chebyshev
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        cosine:
+          metric: cosine
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        braycurtis:
+          metric: braycurtis
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        canberra:
+          metric: canberra
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        correlation:
+          metric: correlation
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+    GromovWassersteinTau:
+      schemes:
+        std:
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.association.distance.hsic.statistic:
+    HilbertSchmidtIndependenceCriterion:
+      schemes:
+        rbf:
+          biased: false
+          metric: rbf
+          downsample: true
+          dim: p
+          nan_policy: raise
+          kernel_kwargs: {}
+Reducers:
+  pyspoc.reducers.basic:
+    Determinant:
+      schemes:
+        scaled:
+          scaled: true
+    SingularValues:
+      schemes:
+        four:
+          num_values: 4
+          dim: p
+          nan_policy: raise
+    Moment:
+      schemes:
+        three:
+          moments:
+          - 1
+          - 2
+          - 3
+  pyspoc.rstatistics.norms:
+    EntryWiseMatrixNorm:
+      schemes:
+        p2q1:
+          p: 1
+          q: 2
+          dim: p
+          nan_policy: raise
+    Norm:
+      schemes:
+        fro:
+          order: fro
+          dim: p
+          nan_policy: raise
+        nuc:
+          order: nuc
+          dim: p
+          nan_policy: raise
+        l2:
+          order: 2
+          dim: p
+          nan_policy: raise
+    SchattenNorm:
+      schemes:
+        p3:
+          p: 3
+          dim: p
+          nan_policy: raise
+  pyspoc.rstatistics.ranks:
+    EffectiveRank:
+      schemes:
+        std:
+          dim: p
+          nan_policy: raise
+    StableRank:
+      schemes:
+        std:
+          dim: p
+          nan_policy: raise
+ReducedStatistics: {}
