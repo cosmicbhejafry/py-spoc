@@ -1,0 +1,173 @@
+Statistics:
+  pyspoc.statistics.causal:
+    RegressionErrorCausalInference:
+      schemes:
+        std: null
+  pyspoc.statistics.cov:
+    Covariance:
+      schemes:
+        ee:
+          estimator: EllipticEnvelope
+          squared: false
+        oas:
+          estimator: OAS
+          squared: false
+        lw:
+          estimator: LedoitWolf
+          squared: false
+        sc:
+          estimator: ShrunkCovariance
+          squared: false
+    KendallTau:
+      schemes:
+        std:
+          squared: false
+          dim: p
+          nan_policy: omit
+    SpearmanR:
+      schemes:
+        std:
+          squared: false
+    PowerEnvelopeCorrelation:
+      schemes:
+        orth:
+          orth: true
+          log: false
+          absolute: false
+  pyspoc.statistics.errors.regressors:
+    LinearRegressorError:
+      schemes:
+        LinearRegression:
+          model: LinearRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+        RidgeCV:
+          model: RidgeCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+        Lasso:
+          model: Lasso
+          error: mean_squared_error
+          force_positive_tweedie: false
+        ElasticNet:
+          model: ElasticNet
+          error: mean_squared_error
+          force_positive_tweedie: false
+        LarsCV:
+          model: LarsCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+        LassoLarsIC:
+          model: LassoLarsIC
+          error: mean_squared_error
+          force_positive_tweedie: false
+        OrthogonalMatchingPursuit:
+          model: OrthogonalMatchingPursuit
+          error: mean_squared_error
+          force_positive_tweedie: false
+        ARDRegression:
+          model: ARDRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+        BayesianRidge:
+          model: BayesianRidge
+          error: mean_squared_error
+          force_positive_tweedie: false
+  pyspoc.statistics.distance.basic:
+    PairwiseDistance:
+      schemes:
+        manhattan:
+          dim: p
+          metric: manhattan
+          force_finite: false
+          kwargs: {}
+        nan_euclidean:
+          dim: p
+          metric: nan_euclidean
+          force_finite: false
+          kwargs: {}
+        cubic:
+          dim: p
+          metric: cubic
+          force_finite: false
+          kwargs: {}
+        chebyshev:
+          dim: p
+          metric: chebyshev
+          force_finite: false
+          kwargs: {}
+        cosine:
+          dim: p
+          metric: cosine
+          force_finite: false
+          kwargs: {}
+        braycurtis:
+          dim: p
+          metric: braycurtis
+          force_finite: false
+          kwargs: {}
+        canberra:
+          dim: p
+          metric: canberra
+          force_finite: false
+          kwargs: {}
+        correlation:
+          dim: p
+          metric: correlation
+          force_finite: false
+          kwargs: {}
+    GromovWasserstainTau:
+      schemes:
+        std: null
+  pyspoc.statistics.distance.hsic.statistic:
+    HilbertSchmidtIndependenceCriterion:
+      schemes:
+        rbf:
+          dim: p
+          biased: false
+          metric: rbf
+          downsample: true
+          kernel_kwargs: {}
+Reducers:
+  pyspoc.reducers.basic:
+    Determinant:
+      schemes:
+        scaled:
+          scaled: true
+    SingularValues:
+      schemes:
+        four:
+          num_values: 4
+    Moment:
+      schemes:
+        three:
+          moments:
+          - 1
+          - 2
+          - 3
+  pyspoc.rstatistics.norms:
+    EntryWiseMatrixNorm:
+      schemes:
+        p2q1:
+          p: 1
+          q: 2
+    Norm:
+      schemes:
+        fro:
+          order: fro
+        nuc:
+          order: nuc
+        l2:
+          order: 2
+    SchattenNorm:
+      schemes:
+        p3:
+          p: 3
+  pyspoc.rstatistics.ranks:
+    EffectiveRank:
+      schemes:
+        std: null
+    StableRank:
+      schemes:
+        std: null
+ReducedStatistics: {}

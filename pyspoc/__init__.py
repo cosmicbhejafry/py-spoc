@@ -5,5 +5,5 @@ from .rstatistics.base import ReducedStatistic
 from .reducers.base import Reducer
 from .config import Config
 from .calculator import Calculator
-from .base import info
+from ._base import info
 from .dataset import Dataset

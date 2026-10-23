@@ -61,9 +61,9 @@ for i in range(n_files):
     print(f"Calculating stats for dataset {dataset_name} [{i+1}/{n_files}].")
     print("-" * 100)
     
-    data_subsets = dataset.get_samples(
-        n_samples=1,
-        sample_shape=sample_shape,
+    data_subsets = dataset.get_batches(
+        n_batches=1,
+        batch_shape=sample_shape,
         sampling_type=["random","cyclical"],
         seed=0)
 
@@ -83,7 +83,7 @@ for i in range(n_files):
             subsamplng_size = None,
             n_samples = None,
             debug=True)
-        result = calc.show_results("short")
+        result = calc.get_results("short")
         result_index_list.append((f"{dataset_name}_{j}", dataset_modality, dataset_domain))
 
         if results is None:

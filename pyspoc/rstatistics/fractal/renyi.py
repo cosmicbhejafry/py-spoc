@@ -3,10 +3,12 @@ import numpy as np
 from numba import njit
 from typing import Literal
 
+from pyspoc._tag import Tag, Type, Signature
 from pyspoc._numba import fallback_loader as fload
 from pyspoc._argchecking import check_float
-from .base import FractalMeasureBase
+from .base import FractalMeasureStatistic
 from . import _funcs_numba as fnb
+from . import _funcs_py as fpy
 
 # ---------------------------------------------------------------------------
 # Implementation note
@@ -37,7 +39,7 @@ from . import _funcs_numba as fnb
 # ---------------------------------------------------------------------------
 
 
-class RenyiEntropy(FractalMeasureBase):
+class RenyiEntropy(FractalMeasureStatistic):
 
     """
     Generalized fractal dimension estimator using Rényi entropy over box-counting
@@ -166,25 +168,23 @@ class RenyiEntropy(FractalMeasureBase):
     Algorithm
     ---------------
     1. Generate the initial scaling region using `adaptive`, `datseries`, or
-        `log base-10` methods.
+    `log base-10` methods.
     2. For each scale:
-            2a. Partition the data space into hypercubes of the given scale.
-            2b. Compute the Rényi entropy of the data over the hypercubes.
+        - Partition the data space into hypercubes of the given scale.
+        - Compute the Rényi entropy of the data over the hypercubes.
     3. Collect the negative log of the scaling region and the respective Rényi
-        entropies as the scaling curve.
+    entropies as the scaling curve.
     4. Apply OLS to the entire scaling curve.
     5. Attempt elbow detection and removal. Accept the trimmed region only if
-        it retains the required number and proportion of points and the required
-        proportion of the original log-scale span, then refit OLS.
-    6. If:
-        OLS :math:`R^2` `>= r2_thresh` requirement and `slope_estimation_method == 'hybrid'`:
-            Return the OLS slope as the fractal dimension estimate.
-        `slope_estimation_method == 'ols``:
-            Return the OLS slope as the fractal dimension estimate.
-        
+    it retains the required number and proportion of points and the required
+    proportion of the original log-scale span, then refit OLS.
+    6. If OLS :math:`R^2` `>= r2_thresh` requirement and `slope_estimation_method == 'hybrid'`:
+       - Return the OLS slope as the fractal dimension estimate.
+       Else `slope_estimation_method == "ols"`:
+       - Return the OLS slope as the fractal dimension estimate.
     7. Compute the Deshmukh slope estimate.
     8. If Deshmukh slope estimate is valid:
-            Return Deshmukh slope estimate.
+        - Return Deshmukh slope estimate.
     9. Otherwise, return the last computed OLS slope estimate.
 
 
@@ -222,13 +222,16 @@ class RenyiEntropy(FractalMeasureBase):
 
     """
 
-    _name = "Rényi Generalized Entropy"
-    _identifier = "rge"
-    _labels = ["fractal"]
+    _long_name = "Rényi Generalized Entropy"
+    _identifier = "fractal-rge"
+    _type = Type.DESCRIPTIVE
+    _signatures = (Signature.DIMENSIONALITY,)
+    _tags = (Tag.FRACTAL, Tag.NONLINEAR, Tag.NONPARAMETRIC)
     _SHANNON_ENTROPY_TOL = 1e-6
 
     def __init__(self,
-                 slope_estimation_method: Literal["hybrid", "ols", "deshmukh"] = "hybrid",
+                 slope_estimation_method: Literal[
+                     "hybrid", "ols", "deshmukh"] = "hybrid",
                  q: float = 0,
                  r2_thresh: float = 0.9,
                  monotonic_tol: float = 0.1,
@@ -236,7 +239,8 @@ class RenyiEntropy(FractalMeasureBase):
                  minimum_scaling_region: float = 0.1,
                  minimum_scaling_points: int | None = None,
                  use_adaptive_scaling: bool = True,
-                 scale_method: Literal["datseries", "log-10"] = "datseries",
+                 initial_scale_method: Literal[
+                     "datseries", "log-10"] = "datseries",
                  scale_length: int | None = None,
                  scale_adaption_iters: int = 20,
                  **kwargs):
@@ -284,35 +288,76 @@ class RenyiEntropy(FractalMeasureBase):
         """
                 
         self._q = check_float(q, minimum=0, arg_name="q")
+        self._use_adaptive_scaling = use_adaptive_scaling
+
         super().__init__(slope_estimation_method=slope_estimation_method,
                          r2_thresh=r2_thresh,
                          monotonic_tol=monotonic_tol,
                          deshmukh_reg_proportion=deshmukh_reg_proportion,
                          minimum_scaling_region=minimum_scaling_region,
                          minimum_scaling_points=minimum_scaling_points,
-                         use_adaptive_scaling=use_adaptive_scaling,
-                         scale_method=scale_method,
+                         initial_scale_method=initial_scale_method,
                          scale_length=scale_length,
                          scale_adaption_iters=scale_adaption_iters,
                          **kwargs)
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-
-    @property
-    def labels(self) -> list[str]:
-        return self._labels
     
     @property
     def q(self) -> float:
         return self._q
+
+    @property
+    def use_adaptive_scaling(self) -> bool:
+        return self._use_adaptive_scaling
+
+
+    def _compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> float | np.floating:
+        
+        non_negative_data = data - data.min()
+        scale_length = self._resolve_scale_length(non_negative_data)
+        
+        # Get required scales.
+        scales = self._compute_scales(non_negative_data, scale_length)
+        
+        # Estimate density at each box scale.
+        densities = self._compute_density_estimates(non_negative_data, scales)
+        return self._compute_fd(scales, densities, negative_scale=True)
+
+    def _compute_scales(
+            self,
+            non_negative_data: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]],
+            scale_length: int
+    ) -> np.ndarray[tuple[int], np.dtype[np.floating]]:
+
+        # Get boxes of different scales.
+        if self.use_adaptive_scaling:
+            scales = fpy.get_adaptive_box_scales(
+                non_negative_data,
+                method=self.scale_method,
+                k=scale_length,
+                max_iter=self.scale_adaption_iters,
+                **self._kwargs)
+            
+        else:
+            if self.scale_method == "datseries":
+                scales = fpy.get_datseries_scales(
+                    non_negative_data,
+                    k=scale_length,
+                    **self._kwargs
+                )
+            else:
+                scales = fpy.get_log10_scales(
+                    non_negative_data,
+                    k=scale_length,
+                    **self._kwargs
+                )
+                
+        return scales[::-1]
     
-    def _compute_density_estimate(
+    
+    def _compute_density_estimates(
             self,
             data: np.ndarray,
             scales: np.ndarray) -> np.ndarray:
@@ -389,55 +434,28 @@ def _get_renyi_entropy_numba(
     n_scales = scales.shape[0]
     H = np.empty(shape=n_scales, dtype=np.float64)
     n_observations = data.shape[0]
-    scales_are_nonincreasing = np.all(scales[:-1] >= scales[1:])
-    scales_are_nondecreasing = np.all(scales[:-1] <= scales[1:])
 
     for k in range(n_scales):
         s = scales[k]
 
         # Get boxes containing each point (already sorted thanks to sorted data).
         box_ids = np.floor(data / s).astype(np.int32)
-        
-        
         hashes = fnb.get_row_hashes_numba(box_ids)
+        counts = fnb.get_box_tallies_numba(box_ids, hashes)
+        counts = counts[counts > 0]
+        n_occupied_boxes = counts.shape[0]
 
-
-        cnts = fnb.get_box_tallies_numba(box_ids, hashes)
-
-
-        cnts = cnts[cnts > 0]
-        n_occupied_boxes = cnts.shape[0]
-
-        # At the fine-scale limit, every observation has its own box and all
-        # probabilities are 1 / n. Finer scales therefore have entropy log(n),
-        # regardless of q, and need no further integer box identifiers.
-        if n_occupied_boxes == n_observations:
-            saturated_entropy = np.log(n_observations)
-            H[k] = saturated_entropy
-
-            if scales_are_nonincreasing:
-                H[k:] = saturated_entropy
-                break
-
-            continue
-
-        # At the coarse-scale limit, the sole occupied box has probability 1,
-        # so its entropy and that of every remaining coarser scale are zero.
-        if n_occupied_boxes == 1:
-            H[k] = 0.0
-
-            if scales_are_nondecreasing:
-                H[k:] = 0.0
-                break
-
-            continue
-
-
-        if q == 0:
+        # Regardless of q, if each point occupies its own box, entropy is log(n).
+        if n_occupied_boxes == n_observations or q == 0:
             H[k] = np.log(n_occupied_boxes)
             continue
 
-        probs = cnts / cnts.sum()
+        # Regardless of q, if all points occupy a single box, entropy is 0.
+        if n_occupied_boxes == 1:
+            H[k] = 0.0
+            continue
+
+        probs = counts / counts.sum()
 
         if abs(q-1) < shannon_entropy_tol:
             H[k] = -np.sum(probs * np.log(probs))
@@ -492,46 +510,26 @@ def _get_renyi_entropy(
     n_scales = scales.shape[0]
     H = np.empty(shape=n_scales)
     n_observations = data.shape[0]
-    scales_are_nonincreasing = np.all(scales[:-1] >= scales[1:])
-    scales_are_nondecreasing = np.all(scales[:-1] <= scales[1:])
 
     for k in range(H.shape[0]):
         s = scales[k]
         box_ids = np.floor(data / s).astype(np.int32)
-        _, cnts = np.unique(box_ids, axis=0, return_counts=True)
-        n_occupied_boxes = cnts.shape[0]
+        _, counts = np.unique(box_ids, axis=0, return_counts=True)
+        n_occupied_boxes = counts.shape[0]
 
-        # Avoid constructing still-finer box identifiers once the entropy has
-        # saturated at log(n), which also prevents integer overflow at scales
-        # too small to provide any additional information.
-        if n_occupied_boxes == n_observations:
-            saturated_entropy = np.log(n_observations)
-            H[k] = saturated_entropy
-
-            if scales_are_nonincreasing:
-                H[k:] = saturated_entropy
-                break
-
-            continue
-
-        # Likewise, all scales coarser than a one-box partition have zero
-        # entropy and can be filled without further box-count calculations.
-        if n_occupied_boxes == 1:
-            H[k] = 0.0
-
-            if scales_are_nondecreasing:
-                H[k:] = 0.0
-                break
-
-            continue
-
-        if q == 0:
+        # Regardless of q, if each point occupies its own box, entropy is log(n).
+        if n_occupied_boxes == n_observations or q == 0:
             H[k] = np.log(n_occupied_boxes)
             continue
 
-        probs = cnts / cnts.sum()
+        # Regardless of q, if all points occupy a single box, entropy is 0.
+        if n_occupied_boxes == 1:
+            H[k] = 0.0
+            continue
 
-        if abs(q - 1) < shannon_entropy_tol:
+        probs = counts / counts.sum()
+
+        if abs(q-1) < shannon_entropy_tol:
             H[k] = -np.sum(probs * np.log(probs))
             continue
 

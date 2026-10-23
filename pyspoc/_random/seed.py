@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from typing import TYPE_CHECKING
 
-from pyspoc.exceptions import OptionalDependencyMissingError
+from pyspoc._exceptions import OptionalDependencyMissingError
 from pyspoc._initialization import AutoInitializedMixin
 from pyspoc._argchecking import check_integer
 from pyspoc.settings import settings
@@ -69,13 +69,16 @@ class RandomSeedMixin(AutoInitializedMixin):
             Random-seed state is stored on the component.
         """
         super()._before_component_init(init_args)
+
         random_seed = init_args.get("random_seed")
 
-        if random_seed is not None and not isinstance(random_seed, int):
-            raise TypeError("random_seed must be an integer or None.")
+        if random_seed is not None:
+            check_integer(random_seed, minimum=0, arg_name="random_seed")
 
         self._random_seed_override = (
-            resolve_random_seed(random_seed) if self._freeze_random_seed else random_seed
+            resolve_random_seed(random_seed)
+            if self._freeze_random_seed
+            else random_seed
         )
 
     @property

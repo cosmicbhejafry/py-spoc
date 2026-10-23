@@ -30,7 +30,7 @@ class All_coranking_metrics(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return [
         "Distance-Similarity (DS)",
         "Continuity (AUC)",
@@ -41,7 +41,7 @@ class All_coranking_metrics(ReducedStatistic):
         "Q_global",
     ]
 
-    def compute(self, data: np.ndarray) -> float:
+    def _compute(self, data: np.ndarray) -> float:
 
         output = []
 

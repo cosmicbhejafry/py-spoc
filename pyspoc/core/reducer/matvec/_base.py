@@ -5,10 +5,10 @@ from typeguard import check_type
 from typing import TypeVar, Generic
 
 from pyspoc.core.reducer._base import Reducer
-from pyspoc.core.types import NumpyFloatSquareMatrix
+from pyspoc.core.types import NumpyRealSquareMatrix
 
 
-TMatrix = TypeVar("TMatrix", bound=NumpyFloatSquareMatrix)
+TMatrix = TypeVar("TMatrix", bound=NumpyRealSquareMatrix)
 
 class MatrixToVectorReducer(
     Reducer[TMatrix, np.ndarray[tuple[int], np.dtype[np.floating]]],
@@ -18,7 +18,7 @@ class MatrixToVectorReducer(
     @abstractmethod
     def _reduce(
             self,
-            data: NumpyFloatSquareMatrix) -> np.ndarray[tuple[int], np.dtype[np.floating]]:
+            data: NumpyRealSquareMatrix) -> np.ndarray[tuple[int], np.dtype[np.floating]]:
         pass
 
 

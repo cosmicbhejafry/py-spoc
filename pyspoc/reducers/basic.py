@@ -1,8 +1,11 @@
 import numpy as np
 import scipy.stats as sp
 
+from typing import Literal
+
 from pyspoc.reducers.base import Reducer
 from pyspoc.rstatistics.base import ReducedStatistic
+from pyspoc.settings import settings
 
 
 class Moment(Reducer):
@@ -24,7 +27,7 @@ class Moment(Reducer):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
@@ -37,9 +40,18 @@ class SingularValues(Reducer, ReducedStatistic):
     _identifier = "svd"
     _labels = ["vector"]
 
-    def __init__(self, num_values: int = 2):
-        self.__num_values = num_values
-        super().__init__()
+    def __init__(
+            self,
+            num_values: int = 2,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+
+        self._num_values = num_values
+
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
 
     @property
     def name(self) -> str:
@@ -50,14 +62,14 @@ class SingularValues(Reducer, ReducedStatistic):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
         svs = np.linalg.svd(data, compute_uv=False)
-        return svs[:self.__num_values]
+        return svs[:self._num_values]
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         return self.reduce(data)
 
 
@@ -68,7 +80,7 @@ class EigenValues(Reducer):
     _labels = ["square", "vector"]
 
     def __init__(self, num_values: int = 2):
-        self.__num_values = num_values
+        self._num_values = num_values
         super().__init__()
 
     @property
@@ -80,12 +92,12 @@ class EigenValues(Reducer):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
         eigs = np.linalg.eigvals(data)
-        return eigs[:self.__num_values]
+        return eigs[:self._num_values]
 
 
 class Diag(Reducer):
@@ -95,7 +107,7 @@ class Diag(Reducer):
     _labels = ["vector"]
 
     def __init__(self, num_values: int = 2):
-        self.__num_values = num_values
+        self._num_values = num_values
         super().__init__()
 
     @property
@@ -107,12 +119,12 @@ class Diag(Reducer):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
     
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
         diag = np.diag(data)
-        return diag[:self.__num_values]
+        return diag[:self._num_values]
 
 
 class Trace(Reducer):
@@ -133,11 +145,11 @@ class Trace(Reducer):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
-        return np.trace(data)
+        return np.trace(data.astype(np.float64))
 
 
 class Determinant(Reducer):
@@ -163,7 +175,7 @@ class Determinant(Reducer):
         return self._identifier
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:

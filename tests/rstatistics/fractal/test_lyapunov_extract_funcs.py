@@ -6,7 +6,7 @@ from itertools import product
 from pyspoc.rstatistics.fractal._funcs_py import (
     get_log10_scales,
     get_datseries_scales,
-    get_adaptive_scales
+    get_adaptive_box_scales
 )
 
 from pyspoc.rstatistics.fractal._funcs_numba import (
@@ -203,7 +203,7 @@ def test_datseries_scale_error_handling(shape, kwargs, expected_len):
 )
 def test_adaptive_scale_error_handling(method, shape, kwargs, expected_len):
     xs = np.zeros(shape)
-    scales = get_adaptive_scales(xs, method=method, **kwargs)
+    scales = get_adaptive_box_scales(xs, method=method, **kwargs)
     length = scales.shape[0]
 
     assert scales.shape == (expected_len,), \
@@ -228,12 +228,12 @@ def test_all_scale_ends_increasing(rng, shape):
         "Datseries scale: Last scale should be greater than first." \
         f"Got {scales=}"
 
-    scales = get_adaptive_scales(xs, method="log-10")
+    scales = get_adaptive_box_scales(xs, method="log-10")
     assert scales[0] < scales[-1], \
         "Log-10 adaptive scale: Last scale should be greater than first." \
         f"Got {scales=}"
 
-    scales = get_adaptive_scales(xs, method="datseries")
+    scales = get_adaptive_box_scales(xs, method="datseries")
     assert scales[0] < scales[-1], \
         "Datseries adaptive scale: Last scale should be greater than first." \
         f"Got {scales=}"
@@ -253,10 +253,10 @@ def test_all_scales_nondecreasing(rng, shape):
     assert np.all(scales[:-1] <= scales[1:]), \
         "Datseries scale: Inner scales should be non-decreasing."
 
-    scales = get_adaptive_scales(xs, method="log-10")
+    scales = get_adaptive_box_scales(xs, method="log-10")
     assert np.all(scales[:-1] <= scales[1:]), \
         "Log-10 adaptive scale: Inner scales should be non-decreasing."
 
-    scales = get_adaptive_scales(xs, method="datseries")
+    scales = get_adaptive_box_scales(xs, method="datseries")
     assert np.all(scales[:-1] <= scales[1:]), \
         "Datseries adaptive scale: Inner scales should be non-decreasing."

@@ -5,9 +5,9 @@ import pytest
 
 from sklearn.metrics import pairwise_kernels
 
-import pyspoc.statistics.distance.hsic.func as hsic_func
+import pyspoc.statistics.association.distance.hsic.func as hsic_func
 from pyspoc.settings import settings
-from pyspoc.statistics.distance.hsic.func import (
+from pyspoc.statistics.association.distance.hsic.func import (
     center_kernel,
     compute_kernel,
     hsic_from_kernels,
@@ -123,8 +123,8 @@ def test_pairwise_hsic_is_symmetric_and_worker_stable() -> None:
     rng = np.random.default_rng(31)
     data = rng.normal(size=(14, 5))
 
-    serial = pairwise_hsic(data, max_workers=1)
-    concurrent = pairwise_hsic(data, max_workers=3)
+    serial, serial_errors = pairwise_hsic(data, max_workers=1)
+    concurrent, concurrent_errors = pairwise_hsic(data, max_workers=3)
 
     np.testing.assert_allclose(concurrent, serial, rtol=1e-11, atol=1e-12)
     np.testing.assert_allclose(concurrent, concurrent.T)
@@ -138,7 +138,7 @@ def test_pairwise_hsic_compares_variables_across_two_arrays(
     data_a = rng.normal(size=(14, 3))
     data_b = rng.normal(size=(14, 4))
 
-    result = pairwise_hsic(data_a, data_b, max_workers=max_workers)
+    result, errors = pairwise_hsic(data_a, data_b, max_workers=max_workers)
     expected = np.empty((3, 4))
     for i in range(3):
         for j in range(4):
@@ -183,14 +183,15 @@ def test_pairwise_hsic_separates_memory_anchors_from_workers(monkeypatch) -> Non
         *,
         max_workers,
         anchor_count,
+        **kwargs,
     ):
         selected["workers"] = max_workers
         selected["anchors"] = anchor_count
-        return np.zeros((data.shape[1], data.shape[1]))
+        return np.zeros((data.shape[1], data.shape[1])), []
 
     monkeypatch.setattr(hsic_func, "execute_pairwise_barrier", capture_executor)
 
-    result = pairwise_hsic(
+    result, errors = pairwise_hsic(
         np.ones((5, 4), dtype=np.float32),
         biased=True,
         max_workers=1,

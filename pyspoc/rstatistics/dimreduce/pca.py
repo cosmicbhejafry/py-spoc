@@ -2,40 +2,41 @@ from __future__ import annotations
 
 import numpy as np
 
-from typing import Union, Iterable
+from typing import Literal, Iterable
 from sklearn.decomposition import PCA
 from abc import ABC
 
 from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc.dataset import Dataset
+from pyspoc.settings import settings
+from pyspoc._tag import Type, Signature
 
 
 class PCABase(ReducedStatistic, ABC):
 
     _cached_pcas: dict[Dataset, tuple[PCA, int]] = dict()
-    _name = "Principal Components Analysis"
-    _identifier = "pca"
-    _labels = ["scalar", "linear"]
+    _signatures = (Signature.DIMENSIONALITY,)
+    _tags = ()
+    _type = Type.DESCRIPTIVE
+    
 
-    def __init__(self, components: Union[int, Iterable[int]]):
+    def __init__(
+            self,
+            components: int | Iterable[int],
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
         self._cached_pca = None
         
         self._components = tuple(range(1, components + 1)) if isinstance(components, int) \
             else tuple(components)
 
         self._n_components = max(self._components)
-
-    @property
-    def name(self) -> str:
-        return self._name
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
     
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-    
-    @property
-    def labels(self) -> list[str]:
-        return self._labels
     
     @property
     def components(self) -> tuple[int, ...]:
@@ -71,30 +72,28 @@ class PCABase(ReducedStatistic, ABC):
         # self._cached_pca = pca
         return pca
 
+   
+
 class PCAVarianceExplainedRatio(PCABase):
 
-    _name = "Principal Components Analysis - Variance Explained Ratio"
+    _long_name = "Principal Components Analysis - Variance Explained Ratio"
     _identifier = "pca-var"
-    _labels = ["scalar", "linear"]
 
-    def __init__(self, components: list[int]):
-        super().__init__(components=components)
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         pca = self._get_pca(data)
         indices = [i - 1 for i in self._components]
         return pca.explained_variance_ratio_[indices]
 
+
+
 class PCAEigenVectors(PCABase):
 
-    _name = "Principal Components Analysis - Eigen Vectors"
+    _long_name = "Principal Components Analysis - Eigen Vectors"
     _identifier = "pca-eig"
-    _labels = ["vector", "linear"]
 
-    def __init__(self, principal_vectors: list[int]):
-        super().__init__(components=principal_vectors)
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         pca = self._get_pca(data)
         evectors = pca.components_
         indices = [i - 1 for i in self._components]

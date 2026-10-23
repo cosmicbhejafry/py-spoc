@@ -141,5 +141,5 @@ results = pd.read_csv("results.csv", header=[0,1], index_col=0)
 results.index = pd.Index([parse_tuple_index(value) for value in results.index])
 
 # %%
-import plotting as p
+import working_analyses.gcResearch_2025.esa.plotting as p
 fig, p.plot_pca(results)

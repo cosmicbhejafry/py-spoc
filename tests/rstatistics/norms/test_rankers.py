@@ -3,7 +3,7 @@ import numpy as np
 
 from itertools import product
 
-from pyspoc.rstatistics import EffectiveRank, StableRank
+from pyspoc.rstatistics.ranks import EffectiveRank, StableRank
 
 ns = [10,50,100,1000]
 ps = [1,2,5,10,100]
@@ -21,7 +21,7 @@ def test_identities(ranker, p):
     result = float(statistic.compute(data))
     assert round(result, 4) == p, \
         f"Result was expected to be {p}, but was actually {result}."
-    
+
 # Rank should always be between 1 and p for identity matrices with randomly scaled columns.
 @pytest.mark.parametrize(
     ("ranker", "p"),
@@ -29,7 +29,7 @@ def test_identities(ranker, p):
 )
 def test_randomly_column_scaled_matrices(ranker, p):
     statistic = ranker()
-    data = np.eye(p) * np.random.random(size=(1,p))
+    data = np.eye(p) * np.random.default_rng(71).uniform(0.1, 1.0, size=(1,p))
     result = float(statistic.compute(data))
     assert round(result, 4) <= p and round(result, 4) >= 1, \
         f"Result was expected to be between 1 and {p}, but was actually {result}."
@@ -60,10 +60,10 @@ test_params = [(r,n,p,m) for r,n,(p,m) in list(product(rankers, ns, max_ranks))]
     test_params
 )
 def test_random_mats(data_factory, ranker, n, p, max_rank):
-    statistic = EffectiveRank()
+    statistic = ranker()
     vec = data_factory(n=n, dim=max_rank)
     data = build_degenerate_mat(vec, p, max_rank)
-    result = float(statistic.compute(data))
+    result = float(statistic._compute(data))
     assert round(result, 4) <= max_rank and \
         round(result, 4) >= 1, \
         f"Result was expected to be between 1 and {max_rank}," + \

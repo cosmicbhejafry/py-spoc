@@ -3,16 +3,16 @@ import numpy as np
 from abc import ABC, abstractmethod
 
 from ._base import MatrixToScalarReducer
-from pyspoc.core.types import NumpyFloatSPSDMatrix
+from pyspoc.core.types import NumpyRealSPSDMatrix
 
 
 class SPSDMatrixToScalarReducer(
-    MatrixToScalarReducer[NumpyFloatSPSDMatrix],
+    MatrixToScalarReducer[NumpyRealSPSDMatrix],
     ABC):
 
 
     @abstractmethod
     def _reduce(
             self,
-            data: NumpyFloatSPSDMatrix) -> float | np.floating:
+            data: NumpyRealSPSDMatrix) -> float | np.floating:
         pass

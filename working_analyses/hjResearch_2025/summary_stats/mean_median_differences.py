@@ -21,10 +21,10 @@ class GlobalMeanMedianDiff(ReducedStatistic):
         return "global_mean_median_diff_id"
 
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return ["skew"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def _compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
         """max difference of mean and median across marginal distributions (per feature)"""
 

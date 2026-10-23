@@ -7,15 +7,20 @@ import re
 import inspect
 import importlib
 import json
-import pyspoc.base as pyb
+import pyspoc._base as pyb
 
 from typing import Iterable, Generator, cast
 from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
+from typeguard import TypeCheckError
 
-from pyspoc.base import Component
-from pyspoc.rstatistics.base import Statistic, ReducedStatistic
+import pyspoc._argchecking as argchk
+from pyspoc.settings import settings
+from pyspoc._utils import lib
+from pyspoc._base import Component
+from pyspoc.rstatistics.base import ReducedStatistic
+from pyspoc.statistics.base import Statistic
 from pyspoc.reducers.base import Reducer
 
 
@@ -205,7 +210,7 @@ class Config:
             return instance
 
         raise ValueError("The selected archetypes did not result in a valid configuration. "
-                         "Please report the issue to " + pyb.PYSS_GITHUB_ISSUES_URL)
+                         "Please report the issue to " + lib.PYSPOC_GITHUB_URL)
 
     @staticmethod
     def _get_components_from_module(module: ModuleType | Namespace) -> Generator[Component]:
@@ -531,22 +536,21 @@ class Config:
 
     def to_yaml(self):
         statistics = self.statistics.values()
-
-        if not statistics:
-            warnings.warn("No Statistics have been loaded. Skipping.")
-            return
-
         reducers = self.reducers.values()
-
-        if not reducers:
-            warnings.warn("No Reducers have been loaded. Skipping.")
-            return
-        
         reduced_statistics = self.reduced_statistics.values()
 
-        if not reduced_statistics:
-            warnings.warn("No ReducedStatistics have been loaded. Skipping.")
+        if not statistics and (not reduced_statistics):
+            warnings.warn("No Statistics or ReducedStatistics have been loaded. Skipping.")
             return
+
+        if statistics and (not reducers):
+            warnings.warn("No Reducers have been loaded for the loaded Statistics."
+                          " Skipping.")
+            return
+        
+        if reduced_statistics and reducers and (not statistics):
+            warnings.warn("Reducers were loaded without any loaded Statistics."
+                          " These will be ignored.")
 
         yaml_dict = {
             "Statistics": dict(),
@@ -563,8 +567,7 @@ class Config:
 
         for reduced_statistic in reduced_statistics:
             self._add_export_component(yaml_dict, reduced_statistic, ReducedStatistic)
-
-        print(yaml_dict)
+        
         yaml_text = yaml.dump(yaml_dict, sort_keys=False)
         return yaml_text
 
@@ -633,9 +636,12 @@ class Config:
         if not level_dict:
             return dict()
 
-        pyb.check_type(level_dict,
-                       dict,
-                       custom_error_msg=f"Configuration contains incorrect format for {level_name} definition.")
+        try:
+            argchk.check_type(level_dict, dict)
+        except TypeCheckError as e:
+            raise RuntimeError(
+                f"Configuration contains incorrect format for {level_name} definition.") from e
+            
         # edited -- module.lower() wont work on all OS
         return {module: component_config for module, component_config in level_dict.items()}
 
@@ -677,9 +683,11 @@ class Config:
         for module_reference, module_components in component_spec.items():
 
             # Check module components is a dictionary
-            pyb.check_type(module_components,
-                       dict,
-                       custom_error_msg=f"Incorrect format for {component_archetype_name}s definition.")
+            try:
+                argchk.check_type(module_components, dict)
+            except TypeCheckError as e:
+                raise RuntimeError(
+                    f"Incorrect format for {component_archetype_name}s definition.") from e
 
             module = self._get_module(module_reference)
 
@@ -695,10 +703,13 @@ class Config:
                     continue
 
                 # Check component params is a dictionary
-                pyb.check_type(component_params,
-                           dict,
-                           custom_error_msg=f"Incorrect format for {component_archetype_name} {component_name} "
-                                            f"definition under module {module_reference}.")
+
+                try:
+                    argchk.check_type(component_params, dict)
+                except TypeCheckError as e:
+                    raise RuntimeError(
+                        f"Incorrect format for {component_archetype_name} {component_name} "
+                        f"definition under module {module_reference}.") from e
 
                 # Get the component configurations
                 schemes = component_params.get("schemes")
@@ -708,10 +719,12 @@ class Config:
                                      f"is missing 'schemes' definition.")
 
                 # Check configs is a dictionary
-                pyb.check_type(schemes,
-                               dict,
-                               custom_error_msg=f"Incorrect format for {component_archetype_name} {component_name} "
-                                                f"'scheme' definition under module {module_reference}.")
+                try:
+                    argchk.check_type(schemes, dict)
+                except TypeCheckError as e:
+                    raise RuntimeError(
+                        f"Incorrect format for {component_archetype_name} {component_name} "
+                        f"'scheme' definition under module {module_reference}.") from e
 
                 # Cycle config and config parameters
                 for scheme_name, scheme_args in schemes.items():
@@ -720,10 +733,12 @@ class Config:
                         scheme_args = dict()
                     
                     # Check config params is a dictionary
-                    pyb.check_type(scheme_args,
-                                   dict,
-                                   custom_error_msg=f"Incorrect format for {component_archetype_name} {component_name} "
-                                                    f"'schemes' definition under module {module_reference}.")
+                    try:
+                        argchk.check_type(scheme_args, dict)
+                    except TypeCheckError as e:
+                        raise RuntimeError(
+                            f"Incorrect format for {component_archetype_name} {component_name} "
+                            f"'schemes' definition under module {module_reference}.") from e
 
                     # Instantiate the component
                     component = self._instantiate_component(module_reference,
@@ -777,10 +792,12 @@ class Config:
         statistic_list = self._yaml_str_list_to_list(statistic_filters)
         module_name = self._get_component_module_name(reducer)
 
-        pyb.check_iterable(statistic_list,
-                       str,
-                       custom_error_msg=f"Incorrect format for Reducer {reducer_name} 'Statistics' "
-                                        f"definition under module {module_name}.")
+        try:
+            argchk.check_type(statistic_list, Iterable[str])
+        except TypeCheckError as e:
+            raise RuntimeError(
+                f"Incorrect format for Reducer {reducer_name} 'Statistics' "
+                f"definition under module {module_name}.") from e
 
         available_stat_names = self._config_scheme["Statistic"].keys()
 
@@ -845,8 +862,9 @@ class Config:
             module = importlib.import_module(module_reference, __package__)
             print(f"  {cls._TICK_CHAR} Module {module_reference} loaded successfully.")
             
-            if hasattr(module, "IMPORT_WARNINGS") and not pyb.IGNORE_IMPORT_WARNINGS:
-                print(f"    (The following warnings were raised: {[str(w.message) for w in module.IMPORT_WARNINGS]})")
+            if hasattr(module, "IMPORT_WARNINGS") and not settings.current.ignore_import_warnings:
+                print("    (The following warnings were raised: "
+                      f"{[str(w.message) for w in module.IMPORT_WARNINGS]})")
 
             return module
         except ModuleNotFoundError:

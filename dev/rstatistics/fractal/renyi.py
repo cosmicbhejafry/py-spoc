@@ -14,7 +14,7 @@ import numpy as np
 #data = pgf.mandelbrot()
 data = np.random.random(size=(10000,50))
 #%%
-scales = fpy.get_adaptive_scales(
+scales = fpy.get_adaptive_box_scales(
     data,
     k=200,
     method="datseries")
@@ -71,12 +71,12 @@ if slope:
 
 #%%
 re = renyi.RenyiEntropy(q=0, minimum_scaling_region=0.1, slope_estimation_method="hybrid")
-result = re.compute(data)
+result = re._compute(data)
 print(result)
 # %%
 
-result = renyi.RenyiEntropy(q=0, slope_estimation_method="ols").compute(data)
+result = renyi.RenyiEntropy(q=0, slope_estimation_method="ols")._compute(data)
 print(result)
 
-result = renyi.RenyiEntropy(q=0, slope_estimation_method="deshmukh").compute(data)
+result = renyi.RenyiEntropy(q=0, slope_estimation_method="deshmukh")._compute(data)
 print(result)

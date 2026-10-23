@@ -1,7 +1,7 @@
 #%%
 import numpy as np
 
-from pyspoc.statistics.cov import KendallTau
+from pyspoc.statistics.association.covariance import KendallTau
 from pyspoc.profiling import profile_component_cpu
 from pyspoc.settings import Settings
 

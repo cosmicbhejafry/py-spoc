@@ -24,7 +24,7 @@ class OrthogonalPCAEStatistic(OrthogonalPCAEMixin, Statistic, ABC):
 
     # Override Statistic.compute(), whose abstract contract defines the public
     # entry point used by Calculator.
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         """Fit or reuse an estimator and derive the concrete Statistic result.
 
         Parameters
@@ -41,8 +41,9 @@ class OrthogonalPCAEStatistic(OrthogonalPCAEMixin, Statistic, ABC):
         # Resolve dimensions against this particular dataset without mutating
         # the originally requested component configuration.
         resolved_parameters = self._resolve_parameters(data)
-        fitted_estimator = self._compute_estimator_output(data, resolved_parameters)
+        fitted_estimator = self._get_fitted_estimator(data, resolved_parameters)
         return self._get_result(fitted_estimator, resolved_parameters.components)
+    
 
     @abstractmethod
     def _get_result(

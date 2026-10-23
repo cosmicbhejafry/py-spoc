@@ -2,24 +2,39 @@
 
 from __future__ import annotations
 
-import torch
-import torch.nn as nn
-import numpy as np
-
-from torch.utils.data import DataLoader, TensorDataset
-from typing import Union, Any
+from typing import Any
 
 from ._model import OrthogonalPCAE
 from pyspoc._estimators.fitting import LazyFittedCachedEstimatorMixin
-from pyspoc._argchecking import RuntimeTypeCheckedMixin
-from pyspoc._random import RandomSeedMixin
-from pyspoc._random.torch import make_torch_generator
 from pyspoc.settings import settings
+from pyspoc._exceptions import MissingOptionalModuleError
+
+try:
+    import torch
+    import numpy as np
+    import torch.nn as nn
+    from torch.utils.data import DataLoader, TensorDataset
+    from pyspoc._random.torch import make_torch_generator
+except ModuleNotFoundError as e:
+    package_name = __package__
+
+    from pyspoc._utils.lib import TORCH_URL
+
+    if package_name:
+        package_name += " "
+
+    msg = (f"pySPoC module {package_name}requires the torch module, "
+           "which was not found. We recommend installing torch directly rather "
+           "than through pySPoC, which will allow for a machine-specific installation. "
+           f"Installation instructions can be found here: {TORCH_URL}.")
+    raise MissingOptionalModuleError(
+        msg, name=e.name, path=e.path)
+
 
 
 class OrthogonalPCAEEstimator(
-    RuntimeTypeCheckedMixin, RandomSeedMixin, LazyFittedCachedEstimatorMixin
-):
+    LazyFittedCachedEstimatorMixin[OrthogonalPCAE]):
+
     """Manage the training and inference lifecycle of an OrthogonalPCAE model.
 
     The estimator owns normalization statistics, random generators, training
@@ -59,7 +74,7 @@ class OrthogonalPCAEEstimator(
         burn_in_steps_prop: float = 0.1,
         alpha: float = 0.1,
         shuffle: bool = True,
-        random_seed: int | None = None,
+        random_seed: int | None = None, # Handled automatically by RandomSeedMixin
     ):
         """Initialize estimator configuration and unfitted state.
 
@@ -83,7 +98,6 @@ class OrthogonalPCAEEstimator(
         random_seed : int or None, optional
             Per-estimator seed override. If ``None``, use the library setting.
         """
-
         # Configuration participates in cache equivalence and remains stable
         # after construction, except for an effective batch-size reduction
         # when the fitted dataset contains fewer observations.
@@ -113,12 +127,12 @@ class OrthogonalPCAEEstimator(
         )
 
         # Dataset-dependent fitted state is populated only by _fit_estimator().
-        self._model_ = None
         self._train_epochs_ = None
         self._burn_in_epochs_ = None
         self._mean_ = None
         self._scale_ = None
         self._final_loss_ = None
+
 
     @property
     def batch_size(self) -> int:
@@ -306,11 +320,12 @@ class OrthogonalPCAEEstimator(
             Mean loss from the final epoch, or ``None`` before fitting.
         """
         return self._final_loss_
+    
 
     # Override the abstract fitting hook from LazyFittedCachedEstimatorMixin.
     # Its public fit() method owns thread-safe locking, data matching,
     # and the fitted-state transition around this method.
-    def _fit_estimator(self, data: np.ndarray) -> None:
+    def _fit_estimator(self, data: np.ndarray) -> OrthogonalPCAE:
         """Construct and train the private model for a dataset.
 
         Parameters
@@ -341,20 +356,23 @@ class OrthogonalPCAEEstimator(
 
         # Model weight initialization uses a separate RNG stream from loader
         # shuffling, while both streams begin from the resolved estimator seed.
-        self._model_ = OrthogonalPCAE(
+        model = OrthogonalPCAE(
             p,
             self._max_bottleneck_dim,
-            random_seed=self.random_seed,
+            random_seed=self.random_seed
         ).to(self._training_device)
 
         self._train(data, self._train_epochs_)
+
         # Publish only an evaluation-mode model and move it to the configured
         # inference device to avoid retaining unnecessary accelerator memory.
-        self._model_.eval()
+        model.eval()
         inference_device = self.get_inference_device()
-        self._model_.to(inference_device)
+        model.to(inference_device)
+        return model
 
-    def _normalize_data(self, X: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+
+    def _normalize_data(self, X: np.ndarray | torch.Tensor) -> torch.Tensor:
         """Standardize data using normalization state from the first fit.
 
         Parameters
@@ -392,7 +410,8 @@ class OrthogonalPCAEEstimator(
 
         return X_scaled
 
-    def _prepare_data(self, X: Union[np.ndarray, torch.Tensor]) -> torch.Tensor:
+
+    def _prepare_data(self, X: np.ndarray | torch.Tensor) -> torch.Tensor:
         """Convert array-like tabular data to a contiguous float tensor.
 
         Parameters
@@ -442,7 +461,7 @@ class OrthogonalPCAEEstimator(
                 return torch.device("cpu")
 
     def _prepare_loader(
-        self, X_tabular: Union[np.ndarray, torch.Tensor], device: torch.device, shuffle: bool
+        self, X_tabular: np.ndarray | torch.Tensor, device: torch.device, shuffle: bool
     ) -> DataLoader:
         """Build a normalized data loader for training or evaluation.
 
@@ -489,24 +508,6 @@ class OrthogonalPCAEEstimator(
 
         return loader
 
-    def _get_model(self) -> OrthogonalPCAE:
-        """Return the fitted private model.
-
-        Returns
-        -------
-        OrthogonalPCAE
-            Trained model owned by this estimator.
-
-        Raises
-        ------
-        ValueError
-            If fitting has not created a model.
-        """
-        if self._model_ is None:
-            raise ValueError("Internal model has not yet been trained. Call fit() first.")
-
-        return self._model_
-
     def _get_model_device(self) -> torch.device:
         """Return the device containing the fitted model.
 
@@ -548,7 +549,7 @@ class OrthogonalPCAEEstimator(
         train_epochs = np.ceil(self._train_steps / batch_count)
         return int(train_epochs)
 
-    def _train(self, X_tabular: Union[np.ndarray, torch.Tensor], epochs: int):
+    def _train(self, X_tabular: np.ndarray | torch.Tensor, epochs: int):
         """Train the model and append diagnostics to estimator history.
 
         Parameters
@@ -587,8 +588,7 @@ class OrthogonalPCAEEstimator(
         self._final_loss_ = trained_metrics["final_loss"]
 
     def _reconstruct(
-        self, X_tabular: Union[np.ndarray, torch.Tensor]
-    ) -> Union[np.ndarray, torch.Tensor]:
+        self, X_tabular: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tensor:
         """Reconstruct observations with the fitted model.
 
         Parameters
@@ -623,7 +623,7 @@ class OrthogonalPCAEEstimator(
 
         return tensor_X_recon.cpu().numpy()
 
-    def _transform(self, X_tabular: Union[np.ndarray, torch.Tensor]):
+    def _transform(self, X_tabular: np.ndarray | torch.Tensor):
         """Extract ordered bottleneck coordinates from fitted observations.
 
         Parameters
@@ -654,8 +654,7 @@ class OrthogonalPCAEEstimator(
         data_loader: DataLoader,
         device: torch.device,
         epochs: int,
-        alpha: float,
-    ) -> dict[str, Any]:
+        alpha: float) -> dict[str, Any]:
         """Train with an adaptive orthogonality penalty.
 
         Parameters

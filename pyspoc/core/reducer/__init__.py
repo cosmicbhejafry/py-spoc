@@ -1,9 +1,24 @@
 from .matscalar import (
+    MatrixToScalarReducer,
     SquareMatrixToScalarReducer,
+    SymmetricMatrixToScalarReducer,
     SPSDMatrixToScalarReducer
 )
 from .matvec import (
-    SquareMatrixToScalarReducer,
-    SPSDMatrixToScalarReducer
+    MatrixToVectorReducer,
+    SquareMatrixToVectorReducer,
+    SymmetricMatrixToVectorReducer,
+    SPSDMatrixToVectorReducer,
 )
 from .vectoscalar import VectorToScalarReducer
+
+__all__ = [
+    "MatrixToScalarReducer",
+    "SquareMatrixToScalarReducer",
+    "SymmetricMatrixToScalarReducer",
+    "SPSDMatrixToScalarReducer",
+    "MatrixToVectorReducer",
+    "SquareMatrixToVectorReducer",
+    "SymmetricMatrixToVectorReducer",
+    "SPSDMatrixToVectorReducer",
+    "VectorToScalarReducer"]

@@ -1,34 +1,36 @@
 import numpy as np
 
-from typing import cast
 from abc import ABC, abstractmethod
-from typeguard import check_type
 
 from pyspoc.core.statistic._base import Statistic
-from pyspoc.core.types import NumpyFloatSquareMatrix
+from pyspoc.core.types import NumpyRealSquareMatrix
+from pyspoc.core.iovalidation import SquareMatrixValidator
 
 
-class SquareMatrixStatistic(Statistic, ABC):
+
+class SquareMatrixStatistic(
+    Statistic[NumpyRealSquareMatrix],
+    SquareMatrixValidator,
+    ABC):
     
     def summarize(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> NumpyFloatSquareMatrix:
+    ) -> NumpyRealSquareMatrix:
 
-        result = super().summarize(data)
-        return cast(NumpyFloatSquareMatrix, result)
+        return super().summarize(data)
     
 
     @abstractmethod
     def _summarize(
         self,
-        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyFloatSquareMatrix:
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyRealSquareMatrix:
         pass
 
 
-    def _get_validated_result(
+    def _validate_output(
         self,
-        result: NumpyFloatSquareMatrix) -> NumpyFloatSquareMatrix:
+        result: NumpyRealSquareMatrix):
         
         """Validate and return a square matrix statistic result.
 
@@ -60,21 +62,7 @@ class SquareMatrixStatistic(Statistic, ABC):
 
         # Retain the general matrix validation supplied by the parent class
         # before imposing the more restrictive square-matrix contract.
-        super()._get_validated_result(result)
-
-        # Reusing the symbolic name on both axes tells jaxtyping that their
-        # lengths must be equal; Typeguard executes that check at runtime.
-        check_type(result, NumpyFloatSquareMatrix)
-
-        # Verify is a matrix rather than an embedded scalar.
-        if result.shape[0] <= 1:
-            raise ValueError(
-                f"{self.__class__.__name__} '{self.name}' must return array with "
-                f"at least 2 rows and columns, but got shape {result.shape}."
-            )
-
-        # The validation boundary does not copy or transform the result.
-        return result
+        self.validate(result)
 
 
     @classmethod

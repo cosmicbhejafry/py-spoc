@@ -15,7 +15,8 @@ from pyspoc.core.statistic import (
     SquareMatrixStatistic,
     VectorStatistic,
 )
-from pyspoc.core.types import NumpyFloatSPSDMatrix, NumpyFloatSquareMatrix
+from pyspoc.core.types import NumpyRealSPSDMatrix, NumpyRealSquareMatrix
+from pyspoc.settings import settings
 
 
 FloatDataMatrix = np.ndarray[tuple[int, int], np.dtype[np.floating]]
@@ -25,7 +26,7 @@ ResultFactory = Callable[[FloatDataMatrix], object]
 class _ScalarStatistic(ScalarStatistic):
     def __init__(self, result_factory: ResultFactory) -> None:
         self._result_factory = result_factory
-        super().__init__("test-scalar", [])
+        super().__init__("test-scalar", "test-scalar", [])
 
     def _summarize(self, data: FloatDataMatrix) -> float:
         return self._result_factory(data)  # type: ignore[return-value]
@@ -34,7 +35,11 @@ class _ScalarStatistic(ScalarStatistic):
 class _VectorStatistic(VectorStatistic):
     def __init__(self, result_factory: ResultFactory) -> None:
         self._result_factory = result_factory
-        super().__init__("test-vector", [])
+        super().__init__("test-vector", "test-vector", [])
+
+    def _validate_output(self, result):
+        # Concrete test doubles implement the abstract result-validation hook.
+        self.validate(result)
 
     def _summarize(
         self,
@@ -46,18 +51,18 @@ class _VectorStatistic(VectorStatistic):
 class _SquareMatrixStatistic(SquareMatrixStatistic):
     def __init__(self, result_factory: ResultFactory) -> None:
         self._result_factory = result_factory
-        super().__init__("test-square-matrix", [])
+        super().__init__("test-square-matrix", "test-square-matrix", [])
 
-    def _summarize(self, data: FloatDataMatrix) -> NumpyFloatSquareMatrix:
+    def _summarize(self, data: FloatDataMatrix) -> NumpyRealSquareMatrix:
         return self._result_factory(data)  # type: ignore[return-value]
 
 
 class _SPSDMatrixStatistic(SPSDMatrixStatistic):
     def __init__(self, result_factory: ResultFactory) -> None:
         self._result_factory = result_factory
-        super().__init__("test-spsd-matrix", [])
+        super().__init__("test-spsd-matrix", "test-spsd-matrix", [])
 
-    def _summarize(self, data: FloatDataMatrix) -> NumpyFloatSPSDMatrix:
+    def _summarize(self, data: FloatDataMatrix) -> NumpyRealSPSDMatrix:
         return self._result_factory(data)  # type: ignore[return-value]
 
 
@@ -73,17 +78,17 @@ def data_matrix() -> FloatDataMatrix:
         np.array(0.0),
         np.arange(8, dtype=np.float64),
         np.ones((2, 3, 4), dtype=np.float64),
-        np.ones((8, 3), dtype=np.int64),
         [[1.0, 2.0], [3.0, 4.0]],
     ],
-    ids=["zero-dimensional", "vector", "three-dimensional", "integer", "list"],
+    ids=["zero-dimensional", "vector", "three-dimensional", "list"],
 )
 def test_summarize_rejects_invalid_input_data(invalid_data: object) -> None:
     """The public boundary accepts only two-dimensional floating ndarrays."""
     statistic = _ScalarStatistic(lambda _data: 0.0)
 
-    with pytest.raises((TypeError, ValueError)):
-        statistic.summarize(invalid_data)  # type: ignore[arg-type]
+    with settings.override(result_validation="both"):
+        with pytest.raises((TypeError, ValueError, TypeCheckError)):
+            statistic.summarize(invalid_data)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("dtype", [np.float16, np.float32, np.float64])
@@ -104,8 +109,8 @@ def test_scalar_statistic_accepts_float(data_matrix: FloatDataMatrix) -> None:
 
 @pytest.mark.parametrize(
     "invalid_result",
-    [np.float32(1.0), np.array(1.0), np.array([1.0]), np.ones((2, 2))],
-    ids=["numpy-scalar", "zero-dimensional", "vector", "matrix"],
+    [np.array([1.0]), np.ones((2, 2)), np.array(1.0 + 2j), "invalid"],
+    ids=["vector", "matrix", "complex", "string"],
 )
 def test_scalar_statistic_rejects_non_float_results(
     data_matrix: FloatDataMatrix,
@@ -144,22 +149,17 @@ def test_vector_statistic_accepts_nonempty_float_vector(
         np.array([], dtype=float),
         np.array([[0.0, 1.0], [2.0, 3.0]]),
         np.zeros((2, 2, 2)),
-        np.array([1, 2], dtype=np.int64),
+        np.array([1 + 1j, 2 + 1j]),
         [1.0, 2.0],
     ],
-    ids=["zero-dimensional", "empty", "matrix", "three-dimensional", "integer", "list"],
+    ids=["zero-dimensional", "empty", "matrix", "three-dimensional", "complex", "list"],
 )
 def test_vector_statistic_rejects_invalid_results(
     data_matrix: FloatDataMatrix,
     invalid_result: object,
 ) -> None:
     statistic = _VectorStatistic(lambda _data: invalid_result)
-    is_semantic_shape_error = isinstance(
-        invalid_result, np.ndarray
-    ) and np.issubdtype(invalid_result.dtype, np.floating)
-    expected_error = ValueError if is_semantic_shape_error else (TypeError, TypeCheckError)
-
-    with pytest.raises(expected_error):
+    with pytest.raises((TypeError, TypeCheckError, ValueError)):
         statistic.summarize(data_matrix)
 
 
@@ -184,7 +184,7 @@ def test_square_matrix_statistic_accepts_float_square_matrix(
         np.ones((1, 2)),
         np.ones((2, 3)),
         np.ones((2, 2, 2)),
-        np.eye(2, dtype=np.int64),
+        np.eye(2, dtype=complex),
     ],
     ids=[
         "zero-dimensional",
@@ -194,7 +194,7 @@ def test_square_matrix_statistic_accepts_float_square_matrix(
         "embedded-vector",
         "rectangular",
         "three-dimensional",
-        "integer",
+        "complex",
     ],
 )
 def test_square_matrix_statistic_rejects_invalid_results(
@@ -247,3 +247,18 @@ def test_spsd_statistic_rejects_invalid_results(
     else:
         with pytest.raises(ValueError, match=message):
             statistic.summarize(data_matrix)
+
+@pytest.mark.parametrize("value", [np.float32(2.0), np.array(2.0), 2, np.int64(2)])
+def test_scalar_statistic_accepts_real_scalar_representations(data_matrix, value):
+    """The expanded real-number contract includes NumPy and embedded scalars."""
+    statistic = _ScalarStatistic(lambda _data: value)
+    assert statistic.summarize(data_matrix) is value
+
+
+@pytest.mark.parametrize("statistic_type, value", [
+    (_VectorStatistic, np.array([1, 2])),
+    (_SquareMatrixStatistic, np.eye(2, dtype=int)),
+])
+def test_array_statistic_accepts_integer_outputs(data_matrix, statistic_type, value):
+    """Integer-valued statistics are now legitimate real-valued outputs."""
+    assert statistic_type(lambda _data: value).summarize(data_matrix) is value

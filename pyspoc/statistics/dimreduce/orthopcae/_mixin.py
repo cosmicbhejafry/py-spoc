@@ -157,7 +157,8 @@ class OrthogonalPCAEMixin(RuntimeTypeCheckedMixin, RandomSeedMixin, ABC):
         # inherited mixins can initialize their state.
         super().__init__()
 
-    def _compute_estimator_output(
+
+    def _get_fitted_estimator(
         self, data: np.ndarray, resolved_parameters: ResolvedOrthogonalPCAEParameters
     ) -> OrthogonalPCAEEstimator:
         """Resolve, fit, and retain the estimator for a Statistic computation.

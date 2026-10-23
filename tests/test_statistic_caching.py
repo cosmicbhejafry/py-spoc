@@ -32,7 +32,7 @@ class _CountingScalarStatistic(ScalarStatistic):
 
     def __init__(self) -> None:
         self.calls = 0
-        super().__init__("counting-scalar", [])
+        super().__init__("counting-scalar", "counting-scalar", [])
 
     def _summarize(
         self,
@@ -48,7 +48,11 @@ class _CountingVectorStatistic(VectorStatistic):
     def __init__(self) -> None:
         self.calls = 0
         self.last_created: np.ndarray | None = None
-        super().__init__("counting-vector", [])
+        super().__init__("counting-vector", "counting-vector", [])
+
+    def _validate_output(self, result):
+        # Concrete test doubles implement the abstract result-validation hook.
+        self.validate(result)
 
     def _summarize(
         self,
@@ -67,7 +71,11 @@ class _RacingVectorStatistic(VectorStatistic):
         self.calls = 0
         self._counter_lock = Lock()
         self._barrier = Barrier(participants)
-        super().__init__("racing-vector", [])
+        super().__init__("racing-vector", "racing-vector", [])
+
+    def _validate_output(self, result):
+        # Concrete test doubles implement the abstract result-validation hook.
+        self.validate(result)
 
     def _summarize(
         self,

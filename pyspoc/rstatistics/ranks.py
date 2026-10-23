@@ -1,6 +1,9 @@
 import numpy as np
 
+from typing import Literal
+
 from pyspoc import Reducer
+from pyspoc.settings import settings
 from pyspoc.rstatistics.base import ReducedStatistic
 
 
@@ -75,6 +78,14 @@ class EffectiveRank(Reducer, ReducedStatistic):
     _identifier = "erank"
     _labels = ["scalar"]
 
+    def __init__(
+            self,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
+        super().__init__(dim=dim, nan_policy=nan_policy)
+
     @property
     def name(self) -> str:
         return self._name
@@ -86,7 +97,7 @@ class EffectiveRank(Reducer, ReducedStatistic):
     
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
     
     
@@ -99,7 +110,7 @@ class EffectiveRank(Reducer, ReducedStatistic):
         return np.exp(H)
     
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         return self.reduce(data)
 
 class StableRank(Reducer, ReducedStatistic):
@@ -108,6 +119,16 @@ class StableRank(Reducer, ReducedStatistic):
     _identifier = "srank"
     _labels = ["scalar"]
 
+
+    def __init__(
+            self,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+        
+        super().__init__(
+            dim=dim,
+            nan_policy=nan_policy)
 
     @property
     def name(self) -> str:
@@ -120,7 +141,7 @@ class StableRank(Reducer, ReducedStatistic):
 
     
     @property
-    def labels(self) -> list[str]:
+    def tags(self) -> list[str]:
         return self._labels
 
         
@@ -130,5 +151,5 @@ class StableRank(Reducer, ReducedStatistic):
         return (frob / l2) ** 2
 
 
-    def compute(self, data: np.ndarray) -> np.ndarray | float:
+    def _compute(self, data: np.ndarray) -> np.ndarray | float:
         return self.reduce(data)

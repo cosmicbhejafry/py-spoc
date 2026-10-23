@@ -8,17 +8,30 @@ import warnings
 
 from collections.abc import Collection
 from abc import abstractmethod, ABC
-from typing import final
+from typing import Generic, TypeVar, ClassVar, Any, final, get_origin, get_args
+from types import get_original_bases
+from typeguard import check_type
 from pathlib import Path
 
 from pyspoc._caching.statistic import statistic_result_cache
 from pyspoc.core._component import Component
-from pyspoc.core.types import NumpyFloatCubicTensorUpTo2D
+from pyspoc.core.types import NumpyRealTensorUpTo2D, NumpyRealMatrix
+from pyspoc.core.iovalidation import MatrixValidator
+from pyspoc.core.iovalidation._base import Validator
 from pyspoc.dataset import Dataset
 from pyspoc.settings import settings
 
 
-class Statistic(Component, ABC):
+StatisticOutputT = TypeVar(
+    "StatisticOutputT",
+    bound=NumpyRealTensorUpTo2D,
+    covariant=True)
+
+
+class Statistic(
+    Component,
+    Generic[StatisticOutputT],
+    ABC):
 
     """
     Base abstract Statistic class intended for computing a statistic from an entire
@@ -27,17 +40,28 @@ class Statistic(Component, ABC):
 
     Required Properties
     ----------
-        name : string
+        full_name : str
             Readable name of the statistic.
-        identifier : string
+        identifier : str
             A simpler and minimalist identifier for the statistic.
         labels : list[str]
             A list of labels to describe the type of statistic.
     """
 
-    def __init__(self, short_name: str, labels: Collection[str]):
-        self._cached_results: dict[Dataset, NumpyFloatCubicTensorUpTo2D] = dict()
-        super().__init__(short_name=short_name, labels=labels)
+    _output_type = ClassVar[Any]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+
+        for declared_base in get_original_bases(cls):
+            if get_origin(declared_base) is Statistic:
+                cls._output_type = get_args(declared_base)[0]
+                break
+
+
+    def __init__(self, full_name: str, short_name: str, labels: Collection[str]):
+        self._cached_results: dict[Dataset, StatisticOutputT] = dict()
+        super().__init__(full_name=full_name, short_name=short_name, labels=labels)
 
 
     @final
@@ -84,7 +108,7 @@ class Statistic(Component, ABC):
 
 
     @final
-    def calculate_summary(self, dataset: Dataset) -> NumpyFloatCubicTensorUpTo2D:
+    def calculate_summary(self, dataset: Dataset) -> StatisticOutputT:
 
         # Get result from class cache if present.
         if settings.current.statistic_caching:
@@ -107,41 +131,31 @@ class Statistic(Component, ABC):
 
         # Cache result in the hierarchy.
         if settings.current.statistic_caching:
-            self._cache_result(dataset, result)
+            statistic_result_cache.store(
+                self,
+                dataset,
+                result,
+                settings.current.max_statistic_cache_memory_fraction,
+            )
         
         return result
     
 
     def summarize(
         self,
-        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyFloatCubicTensorUpTo2D:
-
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> StatisticOutputT:
         # NumPy's native generic annotation communicates rank and dtype to
         # static tooling, but Typeguard does not currently enforce those
-        # parameters at runtime. Preserve the public contract explicitly at
-        # this boundary before concrete numerical code receives the input.
-        if not isinstance(data, np.ndarray):
-            raise TypeError(
-                f"{self.__class__.__name__} {self.name} received invalid data type. "
-                "Input data must be a NumPy array.")
-        
-        if data.ndim != 2:
-            raise ValueError(
-                f"{self.__class__.__name__} {self.name} received invalid data shape. "
-                f"Input data must be two-dimensional, but got shape {data.shape}."
-            )
-        
-        if not np.issubdtype(data.dtype, np.floating):
-            raise TypeError(
-                f"{self.__class__.__name__} {self.name} received invalid Numpy dtype. "
-                f"Input data must have a floating dtype, but got {data.dtype}."
-            )
+        # parameters at runtime. We preserve the public contract explicitly at
+        # this boundary but run validation on the jaxtyped object with _validate_input().
+        if settings.current.result_validation == "both":
+            self._validate_input(data)
 
         # Compute the statistic and return.
         result = self._summarize(data)
 
         # Perform validation based on Statistic return type.
-        result = self._get_validated_result(result)
+        self._validate_output(result)
 
         return result
 
@@ -149,29 +163,53 @@ class Statistic(Component, ABC):
     @abstractmethod
     def _summarize(
         self,
-        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyFloatCubicTensorUpTo2D:
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> StatisticOutputT:
         pass
    
 
     @final
-    def _get_cached_result(self, dataset: Dataset) -> NumpyFloatCubicTensorUpTo2D | None:
+    def _get_cached_result(self, dataset: Dataset) -> StatisticOutputT | None:
         return statistic_result_cache.get(self, dataset)
 
-
     @final
-    def _cache_result(self, dataset: Dataset, result: NumpyFloatCubicTensorUpTo2D):
-        statistic_result_cache.store(
+    def _get_validator(self) -> Validator[NumpyRealTensorUpTo2D]:
+        output_type = type(self)._output_type
+        return Validator._get_validator(output_type)
+
+
+    def _validate_input(
             self,
-            dataset,
-            result,
-            settings.current.max_statistic_cache_memory_fraction,
-        )
-        
+            input: NumpyRealMatrix):
+        """Validate the data passed into the Statistic.
+
+        Parameters
+        ----------
+        input : :class:`NumpyFloatMatrix`
+            Candidate statistic result. It must be a float matrix,
+            hence the following results are accepted:
+            - a `float` matrix: a two-dimensional Numpy array of
+                :class:`np.floating` dtype.
+
+        Raises
+        ------
+        TypeCheckError
+            If ``data`` is not a two-dimensional Numpy array of floating type.
+
+        Notes
+        -----
+        Subclasses can override with narrower jaxtyping annotations and
+        additional semantic checks, calling ``super()._validate_input(input)``
+        to retain the base contract.
+        """
+
+        MatrixValidator.validate(self, input)
+    
+
     @abstractmethod
-    def _get_validated_result(
-        self,
-        result: NumpyFloatCubicTensorUpTo2D) -> NumpyFloatCubicTensorUpTo2D:
-        """Validate and return a value produced by :meth:`_summarize`.
+    def _validate_output(
+            self,
+            result: NumpyRealTensorUpTo2D):
+        """Validate and return the value produced by :meth:`_summarize`.
 
         Parameters
         ----------
@@ -180,15 +218,12 @@ class Statistic(Component, ABC):
             most two dimensions, hence the following results are accepted:
             - a `float` scalar.
             - an :class:`np.floating` scalar.
+            - a `float` embedded scalar: a zero-dimensional Numpy array of
+                :class:`np.floating` dtype.
             - a `float` vector: a one-dimensional Numpy array of
                 :class:`np.floating` dtype.
-            - a `float` square matrix: a two-dimensional Numpy array of
-                :class:`np.floating` dtype with equal row and column counts.
-
-        Returns
-        -------
-        :class:`NumpyFloatCubicTensorUpTo2D`
-            The original result, unchanged, after successful validation.
+            - a `float` matrix: a two-dimensional Numpy array of
+                :class:`np.floating` dtype.
 
         Raises
         ------
@@ -198,14 +233,12 @@ class Statistic(Component, ABC):
 
         Notes
         -----
-        This method is deliberately an identity operation. Its purpose is to
-        provide a stable runtime-validation boundary after a concrete
-        :meth:`compute` implementation returns. Subclasses can override it
-        with narrower jaxtyping annotations and additional semantic checks,
-        calling ``super()._get_validated_result(result)`` to retain the base
-        contract.
+        Subclasses should override with narrower jaxtyping annotations and
+        additional semantic checks, calling ``super()._validate_output(result)``
+        to retain the base contract.
         """
-        pass
+
+        check_type(result, NumpyRealTensorUpTo2D)
     
 
     @classmethod

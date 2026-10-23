@@ -10,9 +10,14 @@ import pytest
 from sklearn.metrics.pairwise import laplacian_kernel, rbf_kernel
 
 from pyspoc._utils import numerical as numerical_utils
-from pyspoc.statistics.clustering.kmeans.statistics import (
-    KClusteringSimilarity,
-)
+from importlib import import_module
+
+
+def _make_statistic(**kwargs):
+    """Resolve the current class without aborting suite collection on failure."""
+    module = import_module(
+        "pyspoc.statistics.clustering.kclustering.kmeans.statistics")
+    return module.KMeansSimilarity(**kwargs)
 
 
 @dataclass
@@ -71,36 +76,36 @@ def assert_similarity_contract(result: np.ndarray, k: int) -> None:
 
 def test_metadata_properties_are_stable_and_read_only() -> None:
     """Metadata properties should expose immutable configuration values."""
-    statistic = KClusteringSimilarity(k=2)
+    statistic = _make_statistic(k=2)
 
-    assert statistic.name == "KMeans - Cluster Similarity"
-    assert statistic.identifier == "kmeans-cs"
-    assert statistic.labels == ("non-linear",)
+    assert statistic.get_long_name() == "KMeans - Cluster Similarity"
+    assert statistic.get_identifier() == "kmeans-cs"
+    assert statistic.params["k"] == 2
 
 
 @pytest.mark.parametrize("k", [-1, 0, 1])
 def test_at_least_two_clusters_are_required(k: int) -> None:
     """A pairwise cluster matrix requires at least two fitted clusters."""
     with pytest.raises(ValueError, match="k"):
-        KClusteringSimilarity(k=k)
+        _make_statistic(k=k)
 
 
 @pytest.mark.parametrize("gamma", [-1.0, 0.0])
 def test_gamma_must_be_strictly_positive(gamma: float) -> None:
     """Explicit decay coefficients should be strictly positive."""
     with pytest.raises(ValueError, match="gamma"):
-        KClusteringSimilarity(k=2, gamma=gamma)
+        _make_statistic(k=2, gamma=gamma)
 
 
 def test_unsupported_kernel_is_rejected_by_runtime_type_checking() -> None:
     """Constructor type checking should reject unknown kernel names."""
     with pytest.raises(TypeError, match="kernel"):
-        KClusteringSimilarity(k=2, kernel="unknown")  # type: ignore[arg-type]
+        _make_statistic(k=2, kernel="unknown")  # type: ignore[arg-type]
 
 
 def test_default_gamma_is_inverse_feature_count() -> None:
     """An omitted gamma should resolve from the computed dataset."""
-    statistic = KClusteringSimilarity(k=3, kernel="rbf")
+    statistic = _make_statistic(k=3, kernel="rbf")
 
     result = statistic._get_result(DATA, make_estimator())
     expected = rbf_kernel(CENTRES, gamma=1 / DATA.shape[1])
@@ -122,7 +127,7 @@ def test_default_gamma_is_inverse_feature_count() -> None:
 )
 def test_every_kernel_satisfies_similarity_matrix_contract(kernel: str) -> None:
     """Every supported kernel should produce a bounded symmetric matrix."""
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=3,
         kernel=kernel,  # type: ignore[arg-type]
         gamma=0.25,
@@ -135,7 +140,7 @@ def test_every_kernel_satisfies_similarity_matrix_contract(kernel: str) -> None:
 
 def test_laplacian_delegates_to_sklearn_definition() -> None:
     """Laplacian similarity should use L1 distance and the configured gamma."""
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=3,
         kernel="laplacian",
         gamma=0.4,
@@ -151,7 +156,7 @@ def test_laplacian_delegates_to_sklearn_definition() -> None:
 
 def test_inverse_distance_uses_each_unordered_pair_once() -> None:
     """Inverse-distance output should be mirrored without changing values."""
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=3,
         kernel="inverse_distance",
         gamma=0.5,
@@ -167,7 +172,7 @@ def test_inverse_distance_uses_each_unordered_pair_once() -> None:
 
 def test_mahalanobis_rbf_uses_feature_covariance_whitening() -> None:
     """Mahalanobis RBF should equal RBF on pseudo-whitened centres."""
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=3,
         kernel="mahalanobis_rbf",
         gamma=0.3,
@@ -195,7 +200,7 @@ def test_correlation_similarity_handles_profile_edge_cases(
     x: list[float], y: list[float], expected: float
 ) -> None:
     """Correlation should define deterministic zero-variance conventions."""
-    statistic = KClusteringSimilarity(k=2, kernel="correlation")
+    statistic = _make_statistic(k=2, kernel="correlation")
 
     result = statistic._compute_manual_kernel(
         np.asarray(x),
@@ -227,7 +232,7 @@ def test_singular_covariance_uses_pseudo_inverse_square_root() -> None:
     )
 
     for kernel in ("mahalanobis_rbf", "mahalanobis_inverse_distance"):
-        statistic = KClusteringSimilarity(
+        statistic = _make_statistic(
             k=2,
             kernel=kernel,  # type: ignore[arg-type]
             gamma=0.2,
@@ -244,7 +249,7 @@ def test_single_feature_mahalanobis_similarity_uses_matrix_covariance() -> None:
     """Scalar covariance output should be promoted to a one-by-one matrix."""
     data = np.array([[0.0], [1.0], [4.0], [5.0]])
     centres = np.array([[0.5], [4.5]])
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=2,
         kernel="mahalanobis_rbf",
         gamma=0.5,
@@ -265,7 +270,7 @@ def test_compute_integrates_with_cached_kmeans_estimator() -> None:
             [5.0, 6.0],
         ],
     )
-    statistic = KClusteringSimilarity(
+    statistic = _make_statistic(
         k=2,
         kernel="rbf",
         gamma=0.2,
@@ -287,7 +292,7 @@ def test_compute_integrates_with_cached_kmeans_estimator() -> None:
 )
 def test_private_kernel_helpers_reject_incompatible_dispatch(method_name: str, kernel: str) -> None:
     """Internal helpers should fail clearly when routed an invalid kernel."""
-    statistic = KClusteringSimilarity(k=2)
+    statistic = _make_statistic(k=2)
     method: Any = getattr(statistic, method_name)
 
     with pytest.raises(ValueError, match="Unsupported kernel"):

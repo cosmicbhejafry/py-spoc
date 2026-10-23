@@ -9,15 +9,23 @@ from __future__ import annotations
 
 import inspect
 import logging
+import numpy as np
 
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Optional, Literal, ParamSpec, TypeVar, cast, get_type_hints
+from typing import (
+    Any, Optional, Literal, ParamSpec, TypeVar, cast, get_type_hints,
+    Self, Annotated, Union, get_args, get_origin,
+)
+from types import UnionType
 from numbers import Real
 from typeguard import CollectionCheckStrategy, TypeCheckError, check_type
 
 from pyspoc import _base
+from pyspoc._exceptions import InvalidStandardisedCausalGraphError
 from pyspoc.settings import settings
+from pyspoc._descriptors import hybridmethod
+
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -25,6 +33,81 @@ _TRealNumber = TypeVar("_TRealNumber", bound=Real)
 _TYPE_CHECKED_ATTRIBUTE = "_pyspoc_type_checked"
 _MISSING_TYPE_HINT = object()
 _LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_self_type(annotation: Any, receiver_type: type | None) -> Any:
+    """Resolve ``Self`` within an annotation for a particular invocation.
+
+    Parameters
+    ----------
+    annotation : Any
+        Evaluated annotation, potentially containing nested ``Self`` hints.
+    receiver_type : type or None
+        Concrete class of the receiving instance, or the receiving class
+        itself. ``None`` indicates a callable without a receiver.
+
+    Returns
+    -------
+    Any
+        Annotation with ``Self`` replaced by ``receiver_type``. Annotations
+        requiring no substitutions are returned unchanged.
+
+    Raises
+    ------
+    TypeError
+        If ``Self`` is encountered without a receiver.
+
+    Notes
+    -----
+    Resolution is per invocation so inherited methods refer to the actual
+    subclass, not merely the class where the method was declared. Literal
+    values and ``Annotated`` metadata are not interpreted as type hints.
+    """
+    # Resolve the leaf first, then recursively rebuild enclosing type hints.
+    if annotation is Self:
+        if receiver_type is None:
+            raise TypeError("Self requires an instance or class method receiver.")
+        return receiver_type
+
+    origin = get_origin(annotation)
+    arguments = get_args(annotation)
+    if not arguments or origin is Literal:
+        return annotation
+
+    # Annotated metadata is arbitrary user data, not a type expression.
+    if origin is Annotated:
+        resolved = _resolve_self_type(arguments[0], receiver_type)
+        return Annotated[resolved, *arguments[1:]]
+
+    def resolve_argument(argument: Any) -> Any:
+        """Resolve a type argument or a callable's parameter list.
+
+        Parameters
+        ----------
+        argument : Any
+            Nested annotation or list of callable parameter annotations.
+
+        Returns
+        -------
+        Any
+            Argument with receiver-dependent annotations resolved.
+        """
+        # Callable[[Self, ...], R] exposes its parameters as a list.
+        if isinstance(argument, list):
+            return [_resolve_self_type(item, receiver_type) for item in argument]
+        return _resolve_self_type(argument, receiver_type)
+
+    resolved_arguments = tuple(resolve_argument(arg) for arg in arguments)
+    if resolved_arguments == arguments:
+        return annotation
+    # typing aliases and built-in generic aliases expose different rebuilding
+    # APIs. Preserve the enclosing type while replacing only its arguments.
+    if origin in (Union, UnionType):
+        return Union[resolved_arguments]
+    copier = getattr(annotation, "copy_with", None)
+    if copier is not None:
+        return copier(resolved_arguments)
+    return origin[resolved_arguments]
 
 
 class RuntimeTypeCheckedMixin:
@@ -68,6 +151,9 @@ class RuntimeTypeCheckedMixin:
     callable. This permits annotations that refer to the subclass itself,
     which may not yet be available in its module namespace while
     ``__init_subclass__`` is running.
+
+    Instance, class, and hybrid methods resolve ``Self`` against their actual
+    receiver on every call. Static methods have no receiver for this purpose.
 
     This mixin performs structural validation only. Semantic requirements,
     such as permitted numerical ranges or relationships between arguments,
@@ -114,7 +200,7 @@ class RuntimeTypeCheckedMixin:
         Notes
         -----
         Only attributes in the subclass's own namespace are processed.
-        ``staticmethod`` and ``classmethod`` descriptors are unwrapped before
+        ``staticmethod``, ``classmethod``, and ``hybridmethod`` descriptors are unwrapped before
         instrumentation and reconstructed afterward so their binding behavior
         is retained.
         """
@@ -150,16 +236,30 @@ class RuntimeTypeCheckedMixin:
             if not cls._should_type_check_method(member_name):
                 continue
 
+            if isinstance(member, hybridmethod):
+                # Check the unbound function, then restore the descriptor so
+                # both class and instance access still supply their receiver.
+                wrapped = cls._wrap_type_checked_callable(
+                    member.method, member_name,
+                )
+                setattr(cls, member_name, hybridmethod(wrapped))
+                continue
+
             if isinstance(member, staticmethod):
                 # Preserve static binding after wrapping the stored function.
                 wrapped = cls._wrap_type_checked_callable(
                     member.__func__,
                     member_name,
+                    has_receiver=False,
                 )
                 setattr(cls, member_name, staticmethod(wrapped))
                 continue
 
             if isinstance(member, classmethod):
+                # Some legacy descriptors wrap properties in classmethod.
+                # These have no callable signature to instrument.
+                if not callable(member.__func__):
+                    continue
                 # Preserve class binding after wrapping the stored function.
                 wrapped = cls._wrap_type_checked_callable(
                     member.__func__,
@@ -261,7 +361,8 @@ class RuntimeTypeCheckedMixin:
 
     @classmethod
     def _wrap_type_checked_callable(
-        cls, func: Callable[_P, _R], callable_name: str
+        cls, func: Callable[_P, _R], callable_name: str,
+        *, has_receiver: bool = True,
     ) -> Callable[_P, _R]:
         """Wrap a callable with configured argument and return checks.
 
@@ -272,6 +373,9 @@ class RuntimeTypeCheckedMixin:
             function extracted from the original descriptor.
         callable_name : str
             Name used to identify the callable in validation errors.
+        has_receiver : bool, default=True
+            Whether the first argument is an instance or class receiver.
+            Static methods cannot supply a context for ``Self``.
 
         Returns
         -------
@@ -293,6 +397,9 @@ class RuntimeTypeCheckedMixin:
         invocation and cached for subsequent calls. Consequently, errors
         caused by unresolved forward references also occur on first use rather
         than during class creation.
+
+        Cached hints retain ``Self``; substitution uses each call's receiver
+        separately, including when an inherited wrapper serves a subclass.
         """
         # Avoid wrapping the same callable repeatedly in inheritance or
         # descriptor-reconstruction scenarios.
@@ -303,17 +410,33 @@ class RuntimeTypeCheckedMixin:
         resolved_hints: dict[str, Any] | None = None
 
         def get_hints() -> dict[str, Any]:
-            """Resolve and cache the callable's evaluated type hints."""
+            """Resolve and cache the callable's evaluated type hints.
+
+            Returns
+            -------
+            dict[str, Any]
+                Evaluated parameter and return annotations, retaining any
+                ``Self`` placeholders for per-call resolution.
+
+            Raises
+            ------
+            NameError
+                If an annotation's forward reference cannot be resolved.
+            """
             nonlocal resolved_hints
 
             if resolved_hints is None:
                 # Resolve lazily: the subclass name may not yet be present in
                 # its module while ``__init_subclass__`` is executing.
-                resolved_hints = get_type_hints(func)
+                resolved_hints = get_type_hints(
+                    func, localns={cls.__name__: cls},
+                )
 
             return resolved_hints
 
-        def check_arguments(args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+        def check_arguments(
+            args: tuple[Any, ...], kwargs: dict[str, Any],
+        ) -> type | None:
             """Validate arguments supplied to a single invocation.
 
             Parameters
@@ -325,7 +448,8 @@ class RuntimeTypeCheckedMixin:
 
             Returns
             -------
-            None
+            type or None
+                The receiver class used to resolve ``Self`` for this call.
 
             Raises
             ------
@@ -339,6 +463,13 @@ class RuntimeTypeCheckedMixin:
             bound = signature.bind(*args, **kwargs)
             bound.apply_defaults()
             type_hints = get_hints()
+            receiver_type = None
+            if has_receiver and bound.arguments:
+                # Use the bound mapping, not args[0], so a receiver passed by
+                # keyword works too. This state belongs to this invocation;
+                # concurrent calls cannot overwrite one another's receiver.
+                receiver = next(iter(bound.arguments.values()))
+                receiver_type = receiver if isinstance(receiver, type) else type(receiver)
 
             for argument_name, argument_value in bound.arguments.items():
                 expected_type = type_hints.get(
@@ -349,6 +480,10 @@ class RuntimeTypeCheckedMixin:
                 if expected_type is _MISSING_TYPE_HINT:
                     # Unannotated arguments are intentionally ignored.
                     continue
+
+                # Never replace Self in the cached hints: another call may be
+                # made through a different subclass of the declaring class.
+                expected_type = _resolve_self_type(expected_type, receiver_type)
 
                 parameter = signature.parameters[argument_name]
 
@@ -370,17 +505,22 @@ class RuntimeTypeCheckedMixin:
                         ),
                     )
 
-        def check_return(return_value: Any) -> None:
+            return receiver_type
+
+        def check_return(return_value: Any, receiver_type: type | None) -> None:
             """Validate a return value when return checking is enabled.
 
             Parameters
             ----------
             return_value : Any
                 Value produced by the wrapped callable.
+            receiver_type : type or None
+                Receiver class determined when checking this call's arguments.
 
             Returns
             -------
             None
+                Returns normally when checking is disabled or validation succeeds.
 
             Raises
             ------
@@ -394,6 +534,10 @@ class RuntimeTypeCheckedMixin:
 
             if return_type is _MISSING_TYPE_HINT:
                 return
+
+            # Reuse the input receiver, rather than the result's class: a Self
+            # return promises compatibility with the object handling the call.
+            return_type = _resolve_self_type(return_type, receiver_type)
 
             cls._check_value_type(
                 return_value,
@@ -412,9 +556,23 @@ class RuntimeTypeCheckedMixin:
 
             @wraps(func)
             async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-                check_arguments(args, kwargs)
+                """Validate inputs, await execution, and validate the result.
+
+                Parameters
+                ----------
+                *args : Any
+                    Positional arguments forwarded to the wrapped callable.
+                **kwargs : Any
+                    Keyword arguments forwarded to the wrapped callable.
+
+                Returns
+                -------
+                _R
+                    Validated result after the callable completes.
+                """
+                receiver_type = check_arguments(args, kwargs)
                 return_value = await func(*args, **kwargs)
-                check_return(return_value)
+                check_return(return_value, receiver_type)
                 return return_value
 
             wrapper = async_wrapper
@@ -425,9 +583,23 @@ class RuntimeTypeCheckedMixin:
 
             @wraps(func)
             def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-                check_arguments(args, kwargs)
+                """Validate inputs, execute the callable, and validate its result.
+
+                Parameters
+                ----------
+                *args : Any
+                    Positional arguments forwarded to the wrapped callable.
+                **kwargs : Any
+                    Keyword arguments forwarded to the wrapped callable.
+
+                Returns
+                -------
+                _R
+                    Validated result of the wrapped callable.
+                """
+                receiver_type = check_arguments(args, kwargs)
                 return_value = func(*args, **kwargs)
-                check_return(return_value)
+                check_return(return_value, receiver_type)
                 return return_value
 
             wrapper = sync_wrapper
@@ -493,8 +665,7 @@ def check_integer(
     exclusive_minimum: float | None = None,
     maximum: float | None = None,
     exclusive_maximum: float | None = None,
-    arg_name: str | None = None,
-) -> int:
+    arg_name: str | None = None) -> int:
     """Check integer argument corresponds to required bounds."""
 
     name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
@@ -529,8 +700,7 @@ def check_real(
     exclusive_minimum: float | None = None,
     maximum: float | None = None,
     exclusive_maximum: float | None = None,
-    arg_name: Optional[str] = None,
-) -> _TRealNumber:
+    arg_name: Optional[str] = None) -> _TRealNumber:
 
     name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
 
@@ -598,8 +768,7 @@ def check_float(
     exclusive_minimum: float | None = None,
     maximum: float | None = None,
     exclusive_maximum: float | None = None,
-    arg_name: Optional[str] = None,
-) -> float:
+    arg_name: Optional[str] = None) -> float:
     """Validate and normalize a continuous numeric argument.
 
     Parameters
@@ -665,12 +834,95 @@ def try_check_real(
         return False
 
 
+def check_causal_graph_adjacency_standardisation(
+        adjacency: np.ndarray[tuple[int, int], np.dtype[np.integer]],
+        conventions_doc: str | None):
+    
+    if not adjacency.shape[0] == adjacency.shape[1]:
+        raise _raise_causal_graph_adjacency_error(
+            "Graph standardisation check failed. "
+            "Adjacency matrix must be square.",
+            conventions_doc)
+    
+    trace = np.trace(adjacency)
+    if trace != 0:
+        raise _raise_causal_graph_adjacency_error(
+            "Graph standardisation check failed." \
+            f"No self-cycles should be present but adjacency matrix trace is {trace} > 0.",
+            conventions_doc)
+
+    _check_graph_adjacency_encoding(adjacency, conventions_doc=conventions_doc)
+
+    
+def _check_graph_adjacency_encoding(
+        adjacency: np.ndarray[tuple[int, int], np.dtype[np.integer]],
+        conventions_doc: str | None):
+
+    p = adjacency.shape[0]
+
+    for i in range(p):
+        for j in range(i+1,p):
+            Aij = adjacency[i,j]
+            Aji = adjacency[j,i]
+
+            comparison_msg = (f"A[{i},{j}] = {Aij} but A[{j},{i}] = {Aji} "
+                "which does not follow required convention.")
+
+            compl_unconflicted = Aji == 0 or Aji == 1
+
+            # Check for incorrect no edge or X_i -> X_j directed edge encoding.
+            if Aij == 0 and not compl_unconflicted:
+                raise _raise_causal_graph_adjacency_error(
+                        "Graph encoding check failed. "
+                        "Adjacency matrix has unresolved edge. " +
+                        comparison_msg,
+                    conventions_doc)
+
+            # Check for incorrect X_i -- X_j undirected edge or X_j -> X_i directed edge encoding.
+            elif Aij == 1 and not compl_unconflicted:
+                raise _raise_causal_graph_adjacency_error(
+                        "Graph encoding check failed. "
+                        "Adjacency matrix has unresolved edge. " +
+                        comparison_msg,
+                    conventions_doc)
+
+            # Check for incorrect X_j <-> X_i bidirectional edge encoding.
+            elif Aij == -1 and not Aji == -1:
+                raise _raise_causal_graph_adjacency_error(
+                        "Graph encoding check failed. "
+                        "Adjacency matrix has unresolved bidirectional edge. " +
+                        comparison_msg,
+                    conventions_doc)
+
+            # Check for incorrect X_j <-> X_i latent confounding edge encoding.
+            elif Aij == 2 and Aji != 2:
+                raise _raise_causal_graph_adjacency_error(
+                        "Graph encoding check failed. "
+                        "Adjacency matrix has unresolved latent confounding edge. " +
+                        comparison_msg,
+                    conventions_doc)
+
+            # Check for incorrect X_j <-> X_i conflicted direction edge encoding.
+            elif Aij == -2 and Aji != -2:
+                raise _raise_causal_graph_adjacency_error(
+                        "Graph encoding check failed. "
+                        "Adjacency matrix has unresolved conflicted direction edge. " +
+                        comparison_msg,
+                    conventions_doc)
+
+                
+def _raise_causal_graph_adjacency_error(
+        message: str,
+        conventions_doc: str | None):
+
+    raise InvalidStandardisedCausalGraphError(message, conventions_doc=conventions_doc)
+
+
 def clip_integer(
     arg_value: int,
     minimum: int | None = None,
     maximum: int | None = None,
-    arg_name: str | None = None,
-) -> int:
+    arg_name: str | None = None) -> int:
     """Clip and normalize an integer argument."""
 
     name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
@@ -706,8 +958,7 @@ def clip_float(
     arg_value: Real,
     minimum: Real | None = None,
     maximum: Real | None = None,
-    arg_name: str | None = None,
-) -> float:
+    arg_name: str | None = None) -> float:
     """Clip and normalize a continuous numeric argument."""
 
     name = arg_name or _base.retrieve_arg_name(arg_value) or "value"

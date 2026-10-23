@@ -1,57 +1,48 @@
 import numpy as np
 
-from abc import ABC, abstractmethod
-from typeguard import check_type
+from abc import ABC
 
 from ._base import Statistic
+from pyspoc.core.types import NumpyRealScalar
+from pyspoc.core.iovalidation import ScalarValidator
 
 
-class ScalarStatistic(Statistic, ABC):
+class ScalarStatistic(
+    Statistic[np.ndarray[tuple[()], np.dtype[np.floating]] |
+              np.floating |
+              float],
+    ScalarValidator,
+    ABC):
 
-    @abstractmethod
-    def _summarize(
+
+    def _validate_output(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> float:
-        pass
-
-
-    def _get_validated_result(
-            self,
-            result: float | np.floating) -> float | np.floating:
+            result: NumpyRealScalar):
 
         """Validate and return a value produced by :meth:`_summarize`.
 
         Parameters
         ----------
-        result : float or :class:`np.floating`
-            Candidate statistic result. It must be float typed value.
-
-        Returns
-        -------
-        float
-            The original result, unchanged, after successful validation.
+        result : :class:`NumpyFloatScalar`
+            Candidate statistic result. It must be a float scalar or
+            embedded value, hence the following results are accepted:
+            - a `float` scalar.
+            - an :class:`np.floating` scalar.
+            - a `float` embedded scalar: a zero-dimensional Numpy array of
+                :class:`np.floating` dtype.
 
         Raises
         ------
         TypeCheckError
-            If ``result`` is not a real-valued numeric value.
+            If ``result`` is not a floating point value.
 
         Notes
         -----
-        This method is deliberately an identity operation. Its purpose is to
-        provide a stable runtime-validation boundary after a concrete
-        :meth:`compute` implementation returns. Subclasses can override it
-        with narrower jaxtyping annotations and additional semantic checks,
-        calling ``super()._get_validated_result(result)`` to retain the base
-        contract.
+        Subclasses can override with narrower jaxtyping annotations and
+        additional semantic checks, calling ``super()._validate_output(result)``
+        to retain the base contract.
         """
-        # Typeguard delegates the array-specific part of this annotation to
-        # jaxtyping. Both symbolic axes occur in this single check, so no
-        # shared argument/return dimension context is required here.
-        check_type(result, float)
-
-        # Validation must not copy or otherwise transform statistic results.
-        return result
+        self.validate(result)
 
 
     @classmethod

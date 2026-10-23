@@ -1,0 +1,529 @@
+# Module: pyspoc.statistics.association.correlation
+KendallTau:
+  Long Name: Kendall's Tau
+  Identifier: corr-kendalltau
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - signed
+    - nonlinear
+    - nonparametric
+  Signatures:
+    - dimensionality
+
+PartialCorrelation:
+  Long Name: Partial Correlation
+  Identifier: corr-partial
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+Pearson:
+  Long Name: Pearson's Correlation
+  Identifier: corr-pearson
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+PowerEnvelopeCorrelation:
+  Long Name: Power Envelope Correlation
+  Identifier: corr-pec
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - signed
+    - nonlinear
+    - signal
+  Signatures:
+    - dimensionality
+
+SpearmanR:
+  Long Name: Spearman's Rank Correlation
+  Identifier: corr-spearmanr
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - signed
+    - nonlinear
+    - nonparametric
+  Signatures:
+    - dimensionality
+
+# Module: pyspoc.statistics.association.covariance
+Covariance:
+  Long Name: Covariance
+  Identifier: cov
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+EllipticEnvelope:
+  Long Name: Covariance
+  Identifier: cov-elliptic
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+EmpiricalCovariance:
+  Long Name: Covariance
+  Identifier: cov-empirical
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+GraphicalLasso:
+  Long Name: Graphical Lasso
+  Identifier: cov-glasso
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+    - parametric
+  Signatures:
+    - dimensionality
+
+LedoitWolf:
+  Long Name: Ledoit-Wolf Shrinkage
+  Identifier: cov-lw
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+MinCovDet:
+  Long Name: Minimum Covariance Determinant
+  Identifier: cov-mcd
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+OAS:
+  Long Name: Oracle Approximating Shrinkage
+  Identifier: cov-oas
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+    - parametric
+  Signatures:
+    - dimensionality
+
+ShrunkCovariance:
+  Long Name: Shrunk Covariance
+  Identifier: cov-sc
+  Type: descriptive
+  Tags:
+    - association
+    - symmetrical
+    - signed
+  Signatures:
+    - dimensionality
+
+# Module: pyspoc.statistics.association.distance.basic
+DistanceCorrelation:
+  Long Name: Distance correlation
+  Identifier: dcorr
+  Type: descriptive
+  Tags:
+    - distance
+    - symmetrical
+    - nonparametric
+  Signatures:
+    - density
+
+HellerHellerGorfine:
+  Long Name: Heller-Heller-Gorfine Independence Criterion
+  Identifier: hhg
+  Type: descriptive
+  Tags:
+    - association
+    - distance
+    - nonparametric
+    - symmetrical
+    - nonlinear
+  Signatures:
+    - nonlinearity
+
+MultiscaleGraphCorrelation:
+  Long Name: Multiscale graph correlation
+  Identifier: mgc
+  Type: descriptive
+  Tags:
+    - distance
+    - symmetrical
+    - nonparametric
+  Signatures:
+    - density
+
+# Module: pyspoc.statistics.association.distance.hsic.statistic
+HilbertSchmidtIndependenceCriterion:
+  Long Name: Hilbert-Schmidt Independence Criterion
+  Identifier: hsic
+  Type: descriptive
+  Tags:
+    - association
+    - nonlinear
+    - nonparametric
+    - symmetrical
+  Signatures:
+    - nonlinearity
+
+# Module: pyspoc.statistics.causal
+AdditiveNoiseModel:
+  Long Name: Additive Noise Model
+  Identifier: anm
+  Type: descriptive
+  Tags:
+    - directed
+  Signatures:
+    - causal
+
+ConditionalDistributionSimilarity:
+  Long Name: Conditional Distribution Similarity Statistic
+  Identifier: cds
+  Type: descriptive
+  Tags:
+    - directed
+    - nonlinear
+  Signatures:
+    - causal
+
+InformationGeometricConditionalIndependence:
+  Long Name: Information-Geometric Conditional Independence
+  Identifier: igci
+  Type: descriptive
+  Tags:
+    - directed
+    - nonlinear
+  Signatures:
+    - causal
+
+RegressionErrorCausalInference:
+  Long Name: Regression Error-based Causal Inference
+  Identifier: reci
+  Type: descriptive
+  Tags:
+    - directed
+    - nonlinear
+  Signatures:
+    - causal
+
+# Module: pyspoc.statistics.clustering.kclustering.kmeans.rstatistics
+KMeansErrors:
+  Long Name: KMeans - Error Distribution
+  Identifier: kmeans-error
+  Type: error
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+  KMeansSILScores:
+  Long Name: KMeans - Silhouette Score Distribution
+  Identifier: kmeans-sil
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+  KMeansDispersionSummaries:
+  Long Name: KMeans - Dispersion Summary Distribution
+  Identifier: kmeans-dispersion
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+# Module: pyspoc.statistics.clustering.kclustering.kmeans.statistics
+KMeansSimilarity:
+  Long Name: KMeans - Cluster Similarity
+  Identifier: kmeans-cs
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+    - symmetrical
+  Signatures:
+    - blobbiness
+
+# Module: pyspoc.statistics.clustering.kclustering.kmedoids.rstatistics
+KMedoidsErrors:
+  Long Name: KMedoids - Error Distribution
+  Identifier: kmedoids-error
+  Type: error
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+  KMedoidsSILScores:
+  Long Name: KMedoids - Silhouette Score Distribution
+  Identifier: kmedoids-sil
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+  KMedoidsDispersionSummaries:
+  Long Name: KMedoids - Dispersion Summary Distribution
+  Identifier: kmedoids-dispersion
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+  Signatures:
+    - blobbiness
+
+# Module: pyspoc.statistics.clustering.kclustering.kmedoids.statistics
+KMedoidsSimilarity:
+  Long Name: KMedoids - Cluster Similarity
+  Identifier: kmedoids-cs
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+    - symmetrical
+  Signatures:
+    - blobbiness
+
+# Module: pyspoc.statistics.distance
+GromovWassersteinTau:
+  Long Name: Gromov-Wasserstein Distance
+  Identifier: gwtau
+  Type: descriptive
+  Tags:
+    - ordered
+  Signatures:
+    - causal
+
+PairwiseDistance:
+  Long Name: Pairwise distance
+  Identifier: pdist
+  Type: descriptive
+  Tags:
+    - distance
+    - symmetrical
+  Signatures:
+    - topology
+    - dimensionality
+
+# Module: pyspoc.statistics.errors.classifiers
+GPClassifierError:
+  Long Name: Gaussian Process Classifier Error
+  Identifier: gpc-error
+  Type: error
+  Tags:
+    - parametric
+    - association
+    - nonlinear
+    - distribution
+    - gaussian
+  Signatures:
+    - noise
+
+LinearClassifierError:
+  Long Name: Linear Classifier Error
+  Identifier: lc-error
+  Type: error
+  Tags:
+    - parametric
+    - association
+  Signatures:
+    - noise
+
+# Module: pyspoc.statistics.errors.regressors
+GPRegressorError:
+  Long Name: Gaussian Process Classifier Error
+  Identifier: gpc-error
+  Type: error
+  Tags:
+    - parametric
+    - association
+    - nonlinear
+    - distribution
+    - gaussian
+  Signatures:
+    - noise
+
+LinearRegressorError:
+  Long Name: Linear Regressor Error
+  Identifier: lr-error
+  Type: error
+  Tags:
+    - association
+    - parametric
+  Signatures:
+    - noise
+
+# Module: pyspoc.statistics.graph.association
+CorrelationGraph:
+  Long Name: Correlation Graph
+  Identifier: graph-corr
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - weighted
+    - signed
+    - association
+  Signatures:
+    - topology
+    - dimensionality
+
+CovarianceGraph:
+  Long Name: Covariance Graph
+  Identifier: graph-cov
+  Type: descriptive
+  Tags:
+    - symmetrical
+    - weighted
+    - signed
+    - association
+  Signatures:
+    - topology
+    - dimensionality
+
+RegressionGraph:
+  Long Name: Regression Graph
+  Identifier: graph-regression
+  Type: descriptive
+  Tags:
+    - weighted
+    - signed
+    - association
+    - parametric
+  Signatures:
+    - topology
+    - dimensionality
+
+# Module: pyspoc.statistics.graph.causal.constraint_based
+FCICausalGraph:
+  Long Name: Fast Causal Inference Constraint-Based Causal Discovery Graph
+  Identifier: graph-cbcd-fci
+  Type: descriptive
+  Tags:
+    - graph
+    - digraph
+    - signed
+  Signatures:
+    - causal
+
+PCCausalGraph:
+  Long Name: Peter-Clark Constraint-Based Causal Discovery Graph
+  Identifier: graph-cbcd-pc
+  Type: descriptive
+  Tags:
+    - graph
+    - digraph
+    - signed
+  Signatures:
+    - causal
+
+# Module: pyspoc.statistics.graph.gaussian
+GGM:
+  Long Name: Gaussian Graphical Model Graph
+  Identifier: graph-ggm
+  Type: descriptive
+  Tags:
+    - parametric
+    - signed
+    - distribution
+    - weighted
+    - digraph
+  Signatures:
+    - density
+    - topology
+
+# Module: pyspoc.statistics.graph.information
+ChowLiuTree:
+  Long Name: Chow-Liu Feature Tree
+  Identifier: graph-chow-liu
+  Type: descriptive
+  Tags:
+    - forest
+    - weighted
+    - acyclic
+    - symmetrical
+    - nonparametric
+  Signatures:
+    - density
+    - topology
+
+# Module: pyspoc.statistics.graph.proximity
+DistributionGraph:
+  Long Name: Distribution Graph
+  Identifier: graph-distribution
+  Type: descriptive
+  Tags:
+    - weighted
+    - symmetrical
+    - distribution
+  Signatures:
+    - topology
+    - dimensionality
+
+ProximityGraph:
+  Long Name: Proximity Graph
+  Identifier: graph-proximity
+  Type: descriptive
+  Tags:
+    - weighted
+    - symmetrical
+    - distance
+  Signatures:
+    - topology
+    - dimensionality
+
+DBScanSimilarity:
+  Long Name: DBScan - Cluster Similarity
+  Identifier: dbscan-cs
+  Type: descriptive
+  Tags:
+    - nonlinear
+    - nonparametric
+    - clustering
+    - symmetrical
+  Signatures:
+    - blobbiness

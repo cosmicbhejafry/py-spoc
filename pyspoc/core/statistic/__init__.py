@@ -1,10 +1,11 @@
-from .matrix import SPSDMatrixStatistic, SquareMatrixStatistic
+from .matrix import SquareMatrixStatistic, SymmetricMatrixStatistic ,SPSDMatrixStatistic
 from .scalar import ScalarStatistic
 from .vector import VectorStatistic
 
 __all__ = [
-    "SPSDMatrixStatistic",
     "ScalarStatistic",
-    "SquareMatrixStatistic",
     "VectorStatistic",
+    "SquareMatrixStatistic",
+    "SymmetricMatrixStatistic",
+    "SPSDMatrixStatistic"
 ]

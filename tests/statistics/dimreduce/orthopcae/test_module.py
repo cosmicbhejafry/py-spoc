@@ -16,7 +16,7 @@ def test_initialization_constructs_expected_layer_shapes() -> None:
 
     assert model.enc_mean.in_features == 5
     assert model.enc_mean.out_features == 3
-    assert model.enc_project.in_features == 64
+    assert model.enc_project.in_features == model.encoder_bn.num_features
     assert model.enc_project.out_features == 3
     assert model.decoder[-1].out_features == 5
 

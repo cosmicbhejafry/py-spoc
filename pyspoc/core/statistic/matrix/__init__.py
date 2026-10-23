@@ -1,4 +1,6 @@
-from .spsd import SPSDMatrixStatistic
 from .square import SquareMatrixStatistic
+from .symmetric import SymmetricMatrixStatistic
+from .spsd import SPSDMatrixStatistic
 
-__all__ = ["SPSDMatrixStatistic", "SquareMatrixStatistic"]
+
+__all__ = ["SquareMatrixStatistic", "SymmetricMatrixStatistic", "SPSDMatrixStatistic"]

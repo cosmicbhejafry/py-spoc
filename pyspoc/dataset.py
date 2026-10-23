@@ -67,14 +67,16 @@ class Dataset:
     def __init__(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.float64]] | pd.DataFrame | str,
-            dim_order: str = "np",
+            dim_order: Literal["np", "pn"] = "np",
+            nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
             normalise: bool = True,
             name: str | None = None,
             var_names: Collection[str] | None = None):
 
         self.normalise = normalise
         self.name = name
-        self._dim_order: str
+        self._dim_order = dim_order
+        self._nan_policy = nan_policy
         self._n: int
         self._p: int
         self._p_subsample: int | None = None
@@ -84,7 +86,6 @@ class Dataset:
 
         self._var_names: List[str] = list()
         self._set_data(data=data,
-                       dim_order=dim_order,
                        var_names=var_names)
         
         self._instantiation_time = time()
@@ -106,6 +107,14 @@ class Dataset:
     @property
     def data_type(self) -> type:
         return self._data_type
+
+    @property
+    def nan_policy(self) -> str:
+        return self._nan_policy
+
+    @nan_policy.setter
+    def nan_policy(self, nan_policy: Literal["raise", "row-omit", "col-omit"]):
+        self._nan_policy = nan_policy
 
     @property
     def dim_order(self) -> str:
@@ -136,7 +145,6 @@ class Dataset:
     @property
     def n_variables(self) -> int:
         return self._p
-
 
     @property
     def n_variables_subsample(self) -> int:
@@ -191,14 +199,15 @@ class Dataset:
         self._current_sample_indices = (0,0)
 
 
-    def get_samples(
+    def get_batches(
             self,
             *,
-            sample_shape: tuple[int, int],
+            batch_shape: tuple[int, int],
             sampling_type: Collection[Literal["random", "cyclical"]] |
                 Literal["random", "cyclical"],
             seed: int = 0,
-            n_samples: int | None = None
+            n_batches: int | None = None,
+            max_n_batches: int | None = None
     ) -> list[np.ndarray]:
 
         self._rng = np.random.default_rng(seed)
@@ -210,13 +219,16 @@ class Dataset:
         use_random_sampling = "random" in sampling_type
         use_cyclical_sampling = "cyclical" in sampling_type
 
-        if n_samples is None:
-            n_samples = self._get_computed_n_samples(
-                sample_shape=sample_shape)
+        if n_batches is None:
+            n_batches = self._get_computed_n_batches(
+                batch_shape=batch_shape)
+
+            if max_n_batches is not None:
+                n_batches = min(n_batches, max_n_batches)
 
         mask_generator = self._get_sampling_masks(
-            n_samples=n_samples,
-            sample_shape=sample_shape,
+            n_batches=n_batches,
+            batch_shape=batch_shape,
             use_cyclical_sampling=use_cyclical_sampling,
             use_random_sampling=use_random_sampling)
         samples = list()
@@ -227,12 +239,12 @@ class Dataset:
 
         return samples
 
-    def _get_computed_n_samples(
+    def _get_computed_n_batches(
             self,
-            sample_shape: tuple[int, int]) -> int:
+            batch_shape: tuple[int, int]) -> int:
         
         n, p = self.get_shape()
-        sample_n, sample_p = sample_shape
+        sample_n, sample_p = batch_shape
         n_coverage = math.ceil(n / sample_n)
         p_coverage = math.ceil(p / sample_p)
         n_samples = n_coverage * p_coverage
@@ -240,21 +252,21 @@ class Dataset:
 
     def _get_sampling_masks(
             self,
-            n_samples: int,
-            sample_shape: tuple[int, int],
+            n_batches: int,
+            batch_shape: tuple[int, int],
             use_cyclical_sampling: bool,
             use_random_sampling: bool
     ) -> Iterator[tuple[np.ndarray, ...]]:
 
         if use_cyclical_sampling:
             generator = self._get_cyclical_indices(
-                n_samples=n_samples,
-                sample_shape=sample_shape,
+                n_batches=n_batches,
+                batch_shape=batch_shape,
                 use_random_sampling=use_random_sampling)
         else:
             generator = self._get_random_indices(
-                n_samples=n_samples,
-                sample_shape=sample_shape
+                n_batches=n_batches,
+                batch_shape=batch_shape
             )
 
         for n_indices, p_indices in generator:
@@ -264,15 +276,15 @@ class Dataset:
 
     def _get_random_indices(
             self,
-            n_samples: int,
-            sample_shape: tuple[int, int]
+            n_batches: int,
+            batch_shape: tuple[int, int]
     ) -> Iterator[tuple[tuple[int, ...], tuple[int, ...]]]:
 
         data_shape = self.get_shape()
         n, p = data_shape
-        sample_n, sample_p = sample_shape
+        sample_n, sample_p = batch_shape
 
-        for _ in range(n_samples):
+        for _ in range(n_batches):
             n_indices = tuple(self._rng.integers(low=0, high=n-1, size=sample_n))
             p_indices = tuple(self._rng.integers(low=0, high=p-1, size=sample_p))
             yield n_indices, p_indices
@@ -280,8 +292,8 @@ class Dataset:
     
     def _get_cyclical_indices(
             self,
-            n_samples: int,
-            sample_shape: tuple[int, int],
+            n_batches: int,
+            batch_shape: tuple[int, int],
             use_random_sampling: bool
     ) -> Iterator[tuple[tuple[int, ...], tuple[int, ...]]]:
 
@@ -292,34 +304,34 @@ class Dataset:
         
         while not break_loop:
 
-            # Outer sampling loop along the n-axis
+            # Outer sampling loop along the row axis
             axis = 0
             looped = False
             current_idx = current_indices[axis]
-            sample_size = sample_shape[axis]
+            sample_size = batch_shape[axis]
             data_size = data_shape[axis]
             n_indices, next_idx, _ = self._get_cyclical_axis_indices(
                 current_idx=current_idx,
-                sample_size=sample_size,
+                batch_size=sample_size,
                 data_size=data_size,
                 use_random_sampling=use_random_sampling
             )
             current_indices = (next_idx, current_indices[1])
 
             while not looped:
-                # Inner sampling loop along the p-axis
+                # Inner sampling loop along the column axis
                 axis = 1
                 current_idx = current_indices[axis]
-                sample_size = sample_shape[axis]
+                sample_size = batch_shape[axis]
                 data_size = data_shape[axis]
                 p_indices, next_idx, looped = self._get_cyclical_axis_indices(
                     current_idx=current_idx,
-                    sample_size=sample_size,
+                    batch_size=sample_size,
                     data_size=data_size,
                     use_random_sampling=use_random_sampling
                 )
 
-                # Update p position
+                # Update column position
                 current_indices = (current_indices[0], next_idx)
 
                 # Add to the sampling tally.
@@ -329,7 +341,7 @@ class Dataset:
                 yield n_indices, p_indices
 
                 # Break loop if we've sampled all requested.
-                if n_sampled >= n_samples:
+                if n_sampled >= n_batches:
                     break_loop = True
                     break
 
@@ -337,11 +349,11 @@ class Dataset:
     def _get_cyclical_axis_indices(
             self,
             current_idx: int,
-            sample_size: int,
+            batch_size: int,
             data_size: int,
             use_random_sampling: bool):
         
-        unconstrained_idx = current_idx + sample_size - 1
+        unconstrained_idx = current_idx + batch_size - 1
         next_idx = unconstrained_idx % data_size
         cycles = unconstrained_idx // data_size
         sample_indices = list()
@@ -411,7 +423,6 @@ class Dataset:
     def _set_data(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.float64]] | pd.DataFrame | str,
-            dim_order: Literal["np", "pn"] = "np",
             var_names: Collection[str] | None = None
     ):
 
@@ -437,9 +448,6 @@ class Dataset:
                 of variables (p).
         """
 
-        # Set initial data transformation and subsampling properties
-        self.dim_order = dim_order
-
         if not self.name:
             self.name = _base.retrieve_arg_name(data, max_steps=3)
 
@@ -447,6 +455,12 @@ class Dataset:
 
         # Preprocess copy of original data
         data_copy = self._get_formatted_data_copy(data)
+
+        if np.isinf(data_copy).any():
+            raise ValueError("The data matrix contains infinite values.")
+
+        # Apply the NaN policy.
+        data_copy = self._apply_nan_policy(data_copy)
 
         # Store it.
         self._base_data_copy = data_copy
@@ -467,11 +481,30 @@ class Dataset:
             self._var_names = [f"var-{i}" for i in range(self.n_variables)]
 
         # Report success if verbosity enabled.
-
         self._message(
             f'Dataset "{name}" now has properties: {self.n_realisations} realisations, '
             f'{self.n_variables} variables.')
-        
+
+
+    def _apply_nan_policy(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.float64]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.float64]]:
+        nan_rows = np.isnan(data).any(axis=1)
+        has_nans = bool(nan_rows.any())
+
+        if self._nan_policy == "raise" and has_nans:
+            raise ValueError("The data matrix contains NaN values.")
+
+        if has_nans:
+            if self._nan_policy == "row-omit":
+                return data[~nan_rows]
+            else:
+                nan_cols = np.isnan(data).any(axis=0)
+                return data[:,~nan_cols]
+
+        return data
+
 
     def _get_formatted_data_copy(
             self,
@@ -543,11 +576,9 @@ class Dataset:
     def _reorder_data(
         data: np.ndarray,
         dim_order: str):
-
         """Reorder dataset dimensions n realisations in p variables."""
-
         # reorder array dims if necessary
-        if dim_order[0] != "n":
+        if dim_order == "pn":
             return data.swapaxes(0, 1)
 
         return data

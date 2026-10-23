@@ -32,7 +32,11 @@ class _VectorStatistic(VectorStatistic):
 
     def __init__(self) -> None:
         self.calls = 0
-        super().__init__("test-vector", [])
+        super().__init__("test-vector", "test-vector", [])
+
+    def _validate_output(self, result):
+        # Concrete test doubles implement the abstract result-validation hook.
+        self.validate(result)
 
     def _summarize(
         self,
@@ -47,7 +51,10 @@ class _SumReducer(VectorToScalarReducer):
 
     def __init__(self) -> None:
         self.calls = 0
-        super().__init__("sum", [])
+        super().__init__("sum", "sum", [])
+
+    def _validate_output(self, result):
+        return self._get_validated_result(result)
 
     def _reduce(
         self,

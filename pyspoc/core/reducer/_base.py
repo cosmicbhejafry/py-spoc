@@ -11,15 +11,15 @@ from pyspoc.core._component import Component
 from pyspoc._caching.reducer import reducer_result_cache
 from pyspoc.core.statistic._base import Statistic
 from pyspoc.core.types import (
-    NumpyFloatCubicTensor1DTo2D,
-    NumpyFloatCubicTensorUpTo1D,
+    NumpyRealTensor1DTo2D,
+    NumpyRealTensorUpTo1D,
 )
 from pyspoc.dataset import Dataset
 from pyspoc.settings import settings
     
 
-ReducerInputT = TypeVar("ReducerInputT", bound=NumpyFloatCubicTensor1DTo2D, contravariant=True)
-ReducerOutputT = TypeVar("ReducerOutputT", bound=NumpyFloatCubicTensorUpTo1D, covariant=True)
+ReducerInputT = TypeVar("ReducerInputT", bound=NumpyRealTensor1DTo2D, contravariant=True)
+ReducerOutputT = TypeVar("ReducerOutputT", bound=NumpyRealTensorUpTo1D, covariant=True)
 
 
 class Reducer(Component, Generic[ReducerInputT, ReducerOutputT], ABC):
@@ -28,7 +28,7 @@ class Reducer(Component, Generic[ReducerInputT, ReducerOutputT], ABC):
     def calculate_reduction(
             self,
             dataset: Dataset,
-            statistic: Statistic) -> ReducerOutputT:
+            statistic: Statistic[ReducerInputT]) -> ReducerOutputT:
 
         if settings.current.reducer_caching:
             cached_result = reducer_result_cache.get(self, statistic, dataset)
@@ -93,17 +93,17 @@ class Reducer(Component, Generic[ReducerInputT, ReducerOutputT], ABC):
                 f"Input data must be one- or two-dimensional, but got shape {data.shape}."
             )
         
-        if not np.issubdtype(data.dtype, np.floating):
+        if not np.issubdtype(data.dtype, np.floating) and not np.issubdtype(data.dtype, np.integer):
             raise TypeError(
                 f"{self.__class__.__name__} {self.name} received invalid Numpy dtype. "
-                f"Input data must have a floating dtype, but got {data.dtype}."
+                f"Input data must have a floating or integer dtype, but got {data.dtype}."
             )
 
         # Compute the statistic and return.
         result = self._reduce(data)
 
         # Perform validation based on Statistic return type.
-        result = self._get_validated_result(result)
+        self._validate_output(result)
 
         return result
 
@@ -124,9 +124,9 @@ class Reducer(Component, Generic[ReducerInputT, ReducerOutputT], ABC):
 
 
     @abstractmethod
-    def _get_validated_result(
+    def _validate_output(
         self,
-        result: NumpyFloatCubicTensor1DTo2D) -> ReducerOutputT:
+        result: NumpyRealTensor1DTo2D):
         """Validate and return a value produced by :meth:`_reduce`.
 
         Parameters
@@ -138,11 +138,6 @@ class Reducer(Component, Generic[ReducerInputT, ReducerOutputT], ABC):
                 :class:`np.floating` dtype.
             - a `float` square matrix: a two-dimensional Numpy array of
                 :class:`np.floating` dtype with equal row and column counts.
-
-        Returns
-        -------
-        :class:`NumpyFloatCubicTensor1DTo2D`
-            The original result, unchanged, after successful validation.
 
         Raises
         ------

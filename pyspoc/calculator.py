@@ -3,15 +3,20 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import traceback
+import time
 
-from tqdm import tqdm
+from warnings import warn
+from tqdm.auto import tqdm
 from typing import Any, Literal, TYPE_CHECKING, overload
 from collections.abc import Collection
 
 # From this package
+from pyspoc._base import Component
 from pyspoc.dataset import Dataset
 from pyspoc.config import Config
-from pyspoc.rstatistics.base import Statistic, ReducedStatistic
+from pyspoc.rstatistics.base import ReducedStatistic
+from pyspoc.statistics.base import Statistic
+from pyspoc.reducers.base import Reducer
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 from pyspoc.settings import settings
 
@@ -74,11 +79,12 @@ class Calculator(RuntimeTypeCheckedMixin):
         self._loaded_reducer_config = dict()
         self._loaded_reducers = dict()
         self._active_component_name : str | None = None
-        self._raised_warnings : dict[str, tuple[WarningMessage]] = dict()
+        self._raised_warnings : dict[str, tuple[WarningMessage, ...]] = dict()
         self._untracked_warnings: tuple[WarningMessage, ...] = tuple()
         self._raised_errors : dict[str, Exception] = dict()
         self._untracked_errors: tuple[Exception, ...] = tuple()
         self._names_dict: dict[str, dict[str, str]] = dict()
+        self._times: dict[tuple[str, str], float] = dict()
 
         self._name = name
         self._labels = tuple(labels) if labels is not None else None
@@ -119,6 +125,33 @@ class Calculator(RuntimeTypeCheckedMixin):
     @labels.setter
     def labels(self, labels: Collection[str]):
         self._labels = tuple(labels)
+
+
+    def get_errors(self) -> dict[str, Exception | tuple[Exception, ...]]:
+        errors = dict()
+        errors.update(self._raised_errors)
+        errors["Untracked"] = self._untracked_errors
+        return errors
+
+
+    def get_warnings(self) -> dict[str, tuple[WarningMessage, ...]]:
+        warnings = dict()
+        warnings.update(self._raised_warnings)
+        warnings["Untracked"] = self._untracked_warnings
+        return warnings
+    
+    
+    def get_error(
+            self,
+            component_name: str) -> (Exception | None):
+
+        return self._raised_errors.get(component_name)
+
+    def get_warning(
+            self,
+            component_name: str) -> (tuple[WarningMessage, ...] | None):
+
+        return self._raised_warnings.get(component_name)
 
     @overload
     def compute(
@@ -195,9 +228,9 @@ class Calculator(RuntimeTypeCheckedMixin):
         # Initialise for new computation
         self._results_dict.clear()
         self._names_dict.clear()
-        stats = config.statistics
-        reducers = config.reducers
-        rstats = config.reduced_statistics
+        stats: dict[str, Statistic] = config.statistics
+        reducers: dict[str, Reducer] = config.reducers
+        rstats: dict[str, ReducedStatistic] = config.reduced_statistics
         dataset = self.dataset
         elapsed = 0
 
@@ -206,43 +239,61 @@ class Calculator(RuntimeTypeCheckedMixin):
         dataset._prime_data()
 
         print("-" * 100)
-        print("Running calculation.")
+        print(f"Running calculation [{self._name}]")
         print("-" * 100)
 
         # Calculate configured Statistics.
         if stats:
-            stat_pbar = tqdm(stats.keys())
+            stat_keys = list(stats.keys())
+            n_stats = len(stat_keys)
 
-            for stat_name in stat_pbar:
-                try:
-                    stat_pbar.set_description(f"Computing Statistics [{self._name}: {stat_name}]")
+            with tqdm(total=n_stats,
+                      position=0,
+                      desc="Computing Statistics") as stat_pbar:
+                outer_pos = stat_pbar.pos
 
-                    # Get the next statistic.
-                    stat = stats[stat_name]
+                with tqdm(
+                    bar_format="{desc}",  # Placeholder only.
+                    position=outer_pos+1) as label:
+                    
+                    for stat_name in stat_keys:
+                        label.set_description_str(f"Statistic: [{stat_name}]")
 
-                    # Store the active statistic.
-                    self._active_component_name = stat_name
+                        try:
+                            # Get the next statistic.
+                            stat = stats[stat_name]
 
-                    # Register this calculator with the statistic for warning propagation.
-                    stat._set_active_calculator(self)
+                            # Store the active statistic.
+                            self._active_component_name = stat_name
 
-                    # Get result (checks cache first before computation).
-                    stat.calculate(dataset)
+                            # Register this calculator with the statistic for warning propagation.
+                            stat._set_active_calculator(self)
 
-                    # Store name variations for results display
-                    self._add_names(stat_name, stat)
+                            start = time.perf_counter()
 
-                    # Add the statistic reference to the results dictionary.
-                    self._results_dict[stat_name] = dict()
+                            # Get result (checks cache first before computation).
+                            stat.calculate(dataset, tqdm_pos=outer_pos+2)
 
-                except Exception as e:
-                    self._add_error(e)
+                            elapsed = time.perf_counter() - start
 
-                    if debug:
-                        raise e
+                            self._times[stat_name] = elapsed
 
-            stat_pbar.close()
-            elapsed += stat_pbar.format_dict["elapsed"]
+                            # Store name variations for results display
+                            self._add_names(stat_name, stat)
+
+                            # Add the statistic reference to the results dictionary.
+                            self._results_dict[stat_name] = dict()
+
+                        except Exception as e:
+                            self._add_error(e)
+
+                            if debug:
+                                raise e
+                            
+                        finally:
+                            stat_pbar.update()
+
+                    elapsed += stat_pbar.format_dict["elapsed"]
 
             stat_names = list(self._results_dict.keys())
             reducer_stat_list = list()
@@ -260,101 +311,209 @@ class Calculator(RuntimeTypeCheckedMixin):
                 for stat_name in reducer_stat_names:
                     reducer_stat_list.append((reducer_name, stat_name))
 
-            # Calculate configured Reducers.
-            reducer_pbar = tqdm(reducer_stat_list)
 
-            for reducer_name, stat_name in reducer_pbar:
-                combined_name = f"{stat_name}=>{reducer_name}"
-                reducer_pbar.set_description(
-                    f"Computing Reduction [{self._name}: {combined_name}]")
-                reducer = reducers[reducer_name]
+            n_stat_reducer_pairs = len(reducer_stat_list)
 
-                # Register this calculator with the reducer for warning propagation.
-                reducer._set_active_calculator(self)
+            with tqdm(total=n_stat_reducer_pairs,
+                      position=0,
+                      desc="Computing Reductions") as reducer_pbar:
+                outer_pos = label.pos
 
-                try:
-                    # Get computed statistic.
-                    stat = stats[stat_name]
+                with tqdm(
+                    bar_format="{desc}",  # Placeholder only.
+                    position=outer_pos+1) as label:
 
-                    # Store the active statistic-reducer combo.
-                    self._active_component_name = combined_name
+                    for reducer_name, stat_name in reducer_stat_list:
+                        combined_name = f"{stat_name} => {reducer_name}"
+                        label.set_description_str(
+                            f"Reduction: [{combined_name}]")
+                        reducer = reducers[reducer_name]
 
-                    # If the Statistic is a ReducedStatistic (ie. an all-in-one) then
-                    # store the result and continue.
-                    if isinstance(stat, ReducedStatistic):
-                        self._results_dict[stat_name][""] = stat.get_result()
-                        continue
+                        # Register this calculator with the reducer for warning propagation.
+                        reducer._set_active_calculator(self)
 
-                    # Reduce the result.
-                    R = reducer.calculate(stat).squeeze()
+                        try:
+                            # Get computed statistic.
+                            stat = stats[stat_name]
 
-                    # Store name variations for results display
-                    self._add_names(reducer_name, reducer)
+                            # Store the active statistic-reducer combo.
+                            self._active_component_name = combined_name
 
-                    # Save results.
-                    self._results_dict[stat_name][reducer_name] = R
+                            # If the Statistic is a ReducedStatistic (ie. an all-in-one) then
+                            # store the result and continue.
+                            if isinstance(stat, ReducedStatistic):
+                                self._results_dict[stat_name][""] = stat._get_result()
+                                continue
 
-                except Exception as e:
-                    self._add_error(e)
+                            # Reduce the result.
+                            R = reducer.calculate(stat)
+                            
+                            if isinstance(R, np.ndarray):
+                                R = R.squeeze()
 
+                            # Store name variations for results display
+                            self._add_names(reducer_name, reducer)
 
-            reducer_pbar.close()
-            elapsed += reducer_pbar.format_dict["elapsed"]
+                            # Save results.
+                            self._results_dict[stat_name][reducer_name] = R
+
+                        except Exception as e:
+                            self._add_error(e)
+
+                            if debug:
+                                raise e
+
+                        finally:
+                            reducer_pbar.update()
+
+                    elapsed += reducer_pbar.format_dict["elapsed"]
 
         # Calculate configured ReducedStatistics.
         if rstats:
-            
-            rstat_pbar = tqdm(rstats.keys())
+            rstat_keys = list(rstats.keys())
+            n_rstats = len(rstat_keys)
 
-            for rstat_name in rstat_pbar:
-                try:
-                    rstat_pbar.set_description(
-                        f"Computing Reduced Statistics [{self._name}: {rstat_name}]")
+            with tqdm(total=n_rstats,
+                      position=0,
+                      desc="Computing Reduced Statistics") as rstat_pbar:
+                outer_pos = label.pos
 
-                    # Get the next reduced statistical summary.
-                    rstat = rstats[rstat_name]
+                with tqdm(
+                    bar_format="{desc}",  # Placeholder only.
+                    position=outer_pos+1) as label:
 
-                    # Store the active reduced statistic.
-                    self._active_component_name = rstat_name
+                    for rstat_name in rstat_keys:
+                        try:
+                            label.set_description_str(
+                                f"Reduced Statistic [{rstat_name}]")
 
-                    # Register this calculator with the reduced statistic for warning propagation.
-                    rstat._set_active_calculator(self)
+                            # Get the next reduced statistical summary.
+                            rstat = rstats[rstat_name]
 
-                    # Get result.
-                    R = rstat.calculate(dataset).squeeze()
+                            # Store the active reduced statistic.
+                            self._active_component_name = rstat_name
 
-                    # Save results.
-                    self._results_dict[rstat_name] = dict()
-                    self._results_dict[rstat_name][""] = R
+                            # Register calculator with reduced statistic for warning propagation.
+                            rstat._set_active_calculator(self)
 
-                    # Store name variations for results display
-                    self._add_names(rstat_name, rstat)
+                            start = time.perf_counter()
 
-                except Exception as e:
-                    self._add_error(e)
+                            # Get result.
+                            R = rstat.calculate(dataset)
 
+                            if isinstance(R, np.ndarray):
+                                R = R.squeeze()
 
-            rstat_pbar.close()
-            elapsed += rstat_pbar.format_dict["elapsed"]
+                            elapsed = time.perf_counter() - start
+
+                            self._times[rstat_name] = elapsed
+
+                            # Save results.
+                            self._results_dict[rstat_name] = dict()
+                            self._results_dict[rstat_name][""] = R
+
+                            # Store name variations for results display
+                            self._add_names(rstat_name, rstat)
+
+                        except Exception as e:
+                            self._add_error(e)
+
+                            if debug:
+                                raise e
+
+                        finally:
+                            rstat_pbar.update()
+
+                    elapsed += rstat_pbar.format_dict["elapsed"]
 
         print("-" * 100)
         print(f"\nCalculation complete. Time taken: {elapsed:.4f}s")
         print("-" * 100)
-        self._results = self._get_results_table()
-        self._report_errors()
-        self._report_warnings()
+        self._active_component_name = None
 
-    def show_results(self, display_names: Literal["full", "class", "short"]):
-        return self._get_results_table(display_names)
+        try:
+            self._results = self.get_results()
+        except Exception as e:
+            self._add_error(e)
+
+            if debug:
+                raise e
+        finally:
+            self._report_errors()
+            self._report_warnings()
+
+
+    def get_timings(
+            self,
+            display_names: Literal["full", "class", "short"] = "full") -> pd.DataFrame:
+
+        if display_names == "full":
+            return pd.DataFrame.from_dict(
+                data=[self._times]).rename({0:self._name})
+
+        timings = dict()
+
+        for stat_full_name, timing in self._times.items():
+            stat_name = self._get_display_name(stat_full_name, display_names)
+            timings[stat_name] = timing
+
+        return pd.DataFrame.from_dict(
+            data=[timings]).rename({0:self._name})
+    
+
+    def get_results(
+            self,
+            display_names: Literal["full", "class", "short"] = "full"
+    ) -> pd.DataFrame | None:
+
+        result_row = []
+        first_level = []
+        second_level = []
+
+        for stat_full_name, reducers in self._results_dict.items():
+            if not isinstance(reducers, dict):
+                continue
+
+            for reducer_full_name, reduced_result in reducers.items():
+                if isinstance(reduced_result, np.ndarray):
+                    size = reduced_result.size
+                    reduced_result = reduced_result.reshape(-1)
+                    result_row.extend(reduced_result)
+                else:
+                    result_row.append(reduced_result)
+                
+                stat_name = self._get_display_name(stat_full_name, display_names)
+                reducer_name = self._get_display_name(reducer_full_name, display_names)
+                first_level.extend([stat_name] * size)
+                second_level_names = ([reducer_name] if size == 1
+                    else [f"{i+1}" for i in range(size)] if reducer_name == ""
+                    else [f"{reducer_name}_{i+1}" for i in range(size)]
+                )
+                second_level.extend(second_level_names)
+
+        if not first_level or not second_level:
+            warn("No results were generated. Check get_errors() or get_warnings() methods "
+                "to check if errors occurred during processing.")
+            return None
+        
+        columns = [*zip(first_level, second_level)]
+        results_table = pd.DataFrame(
+            data = {
+                col: datum
+                for col, datum in zip(columns, result_row, strict=True)
+            },
+            index=[self.name])
+        results_table.columns.names = ["Statistic", "Reducer"]
+        return results_table
 
     
     # NOTE: This is a hacky method to get the scheme
     # In the future, Config will be rewritten to allow for multiple
     # name types to be selected.
-    def _add_names(self, component_full_name: str, component):
+    def _add_names(self, component_full_name: str, component: Component):
         dot_idx = component_full_name.rfind(".")
         cls_name = type(component).__name__
-        short_name = component.identifier
+        short_name = component.get_identifier()
 
         if dot_idx > -1:
             scheme = component_full_name[dot_idx:]
@@ -506,6 +665,7 @@ class Calculator(RuntimeTypeCheckedMixin):
         print(f"[{type(error).__name__}] {error}")
 
         traceback_entries = traceback.extract_tb(error.__traceback__)
+
         if traceback_entries:
             origin = traceback_entries[-1]
             print(f"Location: {origin.filename}:{origin.lineno}")
@@ -533,35 +693,3 @@ class Calculator(RuntimeTypeCheckedMixin):
             return full_name
 
         return name
-
-    def _get_results_table(
-        self,
-        display_names: Literal["full", "class", "short"] = "full") -> pd.DataFrame:
-
-        summaries_vec = np.ndarray((1, 0))
-        first_level = []
-        second_level = []
-
-        for stat_full_name, reducers in self._results_dict.items():
-            for reducer_full_name, reduced_result in reducers.items():
-                size = reduced_result.size
-                summary_vec = reduced_result.reshape((1, size))
-                summaries_vec = np.hstack((summaries_vec, summary_vec))
-                stat_name = self._get_display_name(stat_full_name, display_names)
-                reducer_name = self._get_display_name(reducer_full_name, display_names)
-                first_level.extend([stat_name] * size)
-                second_level_names = ([reducer_name] if size == 1
-                    else [f"{i+1}" for i in range(size)] if reducer_name == ""
-                    else [f"{reducer_name}_{i+1}" for i in range(size)]
-                )
-                second_level.extend(second_level_names)
-
-        columns = pd.MultiIndex.from_arrays(
-            [first_level, second_level], names=["Statistic", "Reducer"]
-        )
-        results_table = pd.DataFrame(
-            data=summaries_vec,
-            columns=columns)
-
-        # self._table.columns.name = "process"
-        return results_table

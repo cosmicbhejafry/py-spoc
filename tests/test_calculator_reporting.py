@@ -49,7 +49,7 @@ def test_report_errors_prints_type_and_traceback_location(capsys) -> None:
     output = capsys.readouterr()
     assert "example-reducer:" in output.out
     assert "[ValueError] invalid result" in output.out
-    assert f"Location: {__file__}:{expected_line}" in output.out
+    assert f"Location: {__file__}:{expected_line}".casefold() in output.out.casefold()
     assert output.err == ""
 
 

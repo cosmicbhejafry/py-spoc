@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from pyspoc.settings import settings
-from pyspoc.statistics.distance.hsic import (
+from pyspoc.statistics.association.distance.hsic import (
     HilbertSchmidtIndependenceCriterion,
     pairwise_hsic,
 )
@@ -18,16 +18,17 @@ def test_statistic_computes_over_selected_dimension() -> None:
             dim="n",
             biased=True,
             metric="linear",
+            downsample=False,
         )
 
-    expected = pairwise_hsic(
+    expected, errors = pairwise_hsic(
         data.T,
         biased=True,
         metric="linear",
         max_workers=2,
     )
 
-    np.testing.assert_allclose(statistic.compute(data), expected)
+    np.testing.assert_allclose(statistic.compute(data), expected, rtol=2e-5, atol=2e-7)
 
 
 def test_statistic_compared_to_hyppo() -> None:
@@ -54,12 +55,16 @@ def test_statistic_compared_to_hyppo() -> None:
             if i != j:
                 expected[j,i] = result
 
-    np.testing.assert_allclose(statistic.compute(data), expected)
+    # The public default deliberately downsamples to float32. Compare with a
+    # float32-appropriate tolerance rather than NumPy's float64-tight default.
+    np.testing.assert_allclose(statistic.compute(data), expected, rtol=2e-5, atol=2e-7)
 
 
-def test_biased_identifier_is_instance_local() -> None:
+def test_bias_is_recorded_in_configuration_with_shared_statistic_identifier() -> None:
     biased = HilbertSchmidtIndependenceCriterion(biased=True)
     unbiased = HilbertSchmidtIndependenceCriterion(biased=False)
 
-    assert biased.identifier() == "hsic.biased"
-    assert unbiased.identifier() == "hsic"
+    assert biased.get_identifier() == "hsic"
+    assert biased.params["biased"] is True
+    assert unbiased.params["biased"] is False
+    assert unbiased.get_identifier() == "hsic"

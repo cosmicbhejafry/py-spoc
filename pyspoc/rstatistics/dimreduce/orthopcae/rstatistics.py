@@ -15,22 +15,9 @@ if TYPE_CHECKING:
 
 class OrthogonalPCAEVarianceExplainedRatio(OrthogonalPCAEReducedStatistic):
 
-    _name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
+    _long_name = "Orthogonal Principal Component Autoencoder - Variance Explained Ratio"
     _identifier = "opcae-var"
-    _labels = ["vector", "non-linear"]
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def labels(self) -> tuple[str, ...]:
-        return tuple(self._labels)
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-
+    
     def _get_result(
             self,
             fitted_estimator: OrthogonalPCAEEstimator,
@@ -44,21 +31,8 @@ class OrthogonalPCAEVarianceExplainedRatio(OrthogonalPCAEReducedStatistic):
 
 class OrthogonalPCAEVarianceElbow(OrthogonalPCAEReducedStatistic):
 
-    _name = "Orthogonal Principal Component Autoencoder Variance Explained Elbow"
+    _long_name = "Orthogonal Principal Component Autoencoder Variance Explained Elbow"
     _identifier = "opcae-var-elbow"
-    _labels = ["scalar", "non-linear"]
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def labels(self) -> tuple[str, ...]:
-        return tuple(self._labels)
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
 
     def _get_result(
             self,

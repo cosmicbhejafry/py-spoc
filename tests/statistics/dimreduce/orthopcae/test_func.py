@@ -27,7 +27,7 @@ from pyspoc.statistics.dimreduce.orthopcae._state import (
 class ProgressiveReconstructor(nn.Module):
     """Return a controlled reconstruction for each active dimension."""
 
-    max_bottleneck = 3
+    bottleneck = 3
 
     def forward(
             self,
@@ -126,7 +126,7 @@ def test_extract_scree_data_reports_progressive_losses() -> None:
     )
     np.testing.assert_allclose(
         result.variance_explained,
-        np.array([0.0, 0.75, 1.0]),
+        np.array([0.0, 0.75, 0.25]),
     )
     assert result.baseline_loss == pytest.approx(1.0)
 
@@ -192,12 +192,14 @@ def test_additional_training_does_not_repeat_burn_in() -> None:
         data_loader=loader,
         device=torch.device("cpu"),
         epochs=2,
+        alpha=estimator.alpha,
     )
     estimator._train_adaptive_orthogonal_pcae(
         model=model,
         data_loader=loader,
         device=torch.device("cpu"),
         epochs=1,
+        alpha=estimator.alpha,
     )
 
     assert model.mask_history == [False, True, True]

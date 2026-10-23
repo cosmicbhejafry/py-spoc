@@ -3,34 +3,31 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import final, cast
 
-from .square import SquareMatrixStatistic
-from pyspoc.core.types import NumpyFloatSPSDMatrix
+from .symmetric import SymmetricMatrixStatistic
+from pyspoc.core.types import NumpyRealSPSDMatrix
 
 
-class SPSDMatrixStatistic(SquareMatrixStatistic, ABC):
+class SPSDMatrixStatistic(SymmetricMatrixStatistic, ABC):
 
     @final
     def summarize(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> NumpyFloatSPSDMatrix:
+    ) -> NumpyRealSPSDMatrix:
 
         result = super().summarize(data)
-        return cast(NumpyFloatSPSDMatrix, result)
+        return cast(NumpyRealSPSDMatrix, result)
     
 
     @abstractmethod
     def _summarize(
         self,
-        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyFloatSPSDMatrix:
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]]) -> NumpyRealSPSDMatrix:
         pass
 
 
-    def _get_validated_result(self, result: NumpyFloatSPSDMatrix) -> NumpyFloatSPSDMatrix:
-        super()._get_validated_result(result)
-
-        if not np.allclose(result, result.conj().T):
-            raise ValueError(f"{self.name} must return a Hermitian matrix.")
+    def validate_output(self, result: NumpyRealSPSDMatrix) -> NumpyRealSPSDMatrix:
+        super().validate_output(result)
 
         eigenvalues = np.linalg.eigvalsh(result)
 

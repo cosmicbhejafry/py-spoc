@@ -11,8 +11,9 @@ from typing import final, Any, Optional, TYPE_CHECKING, TypeVar, cast
 from textwrap import dedent
 
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
+from pyspoc._random import RandomSeedMixin
 from pyspoc.settings import settings
-from .types import NumpyFloatCubicTensorUpTo2D
+from .types import NumpyRealTensorUpTo2D
 
 if TYPE_CHECKING:
     from pyspoc.config import Config
@@ -21,10 +22,13 @@ if TYPE_CHECKING:
 
 _INITIALIZATION_CAPTURED_ATTRIBUTE = "_pyspoc_initialization_captured"
 TInit = TypeVar("TInit", bound=Callable[..., None])
-TResult = TypeVar("TResult", bound=NumpyFloatCubicTensorUpTo2D)
+TResult = TypeVar("TResult", bound=NumpyRealTensorUpTo2D)
 
 
-class Component(RuntimeTypeCheckedMixin, ABC):
+class Component(
+    RandomSeedMixin,
+    RuntimeTypeCheckedMixin,
+    ABC):
 
     _component_init_capture_depth: int = 0
     _active_calculator = None
@@ -135,13 +139,17 @@ class Component(RuntimeTypeCheckedMixin, ABC):
         return cast(TInit, wrapped_init)
     
 
-    def __init__(self, short_name: str, labels: Collection[str]):
+    def __init__(self, full_name: str, short_name: str, labels: Collection[str]):
         """Initialize metadata and mutable runtime state for a component.
 
         Parameters
         ----------
+        readable_name : str
+            Fully descriptive name of the component.
+
         short_name : str
             Concise identifier used when referring to the component.
+
         labels : Collection[str]
             Descriptive labels associated with the component.
 
@@ -150,6 +158,8 @@ class Component(RuntimeTypeCheckedMixin, ABC):
         None
             Component state is initialized in place.
         """
+
+        self._full_name = full_name
         self._short_name = short_name
         self._labels = labels
         self._cfg: Optional[Config] = None
@@ -209,6 +219,17 @@ class Component(RuntimeTypeCheckedMixin, ABC):
     @property
     def name(self) -> str:
         return self.__class__.__name__
+
+
+    @final
+    @property
+    def designation(self) -> str:
+        return _get_fully_qualified_type_name(type(self)) + "." + self.scheme
+
+    @final
+    @property
+    def full_name(self) -> str:
+        return self._full_name
 
 
     @final
