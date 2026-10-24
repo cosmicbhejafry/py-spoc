@@ -25,13 +25,26 @@ class Trustworthiness(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def tags(self) -> list[str]:
+    def labels(self) -> list[str]:
         return ["my_new_reducer_label_1",
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def _compute(self, data: np.ndarray) -> float:
-
+    def compute(self, data: np.ndarray) -> float:
+        
+        """
+        Apply dim reduction to the data matrix (either 'PCA', 't-SNE', 'Isomap' or 'UMAP')        
+        Compute pairwise distances in the original data space and the dim. reduced space
+        Compute ranking matrices for original and dim. reduced data
+        Compute coranking matrix using the rank matrices above
+        
+        Compute trustworthiness over the coranking matrix
+        Return the mean of the trustworthiness matrix (also ref to as AUC)
+        
+        CAN BE REFACTORED USING SKLEARN - WILL BE MORE RELIABLE
+        """
+        
+        
         # Dimensionally reduce the data
         X = data
         Z = self.reducer.fit_transform(X)
