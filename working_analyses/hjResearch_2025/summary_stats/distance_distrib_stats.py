@@ -1,6 +1,10 @@
+"""
+contains distance distribution statistics, reduced statistics on row-wise pairwise or centroids
+"""
+
 from pyspoc import ReducedStatistic
 import numpy as np
-from scipy.stats import skew, kurtosis
+from scipy.stats import skew, kurtosis, entropy, trim_mean
 from scipy.spatial.distance import cdist,pdist
 from typing import Union
 from abc import ABC
@@ -18,7 +22,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         'seuclidean', 'sqeuclidean'
     ]
 
-    VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid'}    
+    VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid', 'global_trimmed_mean_centroid'}    
 
     def __init__(self, metric: str = "euclidean",minkowski_p=None):
 
@@ -82,6 +86,12 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         
         elif point=='global_median_centroid':
             return np.median(X,axis=0).reshape((1,X.shape[1]))
+
+        elif point=='global_trimmed_mean_centroid':
+            return trim_mean(X, 0.1, axis=0).reshape((1, X.shape[1]))
+        
+        # elif point=='global_geom_median_centroid': #TODO: requires https://github.com/daleroberts/hdmedians/tree/master
+        #     return np.median(X,axis=0).reshape((1,X.shape[1]))
         
         else:
             return point
@@ -91,32 +101,68 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
     # TODO: UNIT TEST
 
 
-class KLMeanMedianDistances(DistanceDistributionBase):
+class KLCentroidDistances(DistanceDistributionBase):
     # TODO: move, inherit from distance distribution base
-    name = "KLMeanMedianDistances"
+    name = "KLCentroidDistances"
     identifier = ""
     labels = ["skew"]
 
-    def __init__(self,metric,minkowski_p=None):
+    def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
+        self.point1 = point1
+        self.point2 = point2
 
     def compute(self, data: np.ndarray) -> np.ndarray:
         """
-        Return KL Divergence of distance distributions from global mean centroid and global median centroid 
+        Return KL Divergences of distance distributions from two input points 
         (q- how would this behave in high dim data? might be very trivial bcz of curse of dimensionality?)
         """
-        dists_mean = self._dist_from_point(data, 'global_mean_centroid')
-        dists_median = self._dist_from_point(data, 'global_median_centroid')
         
-        # global_bin - TODO
+        dists1 = self._dist_from_point(data,self.point1)
+        dists2 = self._dist_from_point(data, self.point2)
+        
+        # global_bin
         global_bin = None
-        mean_hist = self._distance_histogram(dists_mean,bins=global_bin)
-        median_hist = self._distance_histogram(dists_median,bins=global_bin)
+        hist1 = self._distance_histogram(dists1,bins=global_bin)
+        hist2 = self._distance_histogram(dists2,bins=global_bin)
 
-        # compute KL - TODO
+        # compute KL
+        kl_mean_median = entropy(hist1,hist2)
+        kl_median_mean = entropy(hist2,hist1)
+        
+        return np.asarray([kl_mean_median, kl_median_mean])
+    
+class GlobalCentroidDiffs(DistanceDistributionBase):
+    def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
+        super().__init__(metric=metric,minkowski_p=minkowski_p)
+        self.point1 = point1
+        self.point2 = point2
 
-        pass
+    @property
+    def name(self) -> str:
+        return "GlobalCentroidDiffs"
 
+    @property
+    def identifier(self) -> str:
+        return "GlobalCentroidDiffs"
+
+    @property
+    def labels(self) -> list[str]:
+        return ["skew"]
+
+    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+
+        """
+        For each feature of the input data matrix, compute the max absolute difference of input points         
+        (intuition- max difference of mean and median across marginal distributions per feature)        
+        """
+        center1 = self._get_center_from_point(data,self.point1)
+        center2 = self._get_center_from_point(data,self.point2)
+
+        feat_wise_diff = center1 - center2                
+        return np.array([np.max(np.abs(feat_wise_diff)), np.min(np.abs(feat_wise_diff))])
+
+    
 class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     name = "Distance from Point - Peaks"
     identifier = "dist-point-peaks"
@@ -213,8 +259,7 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         #     # TODO: implement
         #     n_modes = -1.0
 
-        # TODO: USE DERIVATIVES AND INFLECTION POINTS?
-        # dy = np.gradient(y, x)        # First derivative
+        # TODO: USE INFLECTION POINTS?
         # d2y = np.gradient(dy, x)      # Second derivative
 
         else:

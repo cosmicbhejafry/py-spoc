@@ -1,3 +1,7 @@
+"""
+implements some Reducers based on covariance matrix, and also eigenvals of input matrix
+"""
+
 from pyspoc import Reducer, ReducedStatistic
 import numpy as np
 from typing import Union

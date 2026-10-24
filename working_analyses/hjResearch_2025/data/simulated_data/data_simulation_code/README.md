@@ -4,7 +4,7 @@
 - each notebook generates datasets with varying parameters and varying N, P with some fixed random seeds
 - the data are saved in ../all_data/
 
-- note for user-- the data save function takes in a parameters dict and an extra_array option
+- note for user: the data save function takes in a parameters dict and an extra_array option
 
 - the parameters dict is tracked across all datasets together in configs.json, and extra_array can have the full value dumped within it
 - sometimes you might want to reduce the size of the parameters dict, and use text 
@@ -44,8 +44,8 @@ maps params{i} with the parameter used for a specific data_generation_type
 - saving all data in ephemeral space
 
 ```
-conda create -n hcda-datagen -c conda-forge python=3.11 numpy scipy scikit-learn pandas matplotlib jupyterlab ipykernel -y
-conda activate datagen
+conda create -n hcda-datagen -c conda-forge python=3.12 numpy scipy scikit-learn pandas matplotlib jupyterlab ipykernel nbstripout -y
+conda activate hcda-datagen
 python -m ipykernel install --user --name hcda-datagen
 ```
 
