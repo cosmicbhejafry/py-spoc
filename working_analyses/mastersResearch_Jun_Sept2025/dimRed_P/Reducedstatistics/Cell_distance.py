@@ -27,7 +27,7 @@ class Cell_distance(ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return "my_new_reducer_name"
+        return "Cell_distance"
 
     @property
     def identifier(self) -> str:
