@@ -17,7 +17,7 @@ BASE = {
 
 def reducer_reader(name_str):
     """
-    Turn "PCA 50D -> t-SNE" or "t-SNE" into the corresponding pipeline of functions.
+    Turn "PCA 50D -> TSNE" or "TSNE" into the corresponding pipeline of functions.
     The output f can then be updated as f(ndims, **kw) where the kwargs are passed to the final stage.
     """
     stages = [s.strip() for s in name_str.split('->')]
@@ -55,7 +55,7 @@ def get_Jaccard(amb, lat):
 	frac = [0]*lat.shape[0]
 	for i in range(lat.shape[0]):
 		inter = set(amb[i,:]).intersection(lat[i,:])
-		frac[i] = len(inter)/len(set(amb[i,:]).union(lat[i,:]))
+		frac[i] = 1 - len(inter)/len(set(amb[i,:]).union(lat[i,:]))
 
 	return frac
 

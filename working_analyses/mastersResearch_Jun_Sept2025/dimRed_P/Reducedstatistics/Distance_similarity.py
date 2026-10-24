@@ -30,12 +30,12 @@ class Distance_similarity(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def tags(self) -> list[str]:
+    def labels(self) -> list[str]:
         return ["my_new_reducer_label_1",
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def _compute(self, data: np.ndarray) -> float:
+    def compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data
         X = data
@@ -45,7 +45,7 @@ class Distance_similarity(ReducedStatistic):
         D  = pairwise_distances(X)
         D_z = pairwise_distances(Z)
 
-        # Correlation the two distance matrices
-        corr = self.correlation_coefficient(D.flatten(), D_z.flatten())[0]**2
+        # Residual Variance of the two distance matrices
+        Res_Var = 1 - (self.correlation_coefficient(D.flatten(), D_z.flatten())[0])**2
 
-        return corr
+        return Res_Var
