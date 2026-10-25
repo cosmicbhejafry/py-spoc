@@ -1,5 +1,14 @@
 """
 refactoring manifold stats, vectorizing, etc.
+
+the pyDrMetrics implementations they seem a bit inconsistent to me, they dont match the inbuilt sklearn metrics
+
+my current implementations are closer to this package:
+https://github.com/samueljackson92/coranking/tree/master
+associated with this paper:
+Lee, John A., and Michel Verleysen. "Quality assessment of dimensionality reduction: Rank-based criteria." Neurocomputing 72.7 (2009): 1431-1443.
+
+TODO: discuss with G- the cell statistics are associated with clustering, check if G has implemented before redoing?
 """
 from pyspoc import ReducedStatistic
 import numpy as np
@@ -8,86 +17,242 @@ from abc import ABC
 from pyspoc.dataset import Dataset
 
 from sklearn.decomposition import PCA, NMF
-from sklearn.manifold import TSNE, Isomap, trustworthiness
-from sklearn.metrics import mean_squared_error
+from sklearn.manifold import TSNE, Isomap, trustworthiness, UMAP
+from sklearn.metrics import pairwise_distances
+
+from scipy.stats import rankdata
 
 class DimReductionMethodsBase(ReducedStatistic):
 
-    SUPPORTED_METHODS = ['PCA', 'TSNE', 'ISOMAP', 'NMF']
-
-    ## TODO: include **kwargs figure out correct syntax
-    ## TODO: design Q, better to have self.X_reduced or better to return it from the func? (linked to how caching works --> ask garry?)
+    METHODS = {
+        "PCA":    (PCA,    {}),
+        "TSNE":   (TSNE,   {"perplexity": 30, "init": "pca"}),
+        "ISOMAP": (Isomap, {}),
+        # "UMAP":   (UMAP,   {"n_neighbors": 15, "min_dist": 0.1}), # excluding umap for now as it needs extra dependencies
+        # "NMF":    (NMF,    {"init": "nndsvd", "max_iter": 500}), # excluding NMF for now asit needs additional checks on the input matrix
+    }
     
-    def __init__(self, method : str = 'PCA',embedding_dim=2):
+    # ------------- CLASS DEFINITIONS - start -------------    
+    def __init__(self, method : str = 'PCA',embedding_dim=2,random_state=None,**kwargs):
+        super().__init__()
         
         self.method = method.upper()
         self.embedding_dim = embedding_dim
-        self.X_reduced_fit = None
-        self.X_reduced = None
+        self.random_state = random_state
+        self.kwargs = kwargs
         
-        if method not in self.SUPPORTED_METHODS:
+        self.set_self_dist_inf_ranks=True
+                
+        if self.method not in self.METHODS.keys():
             raise ValueError(
-                f"Invalid metric '{method}'. Must be one of: {', '.join(self.SUPPORTED_METHODS)}"
+                f"Invalid metric '{self.method}'. Must be one of: {', '.join(self.METHODS.keys())}"
             )
+        # self.X_reduced_fit = None
+        # self.X_reduced = None
         
     def calculate(self, dataset: Dataset):
         result = super().calculate(dataset)
         return result
+    # ------------- CLASS DEFINITIONS - end -------------
 
-
-    def _fit_method(self, X: np.ndarray) -> None:
+    # ------------- FUNCTIONS ON X_REDICED - start -------------    
+    def _fit_method(self, X: np.ndarray) -> np.ndarray:
         
-        if self.method == 'PCA':
-            X_reduced_fit = PCA(n_components=self.embedding_dim).fit(X)
-            self.X_reduced_fit = X_reduced_fit
+        method_fn, method_kwargs = self.METHODS[self.method][0], self.METHODS[self.method][1]
+        params = {**method_kwargs, **self.kwargs, "n_components": self.embedding_dim}
         
-        if self.method == 'TSNE':            
-            X_reduced_fit = TSNE(n_components=self.embedding_dim, perplexity=30, random_state=0,method='barnes_hut').fit(X)
-            self.X_reduced_fit = X_reduced_fit
+        if self.method == 'TSNE':
+            if self.random_state is not None:
+                params['random_state'] = self.random_state
 
-        if self.method == 'ISOMAP':            
-            X_reduced_fit = Isomap(n_components=self.embedding_dim).fit(X)
-            self.X_reduced_fit = X_reduced_fit
-
-        if self.method == 'NMF':
-            X_reduced_fit = NMF(n_components=self.embedding_dim, init='nndsvd').fit(X)
-            self.X_reduced_fit = X_reduced_fit
-
-    def _get_reduced_X(self,X: np.ndarray) -> None:
+        X_reduced = method_fn(**params).fit_transform(X)
         
-        if self.X_reduced_fit is None:
-            self._fit_method(self.method,X)
+        return X_reduced
 
-        self.X_reduced = self.X_reduced_fit.transform()
+    def _residual_variance(self, X : np.ndarray, X_reduced : np.ndarray):
+        pass
+
+    def _reconstruction_error(self, X : np.ndarray, X_reduced : np.ndarray):
+        pass
     
-    def _reconstruction_error(self,X: np.ndarray) -> float:
+    # ------------- FUNCTIONS ON X_REDICED - end -------------    
+
+    # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - start -------------
+    def _ranking_matrix(self, X : np.ndarray, metric = 'euclidean',solver='nilrad') -> np.ndarray:
+                    
+        dist_X = pairwise_distances(X,metric=metric)
         
-        # fit the method if not done already
-        if self.X_reduced_fit is None:
-            self._fit_method(X)
+        # DEFAULT: set self-distances to inf, avoid ties / floatpoint errors
+        # affects slicing of Q
+        if self.set_self_dist_inf_ranks:
+            np.fill_diagonal(dist_X, np.inf)
+            # slice Q as Q[:-1,:-1] to remove self neighbours
         
-        if self.method=='ISOMAP':
-            return self.X_reduced_fit.reconstruction_error()
+        if solver=='nilrad':
+            # Computing ranking_matrix using np.argsort twice on every row [Nilrad]            
+            R = [np.argsort(np.argsort(row)) for row in dist_X]
+            return np.array(R, dtype = 'uint')        
+        elif solver=='scipy':
+            R = rankdata(dist_X, axis=1, method="ordinal").astype(int) - 1
+            return np.array(R, dtype = 'uint')
+        else:            
+            raise ValueError('not supported solver')
+                    
+    def _coranking_matrix(self,R1 : np.ndarray ,R2 : np.ndarray,solver='bincount-ravel') -> np.ndarray:
+        assert R1.shape == R2.shape
+        
+        N = R1.shape[0]
+        if solver == 'bincount-ravel':
+            Q = np.bincount((R1 * N + R2).ravel(), minlength=N*N).reshape(N,N)        
+            return Q
+        elif solver=='for-loop':
+            # [from coranking_auxiliary_functions.py]
+            Q = np.zeros(R1.shape)
+            m = len(Q)
+            for i in range(m):
+                for j in range(m):
+                    k = int(R1[i,j])
+                    l = int(R2[i,j])
+                    Q[k,l] += 1
+            return Q
+        else:
+            raise ValueError('not supported solver')
+    
+    def _drop_coranking_self_nb(self, Q : np.ndarray) -> np.ndarray:
+        if self.set_self_dist_inf_ranks:
+            # self-distances set to np.inf while computing R and Q
+            return Q[:-1,:-1]
+        else:
+            # self-distances computed as 0 while computing R and Q
+            return Q[1:,1:]
+    
+    # def _trustworthiness_k(self,Q:np.ndarary,k):
+    # could write functions for each k separately, but more efficient to loop it i think
+    #     pass
+    
+    def _get_k_lst_TC(self,N,k_mode,k_min,k_max):
+        if k_mode == 'N/2':
+            return range(1,(N + 1) // 2)
+            
+        elif k_mode == 'all':
+            return range(1,N-1)
+        
+        elif k_mode == 'custom-k_min-k_max':
+            if k_min is None or k_max is None or not (1 <= k_min < k_max <= N - 1):
+                raise ValueError(f"need 1 <= k_min < k_max <= {N - 1}, got k_min={k_min}, k_max={k_max}")    
+            
+            return range(k_min,k_max)
         
         else:
-            if self.X_reduced is None:
-                self._get_reduced_X(X)
-                
-            if self.method=='PCA':
-                X_recovered = PCA.inverse_transform(self.X_reduced)
-                return mean_squared_error(X,X_recovered)
-
-            if self.method=='NMF':
-                X_recovered = NMF.inverse_transform(self.X_reduced)
-                return mean_squared_error(X,X_recovered)
+            raise ValueError('invalid k_mode for trustworthiness curve')
+        
             
-            if self.method=='TSNE':
-                return ValueError('no reconstruction for tsne')
+    def _trustworthiness(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None):
+        # refer to sec 3. https://www.sciencedirect.com/science/article/pii/S0925231209000101        
+        # matches the sklearn trustworthiness implementation for k < N/2
+        # default is N/2
+        # i think this function could benefit from further refactoring or checks
+        # im not sure if the k_mode, k_min, k_max is best but that is what i could figure right now       
+        
+        N = Q.shape[0]
+        Q_sliced = self._drop_coranking_self_nb(Q)
+        
+        k_lst = self._get_k_lst_TC(N,k_mode,k_min,k_max)
+        T = np.zeros(len(k_lst))
+        true_rank = np.arange(1,N) #for W's
+        
+        for ix,k in enumerate(k_lst):
+            # 1 - normalized hard-k-intrusions. lower-left region. weighted by rank error (rank - k)
+            Qs = Q_sliced[k:, :k]
+            
+            # a column vector of weights. weight = rank error = actual_rank - k            
+            W = (true_rank[k:]-k).reshape(-1,1)
+                
+            if k < N/2:
+                denom = N*k*(2*N - 3*k - 1)            
+            else:
+                denom = N * (N-k) * (N-k-1)
+            
+            T[ix] = 1 - 2*np.sum(Qs * W) / denom
+            
+        return T, np.array(k_lst)
+
+    def _continuity(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None):
+        # refer to sec 3. https://www.sciencedirect.com/science/article/pii/S0925231209000101        
+        # default is N/2
+        # similar to _trustworthiness
+        
+        N = Q.shape[0]
+        Q_sliced = self._drop_coranking_self_nb(Q)
+        
+        k_lst = self._get_k_lst_TC(N,k_mode,k_min,k_max)
+        
+        C = np.zeros(len(k_lst))
+        true_rank = np.arange(1,N) #for W's
+        
+        for ix,k in enumerate(k_lst):
+            # 1 - normalized hard-k-intrusions. lower-left region. weighted by rank error (rank - k)
+            Qs = Q_sliced[:k, k:]
+            
+            # a column vector of weights. weight = rank error = actual_rank - k            
+            W = (true_rank[k:]-k).reshape(1,-1)
+                
+            if k < N/2:
+                denom = N*k*(2*N - 3*k - 1)            
+            else:
+                denom = N * (N-k) * (N-k-1)
+            
+            C[ix] = 1 - 2*np.sum(Qs * W) / denom
+            
+        return C, np.array(k_lst)
+
+    def _lcmc(self, Q : np.ndarray,k_mode='all',k_min=None,k_max=None):
+        # K/(1-N) + 1/NK * Qnn
+        
+        N = Q.shape[0]
+        Q_sliced = self._drop_coranking_self_nb(Q)
+        
+        k_lst = self._get_k_lst_TC(N,k_mode,k_min,k_max)
+        k_arr = np.array(k_lst)
+        # lambda-loop version
+        # lcmc_k = lambda k : k/(1-N) + np.sum(Q_sliced[:k,:k])/(N*k)
+        # np.array([lcmc_k(k) for k in k_lst])
+
+        # vectorize using cumulative sums
+        block = np.cumsum(np.cumsum(Q_sliced[:-1,:-1], 0), 1)         
+        lcmc = k_arr/(1 - N) + block[k_arr-1,k_arr-1]/(N*k_arr)       
+        return lcmc, k_arr
+
+    def _Q_NN(self, Q : np.ndarray, k_mode='all',k_min=None,k_max=None):
+        N = Q.shape[0]
+        Q_sliced = self._drop_coranking_self_nb(Q)
+        
+        k_lst = self._get_k_lst_TC(N,k_mode,k_min,k_max)
+        k_arr = np.array(k_lst)
+        # vectorize using cumulative sums
+        block = np.cumsum(np.cumsum(Q_sliced[:-1,:-1], 0), 1)         
+        qnn = block[k_arr-1,k_arr-1]/(N*k_arr)       
+        return qnn, k_arr
+              
+    def _Q_local_global(self, Q : np.ndarray, lcmc = None):
+        
+        N = Q.shape[0]
+        if lcmc is None:
+            # find argmax of lcmc            
+            lcmc, k_arr = self._lcmc(Q, k_mode='all')
+        else:
+            k_lst = self._get_k_lst_TC(N,'all')
+            k_arr = np.array(k_lst)
+        
+        i_argmax = int(np.argmax(lcmc))
+        k_argmax = int(k_arr[i_argmax])
+
+        qnn = lcmc - k_arr/(1-N)
+        q_local =  np.mean(qnn[:i_argmax + 1])
+        q_global =  np.mean(qnn[i_argmax:])       
+        
+        return np.array([q_local,q_global]), k_argmax
     
-    def _ranking_matrix(self,X:np.ndarray):
-        pass
-    
-    def _coranking_matrix(self):
-        pass
-    
-    
+    # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - end -------------
+
+# --------------------------
