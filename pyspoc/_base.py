@@ -431,13 +431,13 @@ class Component(
             tuple[type[Component], ...],
             dict[str, Exception]]:
         
-        discovered: set[type[Component]] = set()
+        discovered: dict[str, type[Component]] = {}
         failures: dict[str, Exception] = {}
 
         if cls._cached_components and not refresh:
             for module_reference, component_dict in cls._cached_components.items():
                 for component_name, component in component_dict.items():
-                    discovered.add(component)
+                    discovered[component_name] = component
 
         else:
             component_type = cls._get_component_type()
