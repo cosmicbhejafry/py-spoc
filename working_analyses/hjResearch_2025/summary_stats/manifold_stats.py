@@ -21,6 +21,8 @@ from sklearn.manifold import TSNE, Isomap, trustworthiness, UMAP
 from sklearn.metrics import pairwise_distances
 
 from scipy.stats import rankdata
+from scipy.stats import pearsonr, spearmanr
+from scipy.stats import pdist
 
 class DimReductionMethodsBase(ReducedStatistic):
 
@@ -68,19 +70,31 @@ class DimReductionMethodsBase(ReducedStatistic):
         X_reduced = method_fn(**params).fit_transform(X)
         
         return X_reduced
+    
+    def _pairwise_distance_mtx(self,X,metric='euclidean'):
+        return pairwise_distances(X,metric)
+    
+    def _residual_variance(self, dist_X : np.ndarray, dist_X_reduced : np.ndarray, corr_method = 'pearson'):
+        upper_tri = np.triu_indices(dist_X.shape[0], k=1)
+        pd_x = dist_X[upper_tri]
+        pd_x_r = dist_X_reduced[upper_tri]
+        
+        if corr_method=='pearson':
+            return pearsonr(pd_x.flatten(), pd_x_r.flatten())[0]
+        if corr_method=='spearman':
+            return spearmanr(pd_x.flatten(), pd_x_r.flatten())[0]
+        else:
+            raise ValueError('corr_method not supported')
 
-    def _residual_variance(self, X : np.ndarray, X_reduced : np.ndarray):
-        pass
-
-    def _reconstruction_error(self, X : np.ndarray, X_reduced : np.ndarray):
-        pass
+    # def _goodness_of_fit(self, X : np.ndarray, X_reduced : np.ndarray):
+    #     pass
     
     # ------------- FUNCTIONS ON X_REDICED - end -------------    
 
     # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - start -------------
-    def _ranking_matrix(self, X : np.ndarray, metric = 'euclidean',solver='nilrad') -> np.ndarray:
-                    
-        dist_X = pairwise_distances(X,metric=metric)
+    def _ranking_matrix(self, dist_X : np.ndarray, solver='nilrad') -> np.ndarray:
+           
+        # dist_X = pairwise_distances(X,metric=metric), metric = 'euclidean'
         
         # DEFAULT: set self-distances to inf, avoid ties / floatpoint errors
         # affects slicing of Q
@@ -97,7 +111,10 @@ class DimReductionMethodsBase(ReducedStatistic):
             return np.array(R, dtype = 'uint')
         else:            
             raise ValueError('not supported solver')
-                    
+    
+    def _cluster_ranking_matrix(self):
+        pass
+    
     def _coranking_matrix(self,R1 : np.ndarray ,R2 : np.ndarray,solver='bincount-ravel') -> np.ndarray:
         assert R1.shape == R2.shape
         
@@ -252,7 +269,23 @@ class DimReductionMethodsBase(ReducedStatistic):
         q_global =  np.mean(qnn[i_argmax:])       
         
         return np.array([q_local,q_global]), k_argmax
-    
+
+    def _jaccard_kNN(self):
+        pass
+
+    def _kNN_distances_arr(self):
+        pass
+
     # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - end -------------
 
 # --------------------------
+
+# def _residual_variance_pdist(self, X : np.ndarray, X_reduced : np.ndarray,corr_method = 'pearson'):
+#     pd_x = pdist(X)
+#     pd_x_r = pdist(X_reduced)         
+#     if corr_method=='pearson'
+#         return pearsonr(pd_x.flatten(), pd_x_r.flatten())
+#     if corr_method=='spearman'
+#         return spearmanr(pd_x.flatten(), pd_x_r.flatten())
+#     else:
+#         raise ValueError('wrong method')
