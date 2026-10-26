@@ -34,6 +34,12 @@ class DimReductionMethodsBase(ReducedStatistic):
         # "NMF":    (NMF,    {"init": "nndsvd", "max_iter": 500}), # excluding NMF for now asit needs additional checks on the input matrix
     }
     
+    # GOODNESS_OF_FIT = {
+        # "PCA" : lambda model, X, Xr : reconstruction error,
+        # "TSNE" : lambda model, X, Xr : model.kl_divergence_,
+        # "ISOMAP" : lambda model, X, Xr : reconstruction_error()
+    # }
+    
     # ------------- CLASS DEFINITIONS - start -------------    
     def __init__(self, method : str = 'PCA',embedding_dim=2,random_state=None,**kwargs):
         super().__init__()
@@ -63,18 +69,41 @@ class DimReductionMethodsBase(ReducedStatistic):
         method_fn, method_kwargs = self.METHODS[self.method][0], self.METHODS[self.method][1]
         params = {**method_kwargs, **self.kwargs, "n_components": self.embedding_dim}
         
-        if self.method == 'TSNE':
+        if self.method == 'TSNE': #todo- replace w/ something more general?
             if self.random_state is not None:
                 params['random_state'] = self.random_state
-
-        X_reduced = method_fn(**params).fit_transform(X)
+                
+        model = method_fn(**params)
+        X_reduced = model.fit_transform(X)
+        
+        # fit_score = float(self.GOODNESS_OF_FIT[self.method](model, X, X_reduced)) 
+        # todo- can incorporate fit scores
         
         return X_reduced
+
+    def _reconstruction_error(self):
+        # reconstruction errors or goodness of fit in a way ? 
+        if self.method == "PCA":
+            pass
+            # inverse transform
+            # find RE
+
+        if self.method == "Isomap":
+            pass
+            # use pairwise distances and 
+            # reimplement the reconstruction_error() function for sklearn
+        return np.nan
     
     def _pairwise_distance_mtx(self,X,metric='euclidean'):
-        return pairwise_distances(X,metric)
+        dist_X = pairwise_distances(X,metric=metric)       
+        # DEFAULT: set self-distances to inf, avoid ties / floatpoint errors
+        # affects slicing of Q
+        # slice Q as Q[:-1,:-1] to remove self neighbours        
+        if self.set_self_dist_inf_ranks:
+            np.fill_diagonal(dist_X, np.inf)
+        return dist_X
     
-    def _residual_variance(self, dist_X : np.ndarray, dist_X_reduced : np.ndarray, corr_method = 'pearson'):
+    def _residual_variance(self, dist_X : np.ndarray, dist_X_reduced : np.ndarray, corr_method = 'pearson') -> np.float:
         upper_tri = np.triu_indices(dist_X.shape[0], k=1)
         pd_x = dist_X[upper_tri]
         pd_x_r = dist_X_reduced[upper_tri]
@@ -85,23 +114,11 @@ class DimReductionMethodsBase(ReducedStatistic):
             return spearmanr(pd_x.flatten(), pd_x_r.flatten())[0]
         else:
             raise ValueError('corr_method not supported')
-
-    # def _goodness_of_fit(self, X : np.ndarray, X_reduced : np.ndarray):
-    #     pass
     
     # ------------- FUNCTIONS ON X_REDICED - end -------------    
 
     # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - start -------------
-    def _ranking_matrix(self, dist_X : np.ndarray, solver='nilrad') -> np.ndarray:
-           
-        # dist_X = pairwise_distances(X,metric=metric), metric = 'euclidean'
-        
-        # DEFAULT: set self-distances to inf, avoid ties / floatpoint errors
-        # affects slicing of Q
-        if self.set_self_dist_inf_ranks:
-            np.fill_diagonal(dist_X, np.inf)
-            # slice Q as Q[:-1,:-1] to remove self neighbours
-        
+    def _ranking_matrix(self, dist_X : np.ndarray, solver='nilrad') -> np.ndarray:        
         if solver=='nilrad':
             # Computing ranking_matrix using np.argsort twice on every row [Nilrad]            
             R = [np.argsort(np.argsort(row)) for row in dist_X]
@@ -112,8 +129,27 @@ class DimReductionMethodsBase(ReducedStatistic):
         else:            
             raise ValueError('not supported solver')
     
-    def _cluster_ranking_matrix(self):
-        pass
+    def _cluster_dist_matrix(self, X : np.ndarray, cluster_labels : np.array,metric='euclidean'):
+        
+        assert X.shape[0] == cluster_labels.shape[0]        
+        
+        unique_clusters = np.unique(cluster_labels)
+        num_cluster = len(unique_clusters)
+        cluster_dist_X = np.zeros((num_cluster,num_cluster))
+
+        for ix_i,i in enumerate(unique_clusters):
+            sub_1 = X[cluster_labels == i,:]
+            
+            for ix_j,j in enumerate(unique_clusters):                
+                sub_2 = X[cluster_labels == j,:]
+                
+                if i == j:
+                    cluster_dist_X[ix_i,ix_j] = np.inf
+                    
+                else:
+                    cluster_dist_X[ix_i,ix_j] = np.mean(pairwise_distances(sub_1,sub_2,metric=metric))  
+                    
+        return cluster_dist_X
     
     def _coranking_matrix(self,R1 : np.ndarray ,R2 : np.ndarray,solver='bincount-ravel') -> np.ndarray:
         assert R1.shape == R2.shape
@@ -164,7 +200,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             raise ValueError('invalid k_mode for trustworthiness curve')
         
             
-    def _trustworthiness(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None):
+    def _trustworthiness(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None) -> tuple[np.ndarray, np.ndarray]:
         # refer to sec 3. https://www.sciencedirect.com/science/article/pii/S0925231209000101        
         # matches the sklearn trustworthiness implementation for k < N/2
         # default is N/2
@@ -194,7 +230,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             
         return T, np.array(k_lst)
 
-    def _continuity(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None):
+    def _continuity(self, Q : np.ndarray, k_mode = 'N/2',k_min=None,k_max=None) -> tuple[np.ndarray, np.ndarray]:
         # refer to sec 3. https://www.sciencedirect.com/science/article/pii/S0925231209000101        
         # default is N/2
         # similar to _trustworthiness
@@ -223,7 +259,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             
         return C, np.array(k_lst)
 
-    def _lcmc(self, Q : np.ndarray,k_mode='all',k_min=None,k_max=None):
+    def _lcmc(self, Q : np.ndarray,k_mode='all',k_min=None,k_max=None) -> tuple[np.ndarray, np.ndarray]:
         # K/(1-N) + 1/NK * Qnn
         
         N = Q.shape[0]
@@ -240,7 +276,7 @@ class DimReductionMethodsBase(ReducedStatistic):
         lcmc = k_arr/(1 - N) + block[k_arr-1,k_arr-1]/(N*k_arr)       
         return lcmc, k_arr
 
-    def _Q_NN(self, Q : np.ndarray, k_mode='all',k_min=None,k_max=None):
+    def _Q_NN(self, Q : np.ndarray, k_mode='all',k_min=None,k_max=None) -> tuple[np.ndarray, np.ndarray]:
         N = Q.shape[0]
         Q_sliced = self._drop_coranking_self_nb(Q)
         
@@ -251,7 +287,7 @@ class DimReductionMethodsBase(ReducedStatistic):
         qnn = block[k_arr-1,k_arr-1]/(N*k_arr)       
         return qnn, k_arr
               
-    def _Q_local_global(self, Q : np.ndarray, lcmc = None):
+    def _Q_local_global(self, Q : np.ndarray, lcmc = None) -> tuple[np.ndarray, np.ndarray]:
         
         N = Q.shape[0]
         if lcmc is None:
@@ -270,16 +306,39 @@ class DimReductionMethodsBase(ReducedStatistic):
         
         return np.array([q_local,q_global]), k_argmax
 
-    def _jaccard_kNN(self):
-        pass
+    def _jaccard_sim_kNN(self,R : np.ndarray,R_reduced : np.ndarray,k : int):
 
-    def _kNN_distances_arr(self):
-        pass
+        nn_X = R < k
+        nn_X_reduced = R_reduced < k
+        nn_intersect = np.count_nonzero(nn_X & nn_X_reduced, axis=1)
+        nn_union = np.count_nonzero(nn_X | nn_X_reduced, axis=1)
+        jaccard_sim = nn_intersect / nn_union
+        
+        return jaccard_sim
+    
+    def _kNN_distances_arr(self, R, k, dist_X, dist_X_reduced):
+        
+        #for each i, list of col indices j that are within kNN
+        # nn_X_index = np.nonzero(R < k)[1].reshape(-1, k) # (unsorted)
+        
+        nn_X_index = np.argsort(R, axis=1)[:, :k] # (sorted)
+
+        nn_X_dist = np.take_along_axis(dist_X,nn_X_index,axis=1)
+        nn_X_reduced_dist = np.take_along_axis(dist_X_reduced,nn_X_index,axis=1)        
+        # apply summary functions on these dists. of nearest neighbours
+                
+        return nn_X_dist, nn_X_reduced_dist       
 
     # ------------- RANKING AND CO-RANKING BASED FUNCTIONS - end -------------
 
 # --------------------------
 
+# for a, ci in enumerate(clusters):
+#     mask_i = cluster_labels == ci
+#     for b, cj in enumerate(clusters):
+#         mask_j = cluster_labels == cj
+#         d[a, b] = dist_X[np.ix_(mask_i, mask_j)].mean()
+# return d
 # def _residual_variance_pdist(self, X : np.ndarray, X_reduced : np.ndarray,corr_method = 'pearson'):
 #     pd_x = pdist(X)
 #     pd_x_r = pdist(X_reduced)         
