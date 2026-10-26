@@ -16,9 +16,9 @@ class MaxCovPerFeature(Reducer):
     max absolute off-diagonal value per feature, computed from the covariance matrix
     """
 
-    name = "max absolute off-diagonal value per feature"
-    identifier = "maxcov"
-    labels = ["vector"]
+    # name = "max absolute off-diagonal value per feature"
+    # identifier = "maxcov"
+    # labels = ["vector"]
 
     summary_fns_dict = {
         "median" : lambda dists : np.median(dists),
@@ -30,7 +30,7 @@ class MaxCovPerFeature(Reducer):
         self.stats = stats
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def reduce(self, data: np.ndarray) -> np.ndarray:
         
         """        
         Summarize Statistic output as follows:
@@ -55,14 +55,14 @@ class MaxCovPerFeature(Reducer):
         return np.array(summary)
 
 class EigenAMGMRatio(Reducer):
-    name = "EigenAMGMRatio"
-    identifier = "eig_summary"
-    labels = ["isotropy"]
+    # name = "EigenAMGMRatio"
+    # identifier = "eig_summary"
+    # labels = ["isotropy"]
 
     def __init__(self,):
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def reduce(self, data: np.ndarray) -> np.ndarray:
         
         
         """
@@ -72,27 +72,27 @@ class EigenAMGMRatio(Reducer):
             (intuition- should always be >= 1, the closer it is to 1, the more spherical data)        
         """
 
-        eigs = np.linalg.eigvals(data)
+        eigs = np.linalg.eigvalsh(data)
         
         if np.any(eigs <= 0):
             raise ValueError("Negative eigen values?")
 
-        # arithmetic_mean = np.mean(eigs)
-        # geometric_mean = gmean(eigs)
+        tol = 1e-14 * max(eigs.max(), 0)
+        kept = eigs[eigs > tol]
     
-        return np.mean(eigs) / gmean(eigs)
+        return np.array([gmean(kept) / np.mean(kept)])
     
 
 class EigenEntropy(Reducer):
     # https://en.wikipedia.org/wiki/Von_Neumann_entropy
-    name = "EigenEntropy"
-    identifier = ""
-    labels = ["isotropy"]
+    # name = "EigenEntropy"
+    # identifier = ""
+    # labels = ["isotropy"]
 
     def __init__(self,):
         super().__init__()
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def reduce(self, data: np.ndarray) -> np.ndarray:
         """
         Summarize Statistic output as follows:
             Normalize square matrix to have trace = 1
@@ -104,11 +104,13 @@ class EigenEntropy(Reducer):
         # make trace = 1
         data_norm = data / np.trace(data)
 
-        eigs = np.linalg.eigvals(data_norm)
+        eigs = np.linalg.eigvalsh(data_norm)
         
         if np.any(eigs <= 0):
             raise ValueError("Negative eigen values?")
-
     
-        return -np.sum(eigs * np.log(eigs))
+        return np.array([-np.sum(eigs * np.log(eigs))])
 
+class EigenParticipationRatio(Reducer):
+    pass
+    # https://peterponyu.github.io/liora-ui/metrics/participation_ratio/
