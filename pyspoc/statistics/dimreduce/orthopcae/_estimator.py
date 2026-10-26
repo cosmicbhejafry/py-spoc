@@ -7,7 +7,7 @@ from typing import Any
 from ._model import OrthogonalPCAE
 from pyspoc._estimators.fitting import LazyFittedCachedEstimatorMixin
 from pyspoc.settings import settings
-from pyspoc._exceptions import OptionalDependencyMissingError
+from pyspoc._exceptions import MissingOptionalModuleError
 
 try:
     import torch
@@ -15,7 +15,7 @@ try:
     import torch.nn as nn
     from torch.utils.data import DataLoader, TensorDataset
     from pyspoc._random.torch import make_torch_generator
-except ImportError as e:
+except ModuleNotFoundError as e:
     package_name = __package__
 
     from pyspoc._utils.lib import TORCH_URL
@@ -27,8 +27,8 @@ except ImportError as e:
            "which was not found. We recommend installing torch directly rather "
            "than through pySPoC, which will allow for a machine-specific installation. "
            f"Installation instructions can be found here: {TORCH_URL}.")
-    raise OptionalDependencyMissingError(
-        dependency=e.name, feature="OrthogonalPCAE", install_hint=msg)
+    raise MissingOptionalModuleError(
+        msg, name=e.name, path=e.path)
 
 
 
