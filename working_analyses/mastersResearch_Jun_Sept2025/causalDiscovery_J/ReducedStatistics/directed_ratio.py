@@ -21,13 +21,13 @@ class DirectedRatio(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def tags(self) -> list[str]:
+    def labels(self) -> list[str]:
         return ["causal",
                 "pc_algorithm",
                 "graph",
                 "directed_edges"]
 
-    def _compute(self, data: np.ndarray) -> float:
+    def compute(self, data: np.ndarray) -> float:
         # Run the PC algorithm and extract the custom adjacency matrix (see below/causal-learn documentation)
         # i->j: A_ji=1; A_ij = -1
         # i-j: A_ji = A_ij = -1

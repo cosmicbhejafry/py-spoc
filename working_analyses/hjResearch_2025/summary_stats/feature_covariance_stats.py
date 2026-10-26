@@ -27,6 +27,12 @@ class MaxCovPerFeature(Reducer):
         super().__init__()
 
     def compute(self, data: np.ndarray) -> np.ndarray:
+        
+        """        
+        Summarize Statistic output as follows:
+            Return median, min and max of the absolute off-diagonal value per column
+        """
+        
 
         assert data.shape[0]==data.shape[1]
         
@@ -53,9 +59,14 @@ class EigenAMGMRatio(Reducer):
         super().__init__()
 
     def compute(self, data: np.ndarray) -> np.ndarray:
-        """computes ratio of arithmetic mean / geometric mean.
-        should always be >= 1
-        the closer it is to 1, the more spherical data"""
+        
+        
+        """
+        Summarize Statistic output as follows:
+            Find eigenvalues of the square matrix
+            Return the ratio of the arithmetic / geometric mean of the eigenvals                
+            (intuition- should always be >= 1, the closer it is to 1, the more spherical data)        
+        """
 
         eigs = np.linalg.eigvals(data)
         
@@ -79,6 +90,11 @@ class EigenEntropy(Reducer):
 
     def compute(self, data: np.ndarray) -> np.ndarray:
         """
+        Summarize Statistic output as follows:
+            Normalize square matrix to have trace = 1
+            Find eigenvals
+            Return entropy of the eigenval distribution
+            (ref. von neumann entropy, concept from physics)       
         """
 
         # make trace = 1

@@ -23,7 +23,7 @@ class GPLVM_Fit(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def tags(self) -> list[str]:
+    def labels(self) -> list[str]:
         return ["my_new_reducer_label_1",
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
@@ -42,7 +42,7 @@ class GPLVM_Fit(ReducedStatistic):
 
         return A
 
-    def _compute(self, data: np.ndarray) -> float:
+    def compute(self, data: np.ndarray) -> float:
 
         # Dimensionally reduce the data
         Y = data

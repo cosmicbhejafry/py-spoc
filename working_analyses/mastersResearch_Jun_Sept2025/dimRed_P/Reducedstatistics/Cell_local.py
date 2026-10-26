@@ -26,12 +26,12 @@ class Cell_local(ReducedStatistic):
         return "my_new_reducer_identifier"
 
     @property
-    def tags(self) -> list[str]:
+    def labels(self) -> list[str]:
         return ["my_new_reducer_label_1",
                 "my_new_reducer_label_2",
                 "my_new_reducer_label_n"]
 
-    def _compute(self, data: np.ndarray) -> float:
+    def compute(self, data: np.ndarray) -> float:
 
         # Center and scals data
         scaled_data = scale(data)
