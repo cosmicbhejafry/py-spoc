@@ -8,17 +8,6 @@ if TYPE_CHECKING:
      from pyspoc._base import Component
 
 
-class MissingOptionalModuleError(ModuleNotFoundError):
-
-    def __init__(
-            self,
-            *args: object,
-            name: str,
-            path: str):
-        
-        super().__init__(*args, name=name, path=path)
-        
-
 
 class InvalidStandardisedCausalGraphError(ValueError):
 
