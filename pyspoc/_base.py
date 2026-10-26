@@ -6,19 +6,14 @@ import os
 import inspect
 import pkgutil
 import re
-import importlib
-import warnings
 
-from runpy import run_path
 from collections.abc import Callable, Collection
 from functools import wraps
 from types import FunctionType, ModuleType, MethodType, MappingProxyType
-from typing import (
-    Self, Literal, Iterable, Any, Optional, Dict, TypeVar, cast, overload, TYPE_CHECKING)
+from typing import Self, Literal, Iterable, Any, Optional, Dict, TypeVar, cast, TYPE_CHECKING
 from abc import ABC, abstractmethod
 from textwrap import dedent
 from numbers import Number
-from argparse import Namespace
 from typeguard import typechecked
 from yaml import safe_load
 from warnings import warn
@@ -27,7 +22,6 @@ from pathlib import Path
 from importlib import import_module
 from importlib.resources.abc import Traversable
 
-from pyspoc._exceptions import OptionalDependencyMissingError
 from pyspoc._descriptors import hybridmethod
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 from pyspoc._random import RandomSeedMixin
@@ -35,6 +29,7 @@ from pyspoc._utils import lib
 from pyspoc.settings import settings
 from pyspoc._exceptions import MissingComponentPropertyError
 from pyspoc._tag import Tag, Type, Signature
+
 
 if TYPE_CHECKING:
     from pyspoc.calculator import Calculator
@@ -84,20 +79,13 @@ class Component(
     Provides functionality for constructing configuration files.
     """
 
-    _TICK_CHAR = u'\u2714'
-    _CROSS_CHAR = u'\u2716'
-
     # Constructors temporarily shadow this default on each instance. Declaring
     # it here makes the internal lifecycle attribute visible to static type
     # checkers without retaining per-instance state after initialization.
     _component_init_capture_depth: int = 0
     _warned_properties_missing = False
     _warned_properties_error = False
-    _properties_mapping: MappingProxyType[str, dict[str, str | list]] = \
-        MappingProxyType({})
-    _cached_modules = dict()
-    _cached_components: MappingProxyType[str, dict[str, type["Component"]]] = \
-        MappingProxyType({})
+    _properties_mapping: MappingProxyType[str, dict[str, str | list]] = MappingProxyType({})
 
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -423,47 +411,51 @@ class Component(
 
 
     @classmethod
-    def get_available(
-            cls,
-            refresh: bool = False,
-            raise_errors: bool = False
-    ) -> tuple[
-            tuple[type[Component], ...],
-            dict[str, Exception]]:
-        
+    def get_available(cls, raise_errors: bool = False) -> tuple[
+        tuple[type[Component], ...],
+        dict[str, Exception]]:
+
+        component_type = cls._get_component_type()
+        base_package_name = component_type.__module__
+        module = import_module(base_package_name)
+        package = cls._get_containing_package(module)
         discovered: set[type[Component]] = set()
         failures: dict[str, Exception] = {}
 
-        if cls._cached_components and not refresh:
-            for module_reference, component_dict in cls._cached_components.items():
-                for component_name, component in component_dict.items():
-                    discovered.add(component)
+        if package is None:
+            error = RuntimeError(
+                "Unable to find associated package to search "
+                f"for {cls.__qualname__}s")
 
-        else:
-            component_type = cls._get_component_type()
-            base_package_name = component_type.__module__
-            module = import_module(base_package_name)
-            package = cls._get_containing_package(module)
+            if raise_errors:
+                raise error
+            else:
+                failures[cls.__qualname__] = error
+                return (), failures
 
-            if package is None:
-                error = RuntimeError(
-                    "Unable to find associated package to search "
-                    f"for {cls.__qualname__}s")
 
+        for module_info in pkgutil.walk_packages(
+            package.__path__,
+            prefix=f"{package.__name__}.",
+        ):
+            try:
+                module = import_module(module_info.name)
+            except Exception as error:
                 if raise_errors:
                     raise error
-                else:
-                    failures[cls.__qualname__] = error
-                    return (), failures
 
-            cached_components = dict()
-            
-            for module_info in pkgutil.walk_packages(
-                package.__path__,
-                prefix=f"{package.__name__}."):
+                failures[module_info.name] = error
+                continue
 
+            for _, candidate in inspect.getmembers(module, inspect.isclass):
                 try:
-                    module = import_module(module_info.name)
+                    if (
+                        candidate is not component_type
+                        and issubclass(candidate, component_type)
+                        and not inspect.isabstract(candidate)
+                        and candidate.__module__ == module.__name__
+                    ):
+                        discovered.add(candidate)
                 except Exception as error:
                     if raise_errors:
                         raise error
@@ -471,225 +463,10 @@ class Component(
                     failures[module_info.name] = error
                     continue
 
-                for _, candidate in inspect.getmembers(module, inspect.isclass):
-                    try:
-                        if (
-                            candidate is not component_type
-                            and issubclass(candidate, component_type)
-                            and not inspect.isabstract(candidate)
-                            and candidate.__module__ == module.__name__):
-                            
-                            discovered.add(candidate)
-                            
-                            if not cached_components.get(module.__name__):
-                                cached_components[module.__name__] = {}
-
-                            module_components = cached_components[module.__name__]
-                            module_components[candidate.__qualname__] = candidate
-
-                    except Exception as error:
-                        if raise_errors:
-                            raise error
-
-                        failures[module_info.name] = error
-                        continue
-
-                cls._cached_components = MappingProxyType(cached_components)
-                
         classes = tuple(
             sorted(discovered, key=lambda cls: cls.__module__ + cls.__qualname__)
         )
         return classes, failures
-
-    @overload
-    @classmethod
-    def make_component(
-            cls,
-            component_name: str) -> Component | None: ...
-
-
-    @overload
-    @classmethod
-    def make_component(
-            cls,
-            component_name: str,
-            module_reference: str) -> Component | None: ...
-
-    @overload
-    @classmethod
-    def make_component(
-            cls,
-            component_name: str,
-            module_reference: str,
-            component_archetype: type[Component]) -> Component | None: ...
-    
-
-    @classmethod
-    def make_component(
-            cls,
-            component_name: str,
-            module_reference: str | None = None,
-            component_archetype: type[Component] | None = None) -> Component | None:
-        
-        if module_reference is None:
-            available = cls.get_available()
-            available
-
-        full_component_name = _get_full_component_name(module_reference, component_name)
-
-        # Return cached object if present.
-        if component_archetype:
-            component_type_name = component_archetype.__name__
-            component_classes = cls._cached_components.get(component_type_name)
-        
-            if component_classes:
-                component_class = component_classes.get(full_component_name)
-
-                if component_class:
-                    return component_class()
-
-        # Otherwise check the module directory - will only have it by class name not component name.
-        # TODO: this needs a fix
-        is_component_exists = component_name in module_reference.__dir__()
-
-        # Skip if not present.
-        if not is_component_exists:
-            print(f"  {cls._CROSS_CHAR} {component_type_name} {component_name} could not be found. "
-                  "Skipping.")
-            return
-
-        # Get object from module
-        component_class = getattr(module_reference, component_name)
-
-        # Check object is the expected type
-        if not issubclass(component_class, component_archetype):
-            type_name = component_class.__name__
-            print(f"  {cls._CROSS_CHAR} {component_type_name} {component_name} is of type "
-                  f"{type_name} which is not a {component_type_name} object. Skipping.")
-            return
-
-
-        if False:
-            dependency_delimited = ",".join(dependency_set)
-            print(f"  {cls._CROSS_CHAR} {component_type_name} {component_name} is missing dependencies. "
-                    f"Skipping")
-            print(f"    (Missing dependencies: {dependency_delimited})")
-            return
-
-        return component_class
-
-    @classmethod
-    def _find_component(
-            cls,
-            component_name: str) -> Component | None:
-
-
-        
-
-    @classmethod
-    def _get_module(
-            cls,
-            module_reference: str,
-            global_modules: dict | None = None,
-            refresh_module: bool = False) -> ModuleType | Namespace | None:
-
-        # Check if module is cached.
-        module = cls._get_cached_module(module_reference)
-
-        if module:
-            return module
-
-        # Check package modules.
-        module = cls._get_package_module(module_reference)
-
-        if module:
-            return module
-
-        # Check modules loaded in memory.
-        module = cls._get_loaded_module(module_reference, global_modules)
-        
-        if module:
-            return module
-
-        # Check module files.
-        module = cls._load_module_file(module_reference,
-                                        refresh_module=refresh_module,
-                                        suppress_warning=True)
-
-        if module:
-            return module
-        
-    @classmethod
-    def _get_cached_module(
-            cls,
-            module_reference: str) -> ModuleType | Namespace | None:
-
-        # Check if module is already loaded.
-        module = cls._cached_modules.get(module_reference)
-
-        if module:
-            print(f"  {cls._TICK_CHAR} Module {module_reference} already loaded.")
-            return module
-        
-    @classmethod
-    def _get_package_module(
-            cls,
-            module_reference: str) -> ModuleType | None:
-        
-        # Get package modules.
-        try:
-            module = importlib.import_module(module_reference, __package__)
-            print(f"  {cls._TICK_CHAR} Module {module_reference} loaded successfully.")
-            
-            if hasattr(module, "IMPORT_WARNINGS") and not settings.current.ignore_import_warnings:
-                print("    (The following warnings were raised: "
-                        f"{[str(w.message) for w in module.IMPORT_WARNINGS]})")
-
-            return module
-        except ModuleNotFoundError:
-            pass
-        except Exception as e:
-            raise e
-        
-    @classmethod
-    def _get_loaded_module(
-            cls,
-            module_reference: str,
-            global_modules: dict | None) -> ModuleType | None:
-    
-        if not global_modules:
-            global_modules = {obj.__name__.lower(): obj for obj
-                in globals().values() if inspect.ismodule(obj)}
-        
-        module = global_modules.get(module_reference)
-
-        if module:
-            print(f"  {cls._TICK_CHAR} Module {module_reference} loaded from global environment.")
-            return module
-
-    @classmethod
-    def _load_module_file(
-            cls,
-            module_path: str,
-            refresh_module: bool,
-            suppress_warning: bool = False) -> ModuleType | Namespace | None:
-
-        # Get cached module if available
-        module = cls._cached_modules.get(module_path)
-
-        if module and not refresh_module:
-            return module
-
-        # Otherwise check if module path exists
-        if not os.path.isfile(module_path) and not suppress_warning:
-            warnings.warn(f"No file could be found at the following path: {module_path}")
-            return
-
-        # Load and return module
-        module_dict = run_path(module_path, run_name=module_path)
-        module = Namespace(**module_dict)
-        cls._cached_modules[module_path] = module
-        return module
 
     
     @classmethod
@@ -699,6 +476,9 @@ class Component(
     
     @classmethod
     def _load_properties(cls, reload: bool = False):
+        #from inspect import isabstract
+
+        #is_abstract_cls = isabstract(cls)
         property_schema = cls._get_property_schema()
         properties = cls._get_properties(reload)
         throw_load_errors = settings.current.properties_load_error_response
@@ -1099,45 +879,6 @@ def retrieve_arg_name(var, max_steps: int = 2):
             break
 
     return var_name
-
-
-
-def _get_module_name(module: ModuleType | Namespace):
-    module_name = module.__name__
-    is_internal = _is_internal_module(module_name)
-
-    if is_internal:
-        return module_name
-
-    return module.__file__
-
-def _get_component_module_name(component: Component):
-    module = inspect.getmodule(component)
-
-    if module:
-        return _get_module_name(module)
-
-    return component.__module__
-
-def _is_internal_module(module_reference: str) -> bool:
-
-    try:
-        importlib.import_module(module_reference)
-        return True
-    except ModuleNotFoundError:
-        return False
-    except Exception as e:
-        raise e
-
-def _get_full_component_name(module_name: str, component_type_name: str) -> str:
-    return module_name + "." + component_type_name
-
-def _get_full_instantiated_name(module_name: str, component_type_name: str, scheme_name: str) -> str:
-    return ".".join([module_name, component_type_name, scheme_name])
-
-def _get_component_name_parts(full_component_name) -> tuple[str, str, str]:
-    component_parts = full_component_name.split(".")
-    return ".".join(component_parts[:-2]), component_parts[-2], component_parts[-1]
 
 
 def convert_mdf_to_ddf(df):

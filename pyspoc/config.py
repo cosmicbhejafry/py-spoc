@@ -7,8 +7,9 @@ import re
 import inspect
 import importlib
 import json
+import pyspoc._base as pyb
 
-from typing import Literal, Any, Iterable, Generator, cast
+from typing import Iterable, Generator, cast
 from types import ModuleType
 from runpy import run_path
 from argparse import Namespace
@@ -16,7 +17,6 @@ from typeguard import TypeCheckError
 from pathlib import Path
 
 import pyspoc._argchecking as argchk
-import pyspoc._base as pyb
 from pyspoc.settings import settings
 from pyspoc._utils import lib
 from pyspoc._base import Component
@@ -117,17 +117,14 @@ class Config:
         """
         Creates and returns a new Config object from the provided YAML string.
 
-        Parameters
-        ----------
-            name : str
-                A reference name for the configuration.
-            yaml_string : str
-                A string in YAML format representing the configuration.
+        Arguments:
+            name (string): A reference name for the configuration.
+            yaml_string (string): A string in YAML format representing the configuration.
         """
         instance = cls(name)
         print("Registering YAML string.")
         instance._config_dict = yaml.load(yaml_string, Loader=yaml.FullLoader)
-        instance._process_config_dict()
+        instance._process_config_file()
         return instance
     
     @classmethod
@@ -135,12 +132,9 @@ class Config:
         """
         Creates and returns a new Config object from a YAML file.
 
-        Parameters
-        ----------
-            name : str
-                A reference name for the configuration.
-            yaml_file_path : str
-                A file path pointing to a valid configuration in YAML format.
+        Arguments:
+            name (string): A reference name for the configuration.
+            yaml_file_path (string): A file path pointing to a valid configuration in YAML format.
         """
         instance = cls(name)
         print("Registering YAML configuration file: {}.".format(yaml_file_path))
@@ -149,72 +143,128 @@ class Config:
             config_dict = yaml.load(yaml_io, Loader=yaml.FullLoader)
 
         instance._config_dict = config_dict
-        instance._process_config_dict()
+        instance._process_config_file()
         return instance
 
     @classmethod
     def from_internal(cls, name: str) -> Config:
         """
-        Creates and returns a new Config object from a pre-defined internal configuration provided
-        by the framework.
+        Creates and returns a new Config object from a pre-defined internal configuration provided by the framework.
 
-        Parameters
-        ----------
-            name : str
-                Name of the pre-defined configuration. Options available are:
-                    fabfour
-                    fast
-                    basic
-                    causal
-                    distance
-                    misc
+        Arguments:
+            name (string): Name of the pre-defined configuration. Options available are:
+                fabfour
+                fast
+                basic
+                causal
+                distance
+                misc
         """
         
         yaml_path = Path(f"run_config/{name}.yaml")
         yaml_resource = lib.get_library_resource(yaml_path)
         return cls.from_yaml_file(name, yaml_resource)
 
+    @classmethod
+    def from_archetypes(cls, 
+                        name: str,
+                        statistic_archetypes: list[str] | None = None,
+                        reducer_archetypes: list[str] | None = None,
+                        reduced_statistic_archetypes: list[str] | None = None) -> Config:
+                
+        if not reduced_statistic_archetypes:
+            reduced_statistic_archetypes = list()
+
+        if not statistic_archetypes:
+            statistic_archetypes = list()
+
+        if not reducer_archetypes:
+            reducer_archetypes = list()
+        
+        is_valid_config = any([
+           reduced_statistic_archetypes,
+           statistic_archetypes and reducer_archetypes
+        ])
+        
+        if not is_valid_config:
+            raise ValueError("At least one of the following argument inputs are required to produce a valid configuration\n"
+                             " - statistic_archetypes and reducer_archetypes must be provided.\n"
+                             " - reduced_statistic_archetypes must be provided.")
+        
+        instance = cls(name)
+        component_dirs = ["statistics", "reducers", "rstatistics"]
+        component_classes = [Statistic, Reducer, ReducedStatistic]
+        all_archetypes = [statistic_archetypes, reducer_archetypes, reduced_statistic_archetypes]
+        archetype_triples = zip(component_dirs, component_classes, all_archetypes)
+        
+        for dir, component_class, archetypes in archetype_triples:
+            for archetype in archetypes:
+                module_reference = f"pyspoc.{dir}.{archetype}"
+                module = cls._get_module(module_reference)
+                instance._cached_modules[module_reference] = module
+
+                for module_obj in cls._get_components_from_module(module):
+                    instance._add_component(module_obj, component_class, "std")
+
+        if instance.statistics and instance.reducers:
+            return instance
+        
+        if instance.reduced_statistics:
+            return instance
+
+        raise ValueError("The selected archetypes did not result in a valid configuration. "
+                         "Please report the issue to " + lib.PYSPOC_GITHUB_URL)
+
+    @staticmethod
+    def _get_components_from_module(module: ModuleType | Namespace) -> Generator[Component]:
+
+        for name, module_obj in module.__dict__.items():
+
+            if not inspect.isclass(module_obj):
+                continue
+            
+            if not issubclass(module_obj, Component):
+                continue
+
+            if hasattr(module_obj, "__abstractmethods__"):
+                abstract_methods = getattr(module_obj, "__abstractmethods__")
+                
+                if abstract_methods:
+                    continue
+
+            if not pyb.has_required_func_args(module_obj.__init__):
+                yield module_obj()
 
     @classmethod
-    def from_dict(
-        cls,
-        name: str,
-        config_dict: dict[str, dict[str, dict[str, dict[str, Any]]]]) -> Config:
+    def from_dict(cls, name: str, config_dict: dict) -> Config:
         """
         Creates and returns a new Config object from a Python dictionary.
 
-        Parameters
-        ----------
-            name : str
-                A reference name for the configuration.
-            config_dict : dict[str, dict[str, dict[str, dict[str, Any]]]]
-                A Python nested dictionary object representing a valid configuration.
+        Arguments:
+            name (string): A reference name for the configuration.
+            config_dict (dictionary): A Python dictionary object representing a valid configuration.
         """
         instance = cls(name)
         print("Registering configuration dictionary object.")
-        instance._config_dict = config_dict.copy()
-        instance._process_config_dict()
+        instance._config_dict = config_dict
+        instance._process_config_file()
         return instance
-    
 
     @classmethod
     def from_json_file(cls, name: str, json_file_path: str) -> Config:
         """
         Creates and returns a new Config object from a JSON file.
 
-        Parameters
-        ----------
-            name : str
-                A reference name for the configuration.
-            json_file_path : str
-                A file path pointing to a valid configuration in JSON format.
+        Arguments:
+            name (string): A reference name for the configuration.
+            json_file_path (string): A file path pointing to a valid configuration in JSON format.
         """
         instance = cls(name)
         print("Registering YAML configuration file: {}.".format(json_file_path))
         with open(json_file_path, "r") as f:
             instance._config_dict = json.load(f)
 
-        instance._process_config_dict()
+        instance._process_config_file()
         return instance
 
     def add_statistic(self,
@@ -234,24 +284,19 @@ class Config:
     def add_statistic_by_name(self,
                               module_reference: str,
                               statistic_name: str,
-                              statistic_params: dict[str, Any],
+                              statistic_params: dict,
                               scheme_name: str,
                               refresh_module: bool = False):
         """
-        Adds a new Statistic to the configuration based on the specified name and
-        configuration parameters.
+        Adds a new Statistic to the configuration based on the specified name and configuration parameters.
 
-        Parameters
-        ------------
-            module_reference : str
-                A reference to the module containing the Statistic class.
+        Arguments:
+            module_reference (string): A reference to the module containing the Statistic class.
                 The following formats are supported:
                     - Dot format for internal PySS modules (ie. "pyspoc.statistics.basic")
                     - File path (ie. "/path/to/my/module.py")
-            statistic_name : str
-                Name of the Statistic class.
-            statistic_params: dict:
-                A dictionary of parameters for instantiating the Statistic object.
+            statistic_name (string): Name of the Statistic class.
+            statistic_params (dictionary): A dictionary of parameters for instantiating the Statistic object.
             scheme_name (string): A unique name for the scheme attached to the object.
             refresh_module (bool): If set to true, PySS will reimport the module if already loaded (default: False).
         """
@@ -269,30 +314,25 @@ class Config:
         statistic = cast(Statistic, component)
         self.add_statistic(statistic, scheme_name)
 
-    def add_reduced_statistic(
-            self,
-            reduced_statistic: ReducedStatistic,
-            scheme_name: str):
+    def add_reduced_statistic(self,
+                              reduced_statistic: ReducedStatistic,
+                              scheme_name: str):
         """
         Adds a new ReducedStatistic to the configuration.
 
-        Parameters
-        ----------
-            reduced_statistic : ReducedStatistic
-                A ReducedStatistic object to add to the configuration.
-            scheme_name : str:
-                A unique name for the scheme attached to the object.
-        """
+        Arguments:
+            reduced_statistic (ReducedStatistic): A ReducedStatistic object to add to the configuration.
+            scheme_name (string): A unique name for the scheme attached to the object.
+        """        
         
         self._add_component(reduced_statistic, ReducedStatistic, scheme_name)
 
-    def add_reduced_statistic_by_name(
-            self,
-            module_reference: str,
-            reduced_statistic_name: str,
-            reduced_statistic_params: dict,
-            scheme_name: str,
-            refresh_module: bool = False):
+    def add_reduced_statistic_by_name(self,
+                                      module_reference: str,
+                                      reduced_statistic_name: str,
+                                      reduced_statistic_params: dict,
+                                      scheme_name: str,
+                                      refresh_module: bool = False):
         
         """
         Adds a new ReducedStatistic to the configuration based on the specified name and configuration parameters.
@@ -308,13 +348,12 @@ class Config:
             refresh_module (bool): If set to true, PySS will reimport the module if already loaded (default: False).
         """        
         
-        component = self._get_component_by_name(
-            module_reference,
-            Statistic,
-            reduced_statistic_name,
-            reduced_statistic_params,
-            scheme_name,
-            refresh_module)
+        component = self._get_component_by_name(module_reference,
+                                                 Statistic,
+                                                 reduced_statistic_name,
+                                                 reduced_statistic_params,
+                                                 scheme_name,
+                                                 refresh_module)
         
         if not component:
             return
@@ -576,12 +615,11 @@ class Config:
         if applicable_stats:
             module_dict[reducer_name]["Statistics"] = list(applicable_stats)
 
-    
-    def _process_config_dict(self, config_dict: dict):
-        print("Building internal configuration.")
-        stats_spec = self._get_verified_component_type_config_dict("Statistics")
-        reducers_spec = self._get_verified_component_type_config_dict("Reducers")
-        rstats_spec = self._get_verified_component_type_config_dict("ReducedStatistics")
+    def _process_config_file(self):
+        print(f"Building internal configuration.")
+        stats_spec = self._get_config_top_level("Statistics")
+        reducers_spec = self._get_config_top_level("Reducers")
+        rstats_spec = self._get_config_top_level("ReducedStatistics")
         
         invalid_config = all(
             [not stats_spec and not reducers_spec,
@@ -595,84 +633,20 @@ class Config:
 
         self._build_config_scheme(stats_spec, reducers_spec, rstats_spec)
 
+    def _get_config_top_level(self, level_name: str):
+        level_dict = self._config_dict.get(level_name)
 
-    def _verify_component_dict_structure(
-            self,
-            config_dict: dict[str, dict[str, dict[str, dict[str, Any]]]]):
-        pass
-
-    def _get_verified_statistics_config_dict(
-            self,
-            config_dict: dict[str, dict[str, dict[str, dict[str, Any]]]]):
-
-        stats_dict = self._get_verified_component_type_config_dict(
-            config_dict, "Statistics")
-
-        if stats_dict:
-            self._verify_component_dict_structure(
-                component_name="Statistic",
-                expected_branch_levels=["Statistic", "Scheme"],
-                level_dict=stats_dict)
-
-    def _get_verified_component_type_config_dict(
-            self,
-            config_dict: dict,
-            component_types_name: Literal[
-                "Statistics", "Reducers", "ReducedStatistics"]) -> dict:
-        
-        component_type_dict = config_dict.get(component_types_name)
-
-        if not component_type_dict:
+        if not level_dict:
             return dict()
-           
-        if not isinstance(component_type_dict, dict):
-            raise TypeError(
-                f"Configuration contains incorrect format for {component_types_name} definition.")
+
+        try:
+            argchk.check_type(level_dict, dict)
+        except TypeCheckError as e:
+            raise RuntimeError(
+                f"Configuration contains incorrect format for {level_name} definition.") from e
             
         # edited -- module.lower() wont work on all OS
-        return component_type_dict
-
-    def _verify_component_dict_structure(
-            self,
-            component_name: str,
-            expected_branch_levels: list[str],
-            level_dict: dict):
-
-        n_expected_levels = len(expected_branch_levels)
-
-        if n_expected_levels == 0:
-            return
-        
-        current_level = expected_branch_levels[0]
-        
-        for next_level_key, next_level_dict in level_dict.items():
-            if not isinstance(next_level_key, str):
-                raise TypeError(
-                    f"Configuration contains invalid {current_level} designation for component "
-                    f"{component_name}. "
-                    f"Expected a string, got value {next_level_key} of type {type(next_level_key)}."
-                    )
-
-
-            if not isinstance(next_level_dict, dict):
-                raise TypeError(
-                    f"Configuration contains incorrect format for {current_level} definition for "
-                    f"component {component_name}. "
-                    f"Expected a dict, got value {next_level_dict} of type {type(next_level_dict)}."
-                    )
-
-            self._verify_component_dict_structure(
-                component_name=component_name,
-                expected_branch_levels=expected_branch_levels[1:],
-                level_dict=next_level_dict)
-            
-    def _build_stats_config(
-            self,
-            stats_dict: dict
-    ): pass
-
-        
-        
+        return {module: component_config for module, component_config in level_dict.items()}
 
     def _build_config_scheme(self,
                               stats_spec: dict,
@@ -781,13 +755,12 @@ class Config:
                     yield component, scheme_name, component_params
 
     @staticmethod
-    def _instantiate_component(
-        module_reference: str,
-        component_name: str,
-        component_archetype_name: str,
-        component_class: type,
-        scheme_name: str,
-        scheme_args: dict) -> Component:
+    def _instantiate_component(module_reference: str,
+                                component_name: str,
+                                component_archetype_name: str,
+                                component_class: type,
+                                scheme_name: str,
+                                scheme_args: dict) -> Component:
 
         # Get required constructor arguments
         args = pyb.get_obj_init_args(component_class)

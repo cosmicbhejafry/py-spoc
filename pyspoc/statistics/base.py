@@ -74,9 +74,8 @@ class StatisticBase(Component, ABC):
 
     def __init__(
             self,
-            dim: Literal["n", "p"] = "p",
-            nan_policy: Literal[
-                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+            dim: Literal["n", "p"],
+            nan_policy: Literal["raise", "row-omit", "col-omit"],
             *,
             internal_parallelism: Literal["serial", "parallel"] = "serial",
             thread_safety: Literal["safe", "unsafe"] = "unsafe"):
@@ -464,9 +463,8 @@ class PairwiseStatistic(Statistic):
 
     def __init__(
             self,
-            dim: Literal["n", "p"] = "p",
-            nan_policy: Literal[
-                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+            dim: Literal["n", "p"],
+            nan_policy: Literal["raise", "row-omit", "col-omit"],
             is_ordered: bool = False,
             symmetry_type: Literal["exact", "negative", "reciprocal", "triangular"] | None = None,
             internal_parallelism: Literal["serial", "parallel"] = "serial",
