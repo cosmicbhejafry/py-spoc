@@ -25,6 +25,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
     VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid', 'global_trimmed_mean_centroid'}    
 
     def __init__(self, metric: str = "euclidean",minkowski_p=None):
+        super().__init__()
         
         self.metric = metric
             
