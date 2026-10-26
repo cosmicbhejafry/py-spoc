@@ -15,14 +15,14 @@ import numpy as np
 from typing import Union
 from abc import ABC
 from pyspoc.dataset import Dataset
+from typing import TypeGuard, Literal, Any, overload
 
 from sklearn.decomposition import PCA, NMF
-from sklearn.manifold import TSNE, Isomap, trustworthiness, UMAP
+from sklearn.manifold import TSNE, Isomap, trustworthiness
 from sklearn.metrics import pairwise_distances
 
 from scipy.stats import rankdata
 from scipy.stats import pearsonr, spearmanr
-from scipy.stats import pdist
 
 class DimReductionMethodsBase(ReducedStatistic):
 
@@ -41,13 +41,16 @@ class DimReductionMethodsBase(ReducedStatistic):
     # }
     
     # ------------- CLASS DEFINITIONS - start -------------    
-    def __init__(self, method : str = 'PCA',embedding_dim=2,random_state=None,**kwargs):
-        super().__init__()
+    def __init__(self, method : str = 'PCA',embedding_dim=2,
+                 random_state=None,
+                 dim: Literal["n", "p"] = "n",
+                 nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
+        super().__init__(dim=dim,nan_policy=nan_policy)
         
         self.method = method.upper()
         self.embedding_dim = embedding_dim
         self.random_state = random_state
-        self.kwargs = kwargs
+        self.kwargs = {} #removing **kwargs from defn right now
         
         self.set_self_dist_inf_ranks=True
                 
@@ -58,8 +61,8 @@ class DimReductionMethodsBase(ReducedStatistic):
         # self.X_reduced_fit = None
         # self.X_reduced = None
         
-    def calculate(self, dataset: Dataset):
-        result = super().calculate(dataset)
+    def _calculate(self, data : np.ndarray):
+        result = super()._calculate(data)
         return result
     # ------------- CLASS DEFINITIONS - end -------------
 
@@ -103,7 +106,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             np.fill_diagonal(dist_X, np.inf)
         return dist_X
     
-    def _residual_variance(self, dist_X : np.ndarray, dist_X_reduced : np.ndarray, corr_method = 'pearson') -> np.float:
+    def _residual_variance(self, dist_X : np.ndarray, dist_X_reduced : np.ndarray, corr_method = 'pearson'):
         upper_tri = np.triu_indices(dist_X.shape[0], k=1)
         pd_x = dist_X[upper_tri]
         pd_x_r = dist_X_reduced[upper_tri]
@@ -179,10 +182,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             # self-distances computed as 0 while computing R and Q
             return Q[1:,1:]
     
-    # def _trustworthiness_k(self,Q:np.ndarary,k):
-    # could write functions for each k separately, but more efficient to loop it i think
-    #     pass
-    
+    # could write functions for each k separately, but more efficient to loop it i think    
     def _get_k_lst_TC(self,N,k_mode,k_min,k_max):
         if k_mode == 'N/2':
             return range(1,(N + 1) // 2)
@@ -286,9 +286,8 @@ class DimReductionMethodsBase(ReducedStatistic):
         block = np.cumsum(np.cumsum(Q_sliced[:-1,:-1], 0), 1)         
         qnn = block[k_arr-1,k_arr-1]/(N*k_arr)       
         return qnn, k_arr
-              
+                      
     def _Q_local_global(self, Q : np.ndarray, lcmc = None) -> tuple[np.ndarray, np.ndarray]:
-        
         N = Q.shape[0]
         if lcmc is None:
             # find argmax of lcmc            
@@ -296,14 +295,14 @@ class DimReductionMethodsBase(ReducedStatistic):
         else:
             k_lst = self._get_k_lst_TC(N,'all')
             k_arr = np.array(k_lst)
-        
+            
         i_argmax = int(np.argmax(lcmc))
         k_argmax = int(k_arr[i_argmax])
-
+        
         qnn = lcmc - k_arr/(1-N)
         q_local =  np.mean(qnn[:i_argmax + 1])
         q_global =  np.mean(qnn[i_argmax:])       
-        
+
         return np.array([q_local,q_global]), k_argmax
 
     def _jaccard_sim_kNN(self,R : np.ndarray,R_reduced : np.ndarray,k : int):
@@ -333,18 +332,125 @@ class DimReductionMethodsBase(ReducedStatistic):
 
 # --------------------------
 
-# for a, ci in enumerate(clusters):
-#     mask_i = cluster_labels == ci
-#     for b, cj in enumerate(clusters):
-#         mask_j = cluster_labels == cj
-#         d[a, b] = dist_X[np.ix_(mask_i, mask_j)].mean()
-# return d
-# def _residual_variance_pdist(self, X : np.ndarray, X_reduced : np.ndarray,corr_method = 'pearson'):
-#     pd_x = pdist(X)
-#     pd_x_r = pdist(X_reduced)         
-#     if corr_method=='pearson'
-#         return pearsonr(pd_x.flatten(), pd_x_r.flatten())
-#     if corr_method=='spearman'
-#         return spearmanr(pd_x.flatten(), pd_x_r.flatten())
+class DimReductionStatistics(DimReductionMethodsBase):
+    name = "DimReductionStatistics"
+    identifier = "DimReductionStatistics"    
+    labels = ["non-linear", "topology"]
+    
+    # stat , needs ranks or coranking
+    STATISTICS_DICT = {}
+    
+    STATISTICS_DICT["residual_variance"] = ("_stat_residual_variance",False)
+    STATISTICS_DICT["trustworthiness_auc"] = ("_stat_trustworthiness_auc",True,["T_auc","T_logWt_auc"])
+    STATISTICS_DICT["continuity_auc"] = ("_stat_continuity_auc",True,["C_auc","C_logWt_auc"])
+    STATISTICS_DICT["lcmc_auc"] = ("_stat_lcmc_auc",True,["lcmc_auc","lcmc_logWt_auc"])
+    STATISTICS_DICT["q_local_global"] = ("_stat_q_local_global",True,["q_local","q_global"])
+    
+    def __init__(self,method : str = 'PCA',embedding_dim=2,random_state=None,
+                 stats=None,metric='euclidean',
+                 dim: Literal["n", "p"] = "n",nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
+        # removed **kwargs for now
+        super().__init__(method=method,embedding_dim=embedding_dim,random_state=random_state,
+                         dim=dim,nan_policy=nan_policy)
+        
+        self.metric = metric
+        
+        self.stats = list(stats) if stats is not None else ["residual_variance"]
+        
+        unknown = set(self.stats) - set(self.STATISTICS_DICT.keys())
+        if len(unknown) > 0:
+            raise ValueError(f"unknown stats {unknown}\nsupported list- {self.STATISTICS_DICT.keys()}")
+
+        self.get_ranks = any(self.STATISTICS_DICT[s][1] for s in self.stats)
+        
+        # self.cluster_labels = cluster_labels
+
+    def _compute(self, data: np.ndarray):
+        X_reduced = self._fit_method(data)
+        
+        dist_X = self._pairwise_distance_mtx(data,metric=self.metric)
+        dist_X_red = self._pairwise_distance_mtx(X_reduced,metric=self.metric)
+        
+        dr_obj_dict = {"dist_X" : dist_X, "dist_X_reduced" : dist_X_red, 
+                       "R" : None, "R_reduced" : None,                        
+                       "Q" : None, 
+                       "k_mode_TC" : 'N/2', 'k_mode_lcmc' : 'all',
+                       "trustworthiness" : None, 
+                       "continuity" : None,
+                       "lcmc" : None}
+
+        if self.get_ranks:
+            dr_obj_dict["R"] = self._ranking_matrix(dist_X)
+            dr_obj_dict["R_reduced"] = self._ranking_matrix(dist_X_red)
+            dr_obj_dict["Q"] = self._coranking_matrix(dr_obj_dict["R"],dr_obj_dict["R_reduced"])
+        
+        return np.array([getattr(self, self.STATISTICS[s][0])(dr_obj_dict) for s in self.stats]).flatten()
+            
+    def _stat_residual_variance(self, dr_obj):
+        return self._residual_variance(dr_obj["dist_X"], dr_obj["dist_X_reduced"])
+
+    def _get_aucs(self,tup_v_k):
+        val,k_arr = tup_v_k[0], tup_v_k[1]
+        return np.array([np.mean(val), np.sum(val / k_arr) / np.sum(1 / k_arr)])
+
+    def _stat_trustworthiness_auc(self, dr_obj):
+        if dr_obj['trustworthiness'] is None:
+            T,k_arr = self._trustworthiness(dr_obj["Q"],k_mode=dr_obj['k_mode_TC'])
+            dr_obj['trustworthiness'] = (T,k_arr)
+    
+        return self._get_aucs(dr_obj['trustworthiness'])
+  
+    def _stat_continuity_auc(self, dr_obj):
+        if dr_obj['continuity'] is None:
+            C,k_arr = self._continuity(dr_obj["Q"],k_mode=dr_obj['k_mode_TC'])
+            dr_obj['continuity'] = (C,k_arr)
+    
+        return self._get_aucs(dr_obj['continuity'])
+
+    def _stat_lcmc_auc(self, dr_obj):
+        if dr_obj['lcmc'] is None:
+            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode='all')
+            dr_obj['lcmc'] = (lcmc,k_arr)
+
+        return self._get_aucs(dr_obj['lcmc'])
+
+    def _stat_q_local_global(self, dr_obj):
+        if dr_obj['lcmc'] is None:
+            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode='all')
+            dr_obj['lcmc'] = (lcmc,k_arr)
+        
+        q_lg,lcmc_kmax = self._Q_local_global(dr_obj["Q"],dr_obj["lcmc"][0])
+        dr_obj['lcmc_argmax'] = lcmc_kmax
+        return q_lg
+        
+# ---------------------------------
+
+#     def compute(self, data):
+#         X_red, _ = self._fit_method(data)                       # fit once
+#         ctx = {"X": data, "X_red": X_red, "Q": None}
+
+#         if any(self.STATISTICS[s][1] for s in self.stats):      # build Q only if needed
+#             ctx["Q"] = self._coranking_from(data, X_red)
+
+
+#     # ---- each statistic: ctx -> float ----
+
+#     def _stat_trustworthiness(self, ctx):
+#         ks, T = self._trustworthiness(ctx["Q"])
+#         return T[np.searchsorted(ks, self.k)]                   # value at k
+
+#     def _stat_continuity(self, ctx):
+#         ks, C = self._continuity(ctx["Q"])
+#         return C[np.searchsorted(ks, self.k)]
+
+#     def _stat_lcmc_auc(self, ctx):
+#         ks, L = self._lcmc(ctx["Q"])
+#         return L.mean()
+
+#     if set(self.stats) <= (set(self.summary_fns_dict.keys())):        
+#         # summary.append(np.median(dists))
+#         summary = [self.summary_fns_dict[v](dists) for v in self.stats]            
+#         print()
+
 #     else:
-#         raise ValueError('wrong method')
+#         raise ValueError(f"Unsupported stats: {self.stats}")
