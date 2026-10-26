@@ -25,7 +25,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
     VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid', 'global_trimmed_mean_centroid'}    
 
     def __init__(self, metric: str = "euclidean",minkowski_p=None):
-
+        
         self.metric = metric
             
         if metric not in self.VALID_METRICS:
@@ -97,15 +97,12 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
             return point
         
     # TODO: ADD SCALING FUNCTIONS IF NEEDED
-    # TODO: ADD CACHING OF DISTRIBUTION SO THAT IT'S EASIER 
     # TODO: UNIT TEST
 
 
 class KLCentroidDistances(DistanceDistributionBase):
-    # TODO: move, inherit from distance distribution base
-    name = "KLCentroidDistances"
-    identifier = ""
-    # labels = ["skew"]
+    # _long_name = "KLCentroidDistances"
+    # identifier = "KLCentroidDistances"
 
     def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
@@ -115,7 +112,6 @@ class KLCentroidDistances(DistanceDistributionBase):
     def _compute(self, data: np.ndarray) -> np.ndarray:
         """
         Return KL Divergences of distance distributions from two input points 
-        (q- how would this behave in high dim data? might be very trivial bcz of curse of dimensionality?)
         """
         
         dists1 = self._dist_from_point(data,self.point1)
@@ -138,18 +134,6 @@ class GlobalCentroidDiffs(DistanceDistributionBase):
         self.point1 = point1
         self.point2 = point2
 
-    @property
-    def name(self) -> str:
-        return "GlobalCentroidDiffs"
-
-    @property
-    def identifier(self) -> str:
-        return "GlobalCentroidDiffs"
-
-    @property
-    def labels(self) -> list[str]:
-        return ["skew"]
-
     def _compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
         """
@@ -166,7 +150,6 @@ class GlobalCentroidDiffs(DistanceDistributionBase):
 class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     name = "Distance from Point - Peaks"
     identifier = "dist-point-peaks"
-    labels = ["scalar", "distance"]
 
     summary_fns_dict = {
         "mean" : lambda dists : np.mean(dists),
@@ -219,7 +202,6 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
 class DistanceDistributionModesSummarize(DistanceDistributionBase):
     name = "Distance from Point - Summary Stats"
     identifier = "dist-point-summ"
-    labels = ["scalar", "distance"]
 
     def __init__(self,metric, point, type='kde',minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)

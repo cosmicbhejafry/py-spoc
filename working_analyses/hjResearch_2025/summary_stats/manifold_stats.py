@@ -384,7 +384,7 @@ class DimReductionStatistics(DimReductionMethodsBase):
             dr_obj_dict["R_reduced"] = self._ranking_matrix(dist_X_red)
             dr_obj_dict["Q"] = self._coranking_matrix(dr_obj_dict["R"],dr_obj_dict["R_reduced"])
         
-        return np.array([getattr(self, self.STATISTICS[s][0])(dr_obj_dict) for s in self.stats]).flatten()
+        return np.array([getattr(self, self.STATISTICS_DICT[s][0])(dr_obj_dict) for s in self.stats]).flatten()
             
     def _stat_residual_variance(self, dr_obj):
         return self._residual_variance(dr_obj["dist_X"], dr_obj["dist_X_reduced"])
