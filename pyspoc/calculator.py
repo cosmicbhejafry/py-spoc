@@ -317,7 +317,7 @@ class Calculator(RuntimeTypeCheckedMixin):
             with tqdm(total=n_stat_reducer_pairs,
                       position=0,
                       desc="Computing Reductions") as reducer_pbar:
-                outer_pos = label.pos
+                outer_pos = reducer_pbar.pos
 
                 with tqdm(
                     bar_format="{desc}",  # Placeholder only.
@@ -376,7 +376,7 @@ class Calculator(RuntimeTypeCheckedMixin):
             with tqdm(total=n_rstats,
                       position=0,
                       desc="Computing Reduced Statistics") as rstat_pbar:
-                outer_pos = label.pos
+                outer_pos = rstat_pbar.pos
 
                 with tqdm(
                     bar_format="{desc}",  # Placeholder only.
