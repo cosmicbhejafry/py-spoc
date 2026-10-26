@@ -37,8 +37,8 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
 
         # self.point = point
     
-    def calculate(self, dataset: Dataset):
-        result = super().calculate(dataset)
+    def _compute(self, data):
+        result = super()._compute(data)
         return result
 
     def _dist_from_point(self, X: np.ndarray, point) -> np.ndarray:
@@ -105,14 +105,14 @@ class KLCentroidDistances(DistanceDistributionBase):
     # TODO: move, inherit from distance distribution base
     name = "KLCentroidDistances"
     identifier = ""
-    labels = ["skew"]
+    # labels = ["skew"]
 
     def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
         self.point1 = point1
         self.point2 = point2
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         """
         Return KL Divergences of distance distributions from two input points 
         (q- how would this behave in high dim data? might be very trivial bcz of curse of dimensionality?)
@@ -150,7 +150,7 @@ class GlobalCentroidDiffs(DistanceDistributionBase):
     def labels(self) -> list[str]:
         return ["skew"]
 
-    def compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+    def _compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
 
         """
         For each feature of the input data matrix, compute the max absolute difference of input points         
@@ -185,7 +185,7 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
         self.stats = stats
 
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         
         """
         Compute distance distribution, choose between:
@@ -227,7 +227,7 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         self.point=point
         self.type = type
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         """
         Compute distance distribution, choose between:
             pairwise

@@ -43,7 +43,7 @@ class DimReductionMethodsBase(ReducedStatistic):
     # ------------- CLASS DEFINITIONS - start -------------    
     def __init__(self, method : str = 'PCA',embedding_dim=2,
                  random_state=None,
-                 dim: Literal["n", "p"] = "n",
+                 dim: Literal["n", "p"] = "p",
                  nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
         super().__init__(dim=dim,nan_policy=nan_policy)
         
@@ -335,7 +335,7 @@ class DimReductionMethodsBase(ReducedStatistic):
 class DimReductionStatistics(DimReductionMethodsBase):
     name = "DimReductionStatistics"
     identifier = "DimReductionStatistics"    
-    labels = ["non-linear", "topology"]
+    # labels = ["non-linear", "topology"]
     
     # stat , needs ranks or coranking
     STATISTICS_DICT = {}
@@ -348,7 +348,7 @@ class DimReductionStatistics(DimReductionMethodsBase):
     
     def __init__(self,method : str = 'PCA',embedding_dim=2,random_state=None,
                  stats=None,metric='euclidean',
-                 dim: Literal["n", "p"] = "n",nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
+                 dim: Literal["n", "p"] = "p",nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
         # removed **kwargs for now
         super().__init__(method=method,embedding_dim=embedding_dim,random_state=random_state,
                          dim=dim,nan_policy=nan_policy)
