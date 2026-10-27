@@ -1,4 +1,4 @@
 /hpc_pyspoc_scripts/*
 !/hpc_pyspoc_scripts/py_scripts
-!/hpc_pyspoc_scripts/*.sh
-!/hpc_pyspoc_scripts/README.md
+!/hpc_pyspoc_scripts/*.pbs
+!/hpc_pyspoc_scripts/*.md

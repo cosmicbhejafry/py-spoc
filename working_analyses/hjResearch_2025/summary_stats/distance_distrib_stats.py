@@ -15,6 +15,7 @@ from pyspoc._tag import Tag, Type, Signature
 
 from scipy.stats import gaussian_kde
 from scipy.signal import find_peaks
+from scipy.spatial.distance import jensenshannon
 
 class DistanceDistributionBase(ReducedStatistic, ABC):
 
@@ -112,7 +113,8 @@ class CentroidDistanceDistributionCompare(DistanceDistributionBase):
     VALID_MODES = {
         'KL_BOTH' : "_mode_kl_both",
         'KS_STATISTIC' : "_mode_ks_statistic",
-        'WASSERSTEIN_DIST' : "_mode_wasserstein"
+        'WASSERSTEIN_DIST' : "_mode_wasserstein",
+        'JS_DIST' : '_mode_jensenshannon'
     }
 
     def __init__(self,metric,point1 = 'global_mean_centroid',
@@ -145,9 +147,34 @@ class CentroidDistanceDistributionCompare(DistanceDistributionBase):
         # print('out_vec',out_vec)
         return np.array(out_vec).flatten()
 
+
+    def _mode_jensenshannon(self, dists1, dists2):
+        
+        # both=np.concatenate([dists1, dists2])
+        # iqr = np.subtract(*np.percentile(both, [75, 25]))
+        # n_bins = int(np.clip(np.ptp(both) * len(both) ** (1/3) / (2 * iqr), 1, 200)) if iqr > 0 else 100
+        
+        n_bins=100
+        edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins=n_bins)
+        
+        hist1 = self._distance_histogram(dists1,bins=edges)
+        hist2 = self._distance_histogram(dists2,bins=edges)
+        
+        js = jensenshannon(hist1, hist2, base=2) ** 2
+        # divergence in [0, 1]
+        
+        return [js]
+    
     def _mode_kl_both(self, dists1, dists2):
-        # global_bin
-        edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins="fd")
+        # very sensitive to binning, not bounded either
+        # edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins="fd")
+        
+        # both=np.concatenate([dists1, dists2])
+        # iqr = np.subtract(*np.percentile(both, [75, 25]))
+        # n_bins = int(np.clip(np.ptp(both) * len(both) ** (1/3) / (2 * iqr), 1, 200)) if iqr > 0 else 100
+        n_bins=100
+        edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins=n_bins)
+        
         hist1 = self._distance_histogram(dists1,bins=edges)
         hist2 = self._distance_histogram(dists2,bins=edges)
         
