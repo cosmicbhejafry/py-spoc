@@ -188,20 +188,20 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     identifier = "dist-point-peaks"
 
     summary_fns_dict = {
-        "mean" : lambda dists : np.mean(dists),
-        "median" : lambda dists : np.median(dists),
-        "iqr" : lambda dists : np.quantile(dists,0.75) - np.quantile(dists,0.25),
-        "std" : lambda dists : np.std(dists),
-        "min" : lambda dists : np.min(dists),
-        "max" : lambda dists : np.max(dists),
-        "skew" : lambda dists : skew(dists),
-        "kurtosis" : lambda dists : kurtosis(dists),
+        "MEAN" : lambda dists : np.mean(dists),
+        "MEDIAN" : lambda dists : np.median(dists),
+        "IQR" : lambda dists : np.quantile(dists,0.75) - np.quantile(dists,0.25),
+        "STD" : lambda dists : np.std(dists),
+        "MIN" : lambda dists : np.min(dists),
+        "MAX" : lambda dists : np.max(dists),
+        "SKEW" : lambda dists : skew(dists),
+        "KURTOSIS" : lambda dists : kurtosis(dists),
     }
-        
+
     def __init__(self,metric, point, stats: list[str] = ["skew"],minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
         self.point = point
-        self.stats = stats
+        self.stats = [v.upper() for v in stats]
 
 
     def _compute(self, data: np.ndarray) -> np.ndarray:
