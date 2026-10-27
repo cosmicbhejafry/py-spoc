@@ -183,7 +183,7 @@ class DimReductionMethodsBase(ReducedStatistic):
             return Q[1:,1:]
     
     # could write functions for each k separately, but more efficient to loop it i think    
-    def _get_k_lst_TC(self,N,k_mode,k_min,k_max):
+    def _get_k_lst_TC(self,N,k_mode,k_min=None,k_max=None):
         if k_mode == 'N/2':
             return range(1,(N + 1) // 2)
             
@@ -287,14 +287,11 @@ class DimReductionMethodsBase(ReducedStatistic):
         qnn = block[k_arr-1,k_arr-1]/(N*k_arr)       
         return qnn, k_arr
                       
-    def _Q_local_global(self, Q : np.ndarray, lcmc = None) -> tuple[np.ndarray, np.ndarray]:
+    def _Q_local_global(self, Q : np.ndarray, lcmc = None,k_arr=None) -> tuple[np.ndarray, np.ndarray]:
         N = Q.shape[0]
         if lcmc is None:
             # find argmax of lcmc            
             lcmc, k_arr = self._lcmc(Q, k_mode='all')
-        else:
-            k_lst = self._get_k_lst_TC(N,'all')
-            k_arr = np.array(k_lst)
             
         i_argmax = int(np.argmax(lcmc))
         k_argmax = int(k_arr[i_argmax])
@@ -306,7 +303,7 @@ class DimReductionMethodsBase(ReducedStatistic):
         return np.array([q_local,q_global]), k_argmax
 
     def _jaccard_sim_kNN(self,R : np.ndarray,R_reduced : np.ndarray,k : int):
-
+        # output is a vector of size N
         nn_X = R < k
         nn_X_reduced = R_reduced < k
         nn_intersect = np.count_nonzero(nn_X & nn_X_reduced, axis=1)
@@ -316,6 +313,7 @@ class DimReductionMethodsBase(ReducedStatistic):
         return jaccard_sim
     
     def _kNN_distances_arr(self, R, k, dist_X, dist_X_reduced):
+        # output is two matrices of size N,k each
         
         #for each i, list of col indices j that are within kNN
         # nn_X_index = np.nonzero(R < k)[1].reshape(-1, k) # (unsorted)
@@ -337,14 +335,18 @@ class DimReductionStatistics(DimReductionMethodsBase):
     identifier = "DimReductionStatistics"    
     # labels = ["non-linear", "topology"]
     
-    # stat , needs ranks or coranking
+    # stat , needs ranks or coranking, function outputs
     STATISTICS_DICT = {}
     
-    STATISTICS_DICT["residual_variance"] = ("_stat_residual_variance",False)
+    STATISTICS_DICT["residual_variance"] = ("_stat_residual_variance",False,["rv"])
     STATISTICS_DICT["trustworthiness_auc"] = ("_stat_trustworthiness_auc",True,["T_auc","T_logWt_auc"])
     STATISTICS_DICT["continuity_auc"] = ("_stat_continuity_auc",True,["C_auc","C_logWt_auc"])
     STATISTICS_DICT["lcmc_auc"] = ("_stat_lcmc_auc",True,["lcmc_auc","lcmc_logWt_auc"])
     STATISTICS_DICT["q_local_global"] = ("_stat_q_local_global",True,["q_local","q_global"])
+
+    # STATISTICS_DICT["jaccard_knn"] = ("_stat_jaccard_knn",True,[])
+    # STATISTICS_DICT["knn_dist_minmax_ratio"] = ("_stat_knn_dist_minmax_ratio",True,[])
+    # STATISTICS_DICT["knn_dist_var"] = ("_stat_knn_dist_var",True,[])
     
     def __init__(self,method : str = 'PCA',embedding_dim=2,random_state=None,
                  stats=None,metric='euclidean',
@@ -362,8 +364,6 @@ class DimReductionStatistics(DimReductionMethodsBase):
             raise ValueError(f"unknown stats {unknown}\nsupported list- {self.STATISTICS_DICT.keys()}")
 
         self.get_ranks = any(self.STATISTICS_DICT[s][1] for s in self.stats)
-        
-        # self.cluster_labels = cluster_labels
 
     def _compute(self, data: np.ndarray):
         X_reduced = self._fit_method(data)
@@ -384,14 +384,21 @@ class DimReductionStatistics(DimReductionMethodsBase):
             dr_obj_dict["R_reduced"] = self._ranking_matrix(dist_X_red)
             dr_obj_dict["Q"] = self._coranking_matrix(dr_obj_dict["R"],dr_obj_dict["R_reduced"])
         
-        return np.array([getattr(self, self.STATISTICS_DICT[s][0])(dr_obj_dict) for s in self.stats]).flatten()
+        
+        out_vals = []
+        for s in self.stats:
+            stat_v = getattr(self,self.STATISTICS_DICT[s][0])(dr_obj_dict)
+            out_vals.extend(stat_v)
+            
+        return np.array(out_vals).flatten()
+
             
     def _stat_residual_variance(self, dr_obj):
-        return self._residual_variance(dr_obj["dist_X"], dr_obj["dist_X_reduced"])
+        return [self._residual_variance(dr_obj["dist_X"], dr_obj["dist_X_reduced"])]
 
     def _get_aucs(self,tup_v_k):
         val,k_arr = tup_v_k[0], tup_v_k[1]
-        return np.array([np.mean(val), np.sum(val / k_arr) / np.sum(1 / k_arr)])
+        return [np.mean(val), np.sum(val / k_arr) / np.sum(1 / k_arr)]
 
     def _stat_trustworthiness_auc(self, dr_obj):
         if dr_obj['trustworthiness'] is None:
@@ -409,48 +416,29 @@ class DimReductionStatistics(DimReductionMethodsBase):
 
     def _stat_lcmc_auc(self, dr_obj):
         if dr_obj['lcmc'] is None:
-            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode='all')
+            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode=dr_obj['k_mode_lcmc'])
             dr_obj['lcmc'] = (lcmc,k_arr)
 
         return self._get_aucs(dr_obj['lcmc'])
 
     def _stat_q_local_global(self, dr_obj):
         if dr_obj['lcmc'] is None:
-            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode='all')
+            lcmc,k_arr = self._lcmc(dr_obj["Q"],k_mode=dr_obj['k_mode_lcmc'])
             dr_obj['lcmc'] = (lcmc,k_arr)
         
-        q_lg,lcmc_kmax = self._Q_local_global(dr_obj["Q"],dr_obj["lcmc"][0])
+        q_lg,lcmc_kmax = self._Q_local_global(dr_obj["Q"],dr_obj["lcmc"][0],dr_obj["lcmc"][1])
         dr_obj['lcmc_argmax'] = lcmc_kmax
-        return q_lg
+        return list(q_lg)
+
+    def _stat_jaccard_knn(self,dr_obj):
+        kv = 2
+        self._jaccard_sim_kNN(dr_obj["R"],dr_obj["R_reduced"],k)
+        pass
+
+    def _stat_knn_dist_minmax_ratio(self):
+        pass
+    
+    def _stat_knn_dist_var(self):
+        pass
         
 # ---------------------------------
-
-#     def compute(self, data):
-#         X_red, _ = self._fit_method(data)                       # fit once
-#         ctx = {"X": data, "X_red": X_red, "Q": None}
-
-#         if any(self.STATISTICS[s][1] for s in self.stats):      # build Q only if needed
-#             ctx["Q"] = self._coranking_from(data, X_red)
-
-
-#     # ---- each statistic: ctx -> float ----
-
-#     def _stat_trustworthiness(self, ctx):
-#         ks, T = self._trustworthiness(ctx["Q"])
-#         return T[np.searchsorted(ks, self.k)]                   # value at k
-
-#     def _stat_continuity(self, ctx):
-#         ks, C = self._continuity(ctx["Q"])
-#         return C[np.searchsorted(ks, self.k)]
-
-#     def _stat_lcmc_auc(self, ctx):
-#         ks, L = self._lcmc(ctx["Q"])
-#         return L.mean()
-
-#     if set(self.stats) <= (set(self.summary_fns_dict.keys())):        
-#         # summary.append(np.median(dists))
-#         summary = [self.summary_fns_dict[v](dists) for v in self.stats]            
-#         print()
-
-#     else:
-#         raise ValueError(f"Unsupported stats: {self.stats}")
