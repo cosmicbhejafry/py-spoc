@@ -15,3 +15,8 @@ hpc_pyspoc_scripts/
 
 assuming: 
 - metadata_files stay untouched/unedited during a full run
+
+---
+
+TODO: ask G about preprocessing. 
+currently even the counts are going through a standardscaler - that needs to change

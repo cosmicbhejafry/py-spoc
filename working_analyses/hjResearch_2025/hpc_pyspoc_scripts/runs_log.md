@@ -12,7 +12,7 @@ have about 400-600 synthetic datasets in total, using 25 chunks at the moment, p
 
 run the pooled version to catch datasets per batch that go out of mem (useful for manifold stats mostly, due to count matrices interacting with isomap) -- dont recommend running this usually as major errors won't be raised
 
-### 1000,10
+### 1000,10 (done)
 
 #### distance_distrib_stats - done
 
@@ -31,7 +31,7 @@ run the pooled version to catch datasets per batch that go out of mem (useful fo
 
 25 chunks run on 4-25 chunks: ```qsub -J 4-25 -l walltime=00:30:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-#### manifold stats - in progress
+#### manifold stats - done (most, some out of memory)
 
 25 chunks test on 1-3 chunks: ```qsub -N mf_1000_10 -J 1-3 -l walltime=01:00:00 -l select=1:ncpus=8:mem=16gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
@@ -54,6 +54,16 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 
 #### manifold stats - todo
 
+qsub -N mf_1000_10 -J 1-3 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs
+
+POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
+
+### 10000,100
+
+#### distance_distrib_stats
+
+25 chunks test on 1-3 chunks: ```qsub -J 1-3 -l walltime=08:00:00 -l select=1:ncpus=8:mem=8gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+
 ### 1000,1000
 
 #### distance_distrib_stats - done
@@ -68,6 +78,8 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 (running 936)
 
 #### manifold stats - todo
+
+POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
 
 ## other helpful commands
 

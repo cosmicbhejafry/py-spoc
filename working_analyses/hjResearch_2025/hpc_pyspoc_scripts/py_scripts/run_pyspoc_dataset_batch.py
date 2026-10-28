@@ -59,6 +59,10 @@ def main():
         os.replace(tmp, cfg_copy) # atomic
     elif cfg_copy.read_text() != config.read_text():
         log.warning(f"{config} differs from the config used for existing results in {out_dir}")
+
+    num_ds_saved = 0
+    num_ds_tot = 0
+    num_ds_skipped = 0
     
     # ITERATE THRU DATASET BATCHES    
     for _, row in chunk.iterrows():
@@ -66,8 +70,9 @@ def main():
         out = out_dir / f"{v}.parquet"
         if out.exists() and not args.overwrite:
             log.info(f"skip {v}")
+            num_ds_skipped+=1
             continue
-
+        num_ds_tot+=1
         t0 = time.time()
         errors = {}
         try:
@@ -78,6 +83,7 @@ def main():
             results = calc.get_results()
             if results is not None:
                 results.to_parquet(out)
+                num_ds_saved+=1
             if results is None:
                 errors["no_results"] = "get_results() returned None"
                 
@@ -94,6 +100,7 @@ def main():
         if errors:
             (out_dir / f"{v}.errors.json").write_text(json.dumps(errors, indent=2))
         log.info(f"{status} {v} ({time.time() - t0:.1f}s, {len(errors)} errors)")
+    log.info(f"STATS FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {num_ds_saved} results saved out of {num_ds_tot} total; {num_ds_skipped} skipped / pre-computed")
 
 if __name__ == "__main__":
     main()
