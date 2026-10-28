@@ -7,8 +7,8 @@ import numpy as np
 from typing import Union
 from abc import ABC
 from pyspoc.dataset import Dataset
-import numpy as np
 from scipy.stats import gmean
+import scipy.stats as sp
 
 class MaxCovPerFeature(Reducer):
 
@@ -120,3 +120,57 @@ class SvdEntropy(Reducer):
 class EigenParticipationRatio(Reducer):
     pass
     # https://peterponyu.github.io/liora-ui/metrics/participation_ratio/
+
+class MeanOfMoments(Reducer):
+
+    _name = "MeanOfMoments"
+    _identifier = "moment"
+    _labels = ["vector"]
+    
+    def __init__(self, moments: list[int] = [2,4]):
+        self._moments = moments
+        super().__init__()
+
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+    
+    @property
+    def tags(self) -> list[str]:
+        return self._labels
+
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
+        mom = sp.moment(data, order = self._moments)
+        return mom.mean(axis=1)
+
+class MeanOfMoments(Reducer):
+
+    _name = "MeanOfMoments"
+    _identifier = "moment"
+    _labels = ["vector"]
+    
+    def __init__(self, moments: list[int] = [2,4]):
+        self._moments = moments
+        super().__init__()
+
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+    
+    @property
+    def tags(self) -> list[str]:
+        return self._labels
+
+    def reduce(self, data: np.ndarray) -> np.ndarray | float:
+        n = data.shape[0]
+        cols = data.T[~np.eye(n, dtype=bool)].reshape(n, n - 1)     # row i = column i of data, without its diagonal entry
+        mom = sp.moment(cols, order = self._moments,axis=1)
+        return mom.mean(axis=1)

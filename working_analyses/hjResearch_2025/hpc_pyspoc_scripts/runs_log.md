@@ -17,6 +17,15 @@ have about 400-600 synthetic datasets in total, using 25 chunks at the moment, p
 
 run the pooled version to catch datasets per batch that go out of mem (useful for manifold stats mostly, due to count matrices interacting with isomap) -- dont recommend running this usually as major errors won't be raised
 
+### gtex runs
+
+```qsub -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_N100_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+
+```qsub -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=4:mem=4gb -v MANIFEST=metadata_files/gtex_N100_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs```
+
+```qsub -J 1-25 -l walltime=00:30:00 -l select=1:ncpus=4:mem=8gb -v MANIFEST=metadata_files/gtex_N100_P100.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=25 run_pyspoc.pbs```
+
+
 ### 1000,10 (done)
 
 #### distance_distrib_stats - done
@@ -72,7 +81,7 @@ qsub -N pic_test_10000_100 -J 51-100 -l walltime=02:00:00 -l select=1:ncpus=8:me
 
 #### manifold stats
 
-qsub -N mf_10000_100 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=4:mem=16gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs
+qsub -N mf_10000_100 -J 1-50 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs
 
 ### 1000,1000 -- left on CPM counts
 
