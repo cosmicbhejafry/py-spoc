@@ -29,4 +29,3 @@ Some module may need to rebuild instead e.g. with 'pybind11>=2.12'.
 If you are a user of the module, the easiest solution will be to
 downgrade to 'numpy<2' or try to upgrade the affected module.
 We expect that some modules will need time to support NumPy 2.
-

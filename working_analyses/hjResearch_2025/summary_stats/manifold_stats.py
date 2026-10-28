@@ -430,8 +430,7 @@ class DimReductionStatistics(DimReductionMethodsBase):
         dr_obj['lcmc_argmax'] = lcmc_kmax
         return list(q_lg)
 
-    def _stat_jaccard_knn(self,dr_obj):
-        kv = 2
+    def _stat_jaccard_knn(self,dr_obj,k=2):
         self._jaccard_sim_kNN(dr_obj["R"],dr_obj["R_reduced"],k)
         pass
 

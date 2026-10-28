@@ -23,4 +23,5 @@ python py_scripts/run_pyspoc_dataset_batch.py \
     --index $((PBS_ARRAY_INDEX - 1 + ${OFFSET:-0})) \
     --n_chunks "$N_CHUNKS"
 
+echo "DONE!"
 # qsub -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=test_distance_distrib submit.pbs
