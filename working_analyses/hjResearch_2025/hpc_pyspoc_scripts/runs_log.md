@@ -37,7 +37,7 @@ run the pooled version to catch datasets per batch that go out of mem (useful fo
 
 POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=00:30:00 -l select=1:ncpus=8:mem=16gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
 
-### 1000,100
+### 1000,100 (done)
 
 #### distance_distrib_stats - done
 
@@ -52,7 +52,7 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 
 25 chunks run on 4-25 chunks: ```qsub -N pic_test_1000_100 -J 4-25 -l walltime=01:00:00 -l select=1:ncpus=6:mem=6gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-#### manifold stats - todo
+#### manifold stats - done
 
 qsub -N mf_1000_10 -J 1-3 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs
 
@@ -60,9 +60,23 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 
 ### 10000,100
 
-#### distance_distrib_stats
+#### distance_distrib_stats (done)
 
-25 chunks test on 1-3 chunks: ```qsub -J 1-3 -l walltime=08:00:00 -l select=1:ncpus=8:mem=8gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+25 chunks : ```qsub -J 1-25 -l walltime=08:00:00 -l select=1:ncpus=8:mem=8gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
+
+#### pyspoc internal config
+
+(~50mins for 5 datasets, so 500/5 ~100 chunks)
+(10gb not enough mem)
+100 chunks, 1-10: ```qsub -N pic_test_10000_100 -J 1-10 -l walltime=02:00:00 -l select=1:ncpus=8:mem=48gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs```
+(991)
+
+qsub -N pic_test_10000_100 -J 11-50 -l walltime=02:00:00 -l select=1:ncpus=8:mem=48gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs
+(106)
+
+qsub -N pic_test_10000_100 -J 51-100 -l walltime=02:00:00 -l select=1:ncpus=8:mem=48gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs
+
+#### manifold stats
 
 ### 1000,1000
 
@@ -72,17 +86,19 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 
 25 chunks on 4-25 chunks: ```qsub -N dist_1000_1000 -J 4-25 -l walltime=00:30:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-#### pyspoc internal config - in progress
+#### pyspoc internal config - in progress (very long)
 
 25 chunks test on 1-3 chunks: ```qsub -N pic_test_1000_1000 -J 1-3 -l walltime=10:00:00 -l select=1:ncpus=16:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
 (running 936)
 
-#### manifold stats - todo
+#### manifold stats - done
 
-POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
+POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_1000 -J 1-25 -l walltime=02:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs``
 
 ## other helpful commands
 
-qstat -x -f <jobid> | grep resources_used
+```qstat -x -f <jobid> | grep resources_used```
 
-grep -L 'DONE!' pbs_job_outs/<jobid>*.OU | wc -l
+```grep -L 'DONE!' pbs_job_outs/<jobid>*.OU | wc -l```
+
+```grep -h 'STATS FOR INDEX' pbs_job_outs/<pid>*.E*```
