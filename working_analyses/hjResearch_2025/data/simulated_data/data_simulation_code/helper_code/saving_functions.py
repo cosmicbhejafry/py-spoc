@@ -45,7 +45,7 @@ def save_dataset(X, generator, params, seed, root, category=None,extra_arrays=No
     # data (refuse to overwrite)
     fname = f"seed{seed}_N{n}_P{p}.npy"
     path = os.path.join(folder, fname)
-    overwrite = True # SWITCH THIS TO TURN OFF OVERRIDE
+    overwrite = False # SWITCH THIS TO TURN OFF OVERRIDE
     if overwrite == False:
         if os.path.exists(path):
             raise FileExistsError(f"{path} already exists")

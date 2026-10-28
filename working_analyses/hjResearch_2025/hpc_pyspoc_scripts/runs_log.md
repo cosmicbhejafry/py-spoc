@@ -4,7 +4,12 @@ qsub -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=8:mem=64gb -v MANIFEST=metada
 
 below is qsub commands history - managing manually right now to avoid extra waits / extra computational overhead
 
-## QSUB commands history - 27 oct 2026
+todo's:
+<!-- [] generate counts cpm folders, update metadata files -->
+[] rerun all with counts cpm + log-transformed
+[] run all on pyspoc_internal_stats_fast.yaml
+
+## QSUB commands history
 
 first ran for -J 1-3, have a quick look at logs to see everything's working as expected, adjust walltimes and run for -J 4-25 
 
@@ -16,20 +21,12 @@ run the pooled version to catch datasets per batch that go out of mem (useful fo
 
 #### distance_distrib_stats - done
 
-50 chunks test:
-```qsub -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=8:mem=64gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=test_distance_distrib,N_CHUNKS=50 run_pyspoc.pbs```
+25 chunks full run on 1-25 chunks:
+```qsub -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-25 chunks test on 1-3 chunks:
-```qsub -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=1:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+#### pyspoc_internal_stats_fast - done
 
-25 chunks full run on 4-25 chunks:
-```qsub -J 4-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
-
-#### pyspoc internal config - done
-
-25 chunks test on 1-3 chunks: ```qsub -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=1:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
-
-25 chunks run on 4-25 chunks: ```qsub -J 4-25 -l walltime=00:30:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
+25 chunks run: ```qsub -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=25 run_pyspoc.pbs```
 
 #### manifold stats - done (most, some out of memory)
 
@@ -43,26 +40,22 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=0
 
 25 chunks test on 1-3 chunks: ```qsub -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-25 chunks run on 4-25 chunks: ```qsub -J 4-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+25 chunks run on 4-25 chunks: ```qsub -J 1-25 -l walltime=00:45:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
-#### pyspoc internal config - done
+#### pyspoc_internal_stats_fast - done
 
-25 chunks test on 1-3 chunks: ```qsub -N pic_test_1000_100 -J 1-3 -l walltime=01:00:00 -l select=1:ncpus=6:mem=6gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
 (didnt work at 1gb mem)
-
-25 chunks run on 4-25 chunks: ```qsub -N pic_test_1000_100 -J 4-25 -l walltime=01:00:00 -l select=1:ncpus=6:mem=6gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
+40 chunks run pooled: ```qsub -N pic_test_1000_100 -J 1-40 -l walltime=02:00:00 -l select=1:ncpus=6:mem=6gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=40 run_pyspoc_pooled.pbs```
 
 #### manifold stats - done
 
-qsub -N mf_1000_10 -J 1-3 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs
-
 POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_10 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
 
-### 10000,100
+### 10000,100 -- left on CPM counts
 
 #### distance_distrib_stats (done)
 
-25 chunks : ```qsub -J 1-25 -l walltime=08:00:00 -l select=1:ncpus=8:mem=8gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs```
+50 chunks : ```qsub -J 1-50 -l walltime=01:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs```
 
 #### pyspoc internal config
 
@@ -75,25 +68,26 @@ qsub -N pic_test_10000_100 -J 11-50 -l walltime=02:00:00 -l select=1:ncpus=8:mem
 (106)
 
 qsub -N pic_test_10000_100 -J 51-100 -l walltime=02:00:00 -l select=1:ncpus=8:mem=48gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs
+(283)
 
 #### manifold stats
 
-### 1000,1000
+qsub -N mf_10000_100 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=4:mem=16gb -v MANIFEST=metadata_files/syn_data_N10000_P100.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs
+
+### 1000,1000 -- left on CPM counts
 
 #### distance_distrib_stats - done
 
-25 chunks test on 1-3 chunks: ```qsub -N dist_1000_1000 -J 1-3 -l walltime=00:30:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
-
-25 chunks on 4-25 chunks: ```qsub -N dist_1000_1000 -J 4-25 -l walltime=00:30:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+25 chunks on 4-25 chunks: ```qsub -N dist_1000_1000 -J 1-25 -l walltime=00:30:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
 #### pyspoc internal config - in progress (very long)
 
-25 chunks test on 1-3 chunks: ```qsub -N pic_test_1000_1000 -J 1-3 -l walltime=10:00:00 -l select=1:ncpus=16:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
-(running 936)
+25 chunks test on 1-3 chunks: ```qsub -N pic_test_1000_1000 -J 1-3 -l walltime=10:00:00 -l select=1:ncpus=16:mem=48gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/pyspoc_internal_stats.yaml,CONFIG_NAME=pyspoc_internal_stats,N_CHUNKS=25 run_pyspoc.pbs```
+(one dataset took 4hrs)
 
 #### manifold stats - done
 
-POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_1000 -J 1-25 -l walltime=02:00:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs``
+POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_1000 -J 1-25 -l walltime=01:00:00 -l select=1:ncpus=4:mem=16gb -v MANIFEST=metadata_files/syn_data_N1000_P1000.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs``
 
 ## other helpful commands
 
@@ -102,3 +96,22 @@ POOLED 25 chunks run on 1-25 chunks: ```qsub -N mf_1000_1000 -J 1-25 -l walltime
 ```grep -L 'DONE!' pbs_job_outs/<jobid>*.OU | wc -l```
 
 ```grep -h 'STATS FOR INDEX' pbs_job_outs/<pid>*.E*```
+
+```find results/per_dataset/syn_data_N1000_P10/ -name "*.parquet" -printf "%h\n" | sort | uniq -c```
+
+<!-- 
+cat metadata_files/syn_data_N10000_P100.csv | wc -l
+find results/per_dataset/syn_data_N10000_P100/ -name "*.parquet" -printf "%h\n" | sort | uniq -c -->
+
+tr '\r' '\n' < ERROR_FILE | awk '
+function secs(t,  a, n) { n = split(t, a, ":"); return n == 3 ? a[1]*3600 + a[2]*60 + a[3] : a[1]*60 + a[2] }
+/Statistic: \[/ { match($0, /\[[^]]+\]/); name = substr($0, RSTART+1, RLENGTH-2) }
+/Computing Statistics:/ && match($0, /[0-9]+\/[0-9]+ \[[0-9:]+/) {
+    split(substr($0, RSTART, RLENGTH), p, /[\/ \[]+/)
+    i = p[1]; t = secs(p[3])
+    if (i == 0) { prev = 0; name = ""; print "---- new dataset ----"; next }
+    printf "%3d  %8.0fs  %s\n", i, t - prev, (name == "" ? "(unnamed)" : name)
+    prev = t; name = ""
+} > pbs_job_outs/errlog.txt'
+
+<!-- ```for d in results/per_dataset/syn_data_N1000_P10/*/; do    echo "$d $(ls "$d"*.parquet 2>/dev/null | wc -l)"; done``` -->

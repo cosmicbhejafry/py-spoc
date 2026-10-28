@@ -54,12 +54,12 @@ class MaxCovPerFeature(Reducer):
 
         return np.array(summary)
 
-class EigenAMGMRatio(Reducer):
+class SvdAMGMRatio(Reducer):
     # name = "EigenAMGMRatio"
     # identifier = "eig_summary"
     # labels = ["isotropy"]
 
-    def __init__(self,):
+    def __init__(self):
         super().__init__()
 
     def reduce(self, data: np.ndarray) -> np.ndarray:
@@ -71,8 +71,8 @@ class EigenAMGMRatio(Reducer):
             Return the ratio of the arithmetic / geometric mean of the eigenvals                
             (intuition- should always be >= 1, the closer it is to 1, the more spherical data)        
         """
-
-        eigs = np.linalg.eigvalsh(data)
+        
+        eigs = np.linalg.svdvals(data)
         
         if np.any(eigs <= 0):
             raise ValueError("Negative eigen values?")
@@ -83,14 +83,15 @@ class EigenAMGMRatio(Reducer):
         return np.array([gmean(kept) / np.mean(kept)])
     
 
-class EigenEntropy(Reducer):
+class SvdEntropy(Reducer):
     # https://en.wikipedia.org/wiki/Von_Neumann_entropy
     # name = "EigenEntropy"
     # identifier = ""
     # labels = ["isotropy"]
 
-    def __init__(self,):
+    def __init__(self,square_sum=False):
         super().__init__()
+        self.square_sum=square_sum
 
     def reduce(self, data: np.ndarray) -> np.ndarray:
         """
@@ -102,9 +103,14 @@ class EigenEntropy(Reducer):
         """
 
         # make trace = 1
-        data_norm = data / np.trace(data)
+        # data_sym = (data + data.T)/2        
+        # data_norm = data / np.trace(data)
 
-        eigs = np.linalg.eigvalsh(data_norm)
+        eigs_full = np.linalg.svdvals(data)
+        if self.square_sum:
+            eigs = eigs_full**2 / np.sum(eigs_full**2)            
+        else:            
+            eigs = eigs_full / np.sum(eigs_full)
         
         if np.any(eigs <= 0):
             raise ValueError("Negative eigen values?")
