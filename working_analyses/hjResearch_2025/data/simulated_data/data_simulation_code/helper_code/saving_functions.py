@@ -2,9 +2,14 @@ import os, json
 import numpy as np
 import pandas as pd
 import shutil, glob
+import zlib
 
 def _js(o):
     return o.tolist() if hasattr(o, "tolist") else str(o)
+
+def family_seeds(family, n=30):
+    rng = np.random.default_rng(zlib.crc32(family.encode()))
+    return rng.choice(2**31 - 1, size=n, replace=False)
 
 def save_dataset(X, generator, params, seed, root, category=None,extra_arrays=None):
     """
