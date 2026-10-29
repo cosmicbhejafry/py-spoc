@@ -1,0 +1,28 @@
+#!/bin/bash
+#PBS -N pyspoc_run
+#PBS -l select=1:ncpus=1:mem=4gb
+#PBS -l walltime=02:00:00
+#PBS -J 1-50
+#PBS -o pbs_job_outs/
+#PBS -e pbs_job_outs/
+set -eo pipefail
+
+eval "$(~/anaconda3/bin/conda shell.bash hook)"
+conda activate pyspoc_env
+
+# export OMP_NUM_THREADS=${NCPUS:-1} 
+# export MKL_NUM_THREADS=${NCPUS:-1} 
+# export OPENBLAS_NUM_THREADS=${NCPUS:-1}
+
+cd "$PBS_O_WORKDIR"
+
+python py_scripts/run_pyspoc_dataset_batch.py \
+    --manifest "$MANIFEST" \
+    --config "$CONFIG" \
+    --config_name "$CONFIG_NAME" \
+    --index $((PBS_ARRAY_INDEX - 1 + ${OFFSET:-0})) \
+    --n_chunks "$N_CHUNKS" \
+    --results_base_dir "$EPHEMERAL/pyspoc_runs"
+
+echo "DONE!"
+# qsub -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=test_distance_distrib submit.pbs

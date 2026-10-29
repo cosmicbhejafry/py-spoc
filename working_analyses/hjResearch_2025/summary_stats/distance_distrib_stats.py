@@ -1,13 +1,21 @@
+"""
+contains distance distribution statistics, reduced statistics on row-wise pairwise or centroids
+"""
+
+# interactive testing done in working_analyses/hj_research/[...]/distance_stats_testing.ipynb
+
 from pyspoc import ReducedStatistic
 import numpy as np
-from scipy.stats import skew, kurtosis
+from scipy.stats import skew, kurtosis, entropy, trim_mean, ks_2samp, wasserstein_distance
 from scipy.spatial.distance import cdist,pdist
 from typing import Union
 from abc import ABC
 from pyspoc.dataset import Dataset
+from pyspoc._tag import Tag, Type, Signature
 
 from scipy.stats import gaussian_kde
 from scipy.signal import find_peaks
+from scipy.spatial.distance import jensenshannon
 
 class DistanceDistributionBase(ReducedStatistic, ABC):
 
@@ -15,15 +23,17 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         'canberra', 'chebyshev', 
         'cityblock', 'correlation', 'cosine', 
         'euclidean', 'mahalanobis', 
-        'seuclidean', 'sqeuclidean'
+        'seuclidean', 'sqeuclidean','minkowski'
     ]
 
-    VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid'}    
+    VALID_POINTS = {'all', 'global_mean_centroid', 'global_median_centroid', 'global_trimmed_mean_centroid'}    
 
     def __init__(self, metric: str = "euclidean",minkowski_p=None):
-
+        super().__init__()
+        
         self.metric = metric
-            
+        self.minkowski_p = minkowski_p
+        
         if metric not in self.VALID_METRICS:
             raise ValueError(
                 f"Invalid metric '{metric}'. Must be one of: {', '.join(self.VALID_METRICS)}"
@@ -33,9 +43,9 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
 
         # self.point = point
     
-    def calculate(self, dataset: Dataset):
-        result = super().calculate(dataset)
-        return result
+    # def _compute(self, data):
+    #     result = super()._compute(data)
+    #     return result
 
     def _dist_from_point(self, X: np.ndarray, point) -> np.ndarray:
 
@@ -45,9 +55,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         center = self._get_center_from_point(X,point)
 
         if self.metric.startswith('minkowski'):
-            metricval = self.metric.split(' ')[0]
-            pval = float(self.metric.split(' ')[1])
-            return cdist(XA=X,XB=center,metric=metricval,p=pval)
+            return cdist(XA=X,XB=center,metric=self.metric,p=self.minkowski_p)
         
         return cdist(XA=X,XB=center,metric=self.metric)
 
@@ -82,64 +90,148 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
         
         elif point=='global_median_centroid':
             return np.median(X,axis=0).reshape((1,X.shape[1]))
+
+        elif point=='global_trimmed_mean_centroid':
+            return trim_mean(X, 0.1, axis=0).reshape((1, X.shape[1]))
+        
+        # elif point=='global_geom_median_centroid': #TODO: requires https://github.com/daleroberts/hdmedians/tree/master
+        #     return np.median(X,axis=0).reshape((1,X.shape[1]))
         
         else:
             return point
         
     # TODO: ADD SCALING FUNCTIONS IF NEEDED
-    # TODO: ADD CACHING OF DISTRIBUTION SO THAT IT'S EASIER 
     # TODO: UNIT TEST
 
+class CentroidDistanceDistributionCompare(DistanceDistributionBase):
+    _long_name = "CentroidDistanceDistributionCompare"
+    _identifier = "centroid-distance-distrib"
+    _type = Type.DESCRIPTIVE
+    _signatures = (Signature.SYMMETRY,)
+    _tags = (Tag.DISTANCE, Tag.NONPARAMETRIC)
 
-class KLMeanMedianDistances(DistanceDistributionBase):
-    # TODO: move, inherit from distance distribution base
-    name = "KLMeanMedianDistances"
-    identifier = ""
-    labels = ["skew"]
+    VALID_MODES = {
+        'KL_BOTH' : "_mode_kl_both",
+        'KS_STATISTIC' : "_mode_ks_statistic",
+        'WASSERSTEIN_DIST' : "_mode_wasserstein",
+        'JS_DIST' : '_mode_jensenshannon'
+    }
 
-    def __init__(self,metric,minkowski_p=None):
+    def __init__(self,metric,point1 = 'global_mean_centroid',
+                 point2 = 'global_median_centroid',minkowski_p=None,
+                 modes=['KL_BOTH']):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
-
-    def compute(self, data: np.ndarray) -> np.ndarray:
-        """
-        Return KL Divergence of distance distributions from global mean centroid and global median centroid 
-        (q- how would this behave in high dim data? might be very trivial bcz of curse of dimensionality?)
-        """
-        dists_mean = self._dist_from_point(data, 'global_mean_centroid')
-        dists_median = self._dist_from_point(data, 'global_median_centroid')
+        self.point1 = point1
+        self.point2 = point2
         
-        # global_bin - TODO
-        global_bin = None
-        mean_hist = self._distance_histogram(dists_mean,bins=global_bin)
-        median_hist = self._distance_histogram(dists_median,bins=global_bin)
+        self.modes = [v.upper() for v in list(modes)] if modes is not None else ["KL_BOTH"]
+        unknown = set(self.modes) - set(self.VALID_MODES.keys())
+        if unknown:
+            raise ValueError(f"unkonown {unknown}, supported- {list(self.VALID_MODES.keys())}")
 
-        # compute KL - TODO
+    def _compute(self, data: np.ndarray) -> np.ndarray:
+        """
+        difference in distance distributions from two centroids
+        choose between KL (both sides), KS test statistic, and Wasserstein distance 
+        """
+        
+        dists1 = self._dist_from_point(data,self.point1).flatten()
+        dists2 = self._dist_from_point(data, self.point2).flatten()
+        
+        out_vec = []
+        for m in self.modes:
+            stat_out = getattr(self,self.VALID_MODES[m])(dists1,dists2)
+            # print('stat_out', stat_out)
+            out_vec.extend(stat_out)
+            
+        # print('out_vec',out_vec)
+        return np.array(out_vec).flatten()
 
-        pass
 
+    def _mode_jensenshannon(self, dists1, dists2):
+        
+        # both=np.concatenate([dists1, dists2])
+        # iqr = np.subtract(*np.percentile(both, [75, 25]))
+        # n_bins = int(np.clip(np.ptp(both) * len(both) ** (1/3) / (2 * iqr), 1, 200)) if iqr > 0 else 100
+        
+        n_bins=100
+        edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins=n_bins)
+        
+        hist1 = self._distance_histogram(dists1,bins=edges)
+        hist2 = self._distance_histogram(dists2,bins=edges)
+        
+        js = jensenshannon(hist1, hist2, base=2) ** 2
+        # divergence in [0, 1]
+        
+        return [js]
+    
+    def _mode_kl_both(self, dists1, dists2):
+        # very sensitive to binning, not bounded either
+        # edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins="fd")
+        
+        # both=np.concatenate([dists1, dists2])
+        # iqr = np.subtract(*np.percentile(both, [75, 25]))
+        # n_bins = int(np.clip(np.ptp(both) * len(both) ** (1/3) / (2 * iqr), 1, 200)) if iqr > 0 else 100
+        n_bins=100
+        edges = np.histogram_bin_edges(np.concatenate([dists1, dists2]), bins=n_bins)
+        
+        hist1 = self._distance_histogram(dists1,bins=edges)
+        hist2 = self._distance_histogram(dists2,bins=edges)
+        
+        # compute KL
+        kl_12 = entropy(hist1,hist2)
+        kl_21 = entropy(hist2,hist1)
+        
+        return [kl_12,kl_21]
+
+    def _mode_ks_statistic(self, dists1, dists2):
+        return [ks_2samp(dists1, dists2).statistic]
+
+    def _mode_wasserstein(self, dists1, dists2):
+        return [wasserstein_distance(dists1, dists2)]
+    
+class GlobalCentroidDiffs(DistanceDistributionBase):
+    def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
+        super().__init__(metric=metric,minkowski_p=minkowski_p)
+        self.point1 = point1
+        self.point2 = point2
+
+    def _compute(self, data: np.ndarray) -> Union[np.ndarray, float]:
+
+        """
+        return RMSE, and feature-wise max, min of difference bw 2 centroids     
+        (intuition- max difference of mean and median across marginal distributions per feature)     
+        """
+        center1 = self._get_center_from_point(data,self.point1)
+        center2 = self._get_center_from_point(data,self.point2)
+
+        feat_wise_diff = center1 - center2
+        rmse = np.sqrt(np.mean(feat_wise_diff ** 2))
+        
+        return np.array([rmse,np.max(np.abs(feat_wise_diff)), np.min(np.abs(feat_wise_diff))])
+    
 class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     name = "Distance from Point - Peaks"
     identifier = "dist-point-peaks"
-    labels = ["scalar", "distance"]
 
     summary_fns_dict = {
-        "mean" : lambda dists : np.mean(dists),
-        "median" : lambda dists : np.median(dists),
-        "iqr" : lambda dists : np.quantile(dists,0.75) - np.quantile(dists,0.25),
-        "std" : lambda dists : np.std(dists),
-        "min" : lambda dists : np.min(dists),
-        "max" : lambda dists : np.max(dists),
-        "skew" : lambda dists : skew(dists),
-        "kurtosis" : lambda dists : kurtosis(dists),
+        "MEAN" : lambda dists : np.mean(dists),
+        "MEDIAN" : lambda dists : np.median(dists),
+        "IQR" : lambda dists : np.quantile(dists,0.75) - np.quantile(dists,0.25),
+        "STD" : lambda dists : np.std(dists),
+        "MIN" : lambda dists : np.min(dists),
+        "MAX" : lambda dists : np.max(dists),
+        "SKEW" : lambda dists : skew(dists),
+        "KURTOSIS" : lambda dists : kurtosis(dists),
     }
-        
+
     def __init__(self,metric, point, stats: list[str] = ["skew"],minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
         self.point = point
-        self.stats = stats
+        self.stats = [v.upper() for v in stats]
 
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         
         """
         Compute distance distribution, choose between:
@@ -158,22 +250,23 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
         """
                 
         
-        dists = self._dist_from_point(data, self.point)
+        dists = self._dist_from_point(data, self.point).flatten()
 
         if set(self.stats) <= (set(self.summary_fns_dict.keys())):        
             # summary.append(np.median(dists))
-            summary = [self.summary_fns_dict[v](dists) for v in self.stats]            
+            summary = [self.summary_fns_dict[v](dists) for v in self.stats]          
             print()
 
         else:
             raise ValueError(f"Unsupported stats: {self.stats}")
-                    
+
+        print(summary)
+        
         return np.array(summary).flatten()
 
 class DistanceDistributionModesSummarize(DistanceDistributionBase):
     name = "Distance from Point - Summary Stats"
     identifier = "dist-point-summ"
-    labels = ["scalar", "distance"]
 
     def __init__(self,metric, point, type='kde',minkowski_p=None):
         super().__init__(metric=metric,minkowski_p=minkowski_p)
@@ -181,7 +274,7 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         self.point=point
         self.type = type
 
-    def compute(self, data: np.ndarray) -> np.ndarray:
+    def _compute(self, data: np.ndarray) -> np.ndarray:
         """
         Compute distance distribution, choose between:
             pairwise
@@ -213,8 +306,7 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         #     # TODO: implement
         #     n_modes = -1.0
 
-        # TODO: USE DERIVATIVES AND INFLECTION POINTS?
-        # dy = np.gradient(y, x)        # First derivative
+        # TODO: USE INFLECTION POINTS?
         # d2y = np.gradient(dy, x)      # Second derivative
 
         else:

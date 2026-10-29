@@ -1,0 +1,4 @@
+/hpc_pyspoc_scripts/*
+!/hpc_pyspoc_scripts/py_scripts
+!/hpc_pyspoc_scripts/*.pbs
+!/hpc_pyspoc_scripts/*.md
