@@ -58,13 +58,15 @@ def main():
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--manifest_data_id", default="safe_data_id",type=str)
     p.add_argument("--manifest_path", default="path",type=str)
+    p.add_argument("--results_base_dir", default=ROOT,type=Path)
+
     # MANIFEST NEEDS TO HAVE A SAFE_DATA_ID AND A PATH COL
 
     args = p.parse_args()
 
     manifest = ROOT / args.manifest
     config = ROOT / args.config
-    out_dir = ROOT / "results" / "per_dataset" / manifest.stem / config.stem
+    out_dir = args.results_base_dir / "results" / "per_dataset" / manifest.stem / config.stem
     out_dir.mkdir(parents=True, exist_ok=True)
 
     chunk = pd.read_csv(manifest).iloc[args.index :: args.n_chunks]
