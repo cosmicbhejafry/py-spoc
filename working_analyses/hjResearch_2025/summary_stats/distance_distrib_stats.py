@@ -63,9 +63,7 @@ class DistanceDistributionBase(ReducedStatistic, ABC):
     def _pairwise_dists(self, X: np.ndarray) -> np.ndarray:
 
         if self.metric.startswith('minkowski'):
-            metricval = self.metric.split(' ')[0]
-            pval = float(self.metric.split(' ')[1])
-            return pdist(X, metric = metricval,p=pval)
+            return pdist(X, metric = self.metric,p=self.minkowski_p)
 
         return pdist(X, metric = self.metric)
     
@@ -191,8 +189,8 @@ class CentroidDistanceDistributionCompare(DistanceDistributionBase):
         return [wasserstein_distance(dists1, dists2)]
     
 class GlobalCentroidDiffs(DistanceDistributionBase):
-    def __init__(self,metric,point1 = 'global_mean_centroid',point2 = 'global_median_centroid',minkowski_p=None):
-        super().__init__(metric=metric,minkowski_p=minkowski_p)
+    def __init__(self,point1 = 'global_mean_centroid',point2 = 'global_median_centroid'):
+        super().__init__(metric='euclidean',minkowski_p=None)
         self.point1 = point1
         self.point2 = point2
 
@@ -207,8 +205,8 @@ class GlobalCentroidDiffs(DistanceDistributionBase):
 
         feat_wise_diff = center1 - center2
         rmse = np.sqrt(np.mean(feat_wise_diff ** 2))
-        
-        return np.array([rmse,np.max(np.abs(feat_wise_diff)), np.min(np.abs(feat_wise_diff))])
+        abs_diff = np.abs(feat_wise_diff)
+        return np.array([rmse,np.max(abs_diff), np.min(abs_diff), np.median(abs_diff)])
     
 class DistanceDistributionBasicSummarize(DistanceDistributionBase):
     name = "Distance from Point - Peaks"
@@ -260,7 +258,7 @@ class DistanceDistributionBasicSummarize(DistanceDistributionBase):
         else:
             raise ValueError(f"Unsupported stats: {self.stats}")
 
-        print(summary)
+        # print(summary)
         
         return np.array(summary).flatten()
 
@@ -296,6 +294,11 @@ class DistanceDistributionModesSummarize(DistanceDistributionBase):
         dists1 = dists.flatten()
 
         if self.type == 'kde':
+            
+            if np.ptp(dists1)==0:
+                # all distances same
+                return np.array([0])
+            
             kde = gaussian_kde(dists1, bw_method='silverman')
             xs = np.linspace(min(dists1), max(dists1), 1000)
             ys = kde(xs)

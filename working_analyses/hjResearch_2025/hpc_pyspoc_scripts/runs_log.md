@@ -13,20 +13,37 @@ todo's:
 
 ### GTEX- 
 
-#### gtex_N100_P100__mode_partition.csv
+#### gtex_N100_P100__mode_partition.csv -- done
 
-```qsub -N gtex100_d -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_N100_P100__mode_partition.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
+```qsub -N gtex100_d -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_N100_P100__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
 ```qsub -N gtex100_m -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=4:mem=4gb -v MANIFEST=metadata_files/gtex_N100_P100__mode_partition.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc.pbs```
 
 ```qsub -N gtex100_p -J 1-25 -l walltime=00:30:00 -l select=1:ncpus=4:mem=8gb -v MANIFEST=metadata_files/gtex_N100_P100__mode_partition.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=25 run_pyspoc.pbs```
 
-#### gtex_N200_P500__mode_partition.csv -- to run
+#### gtex_N200_P500__mode_partition.csv -- done
+
+qsub -J 1-25 -l walltime=00:10:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs
+
+qsub -N mf_gtex -J 1-25 -l walltime=00:45:00 -l select=1:ncpus=4:mem=8gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_partition.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=25 run_pyspoc_pooled.pbs
+
+qsub -N gtex_pic -J 1-40 -l walltime=01:00:00 -l select=1:ncpus=4:mem=6gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_partition.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=40 run_pyspoc_pooled.pbs
+(20min per dataset roughly)
+
+#### gtex_N200_P500__mode_random.csv
+
+qsub -J 1-50 -l walltime=00:10:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_random.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs
+
+qsub -N mf_gtex -J 1-50 -l walltime=00:20:00 -l select=1:ncpus=4:mem=8gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_random.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs
+
+qsub -N gtex_pic -J 1-40 -l walltime=01:00:00 -l select=1:ncpus=4:mem=6gb -v MANIFEST=metadata_files/gtex_N200_P500__mode_random.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=40 run_pyspoc_pooled.pbs
+(20min per dataset roughly)
+
 
 
 ### SYNTHETIC N = 1000, P = 100- syn_data_N1000_P100_num_seed_10.csv
 
-```qsub -J 1-100 -l walltime=00:10:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P100_num_seed_10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs``` 
+```qsub -J 3-100 -l walltime=00:10:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P100_num_seed_10.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs``` 
 (actually took about 1min for 1 chunk with ~30-40 datasets)
 
 ```qsub -N mf_1000_10 -J 1-100 -l walltime=00:45:00 -l select=1:ncpus=8:mem=32gb -v MANIFEST=metadata_files/syn_data_N1000_P100_num_seed_10.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs```
@@ -49,7 +66,7 @@ todo's:
 cat metadata_files/syn_data_N10000_P100.csv | wc -l
 find results/per_dataset/syn_data_N10000_P100/ -name "*.parquet" -printf "%h\n" | sort | uniq -c -->
 
-tr '\r' '\n' < ERROR_FILE | awk '
+tr '\r' '\n' < ERRFILE | awk '
 function secs(t,  a, n) { n = split(t, a, ":"); return n == 3 ? a[1]*3600 + a[2]*60 + a[3] : a[1]*60 + a[2] }
 /Statistic: \[/ { match($0, /\[[^]]+\]/); name = substr($0, RSTART+1, RLENGTH-2) }
 /Computing Statistics:/ && match($0, /[0-9]+\/[0-9]+ \[[0-9:]+/) {
@@ -60,10 +77,14 @@ function secs(t,  a, n) { n = split(t, a, ":"); return n == 3 ? a[1]*3600 + a[2]
     prev = t; name = ""
 } > pbs_job_outs/errlog.txt'
 
+OR: 
+tr '\r' '\n' < pbs_job_outs/<pid>.pbs-7.ER | awk -f stat_timings.awk > pbs_job_outs/err_logs_awks/errlog_gtex_N200_P500.txt
+
 <!-- ```for d in results/per_dataset/syn_data_N1000_P10/*/; do    echo "$d $(ls "$d"*.parquet 2>/dev/null | wc -l)"; done``` -->
 
 ## HISTORY
 
+NOTE: DISTANCE CONFIG HAS CHANGED
 
 first ran for -J 1-3, have a quick look at logs to see everything's working as expected, adjust walltimes and run for -J 4-25 
 
