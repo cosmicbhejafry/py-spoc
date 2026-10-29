@@ -11,7 +11,7 @@ import pytest
 
 from pyspoc._execution import execute_pairwise, execute_pairwise_barrier
 from pyspoc.settings import settings
-from pyspoc.statistics.base import PairwiseStatistic
+from pyspoc.component.statistics.base import PairwiseStatistic
 
 
 class ExamplePairwiseStatistic(PairwiseStatistic):

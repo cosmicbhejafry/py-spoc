@@ -242,3 +242,10 @@ Reducers:
           dim: p
           nan_policy: raise
 ReducedStatistics: {}
+
+Mappings:
+  Positive:
+    - HilbertSchmidtIndependenceCriterion@rbf => EntryWiseMatrixNorm@p2q1
+    - HilbertSchmidtIndependenceCriterion@rbf => Norm@fro
+  Negative:
+    - HilbertSchmidtIndependenceCriterion@rbf => SchattenNorm@p3

@@ -7,8 +7,8 @@ import pytest
 from scipy.linalg import pinvh
 from sklearn.covariance import GraphicalLasso, LedoitWolf
 
-from pyspoc.statistics.association.correlation import PartialCorrelation
-from pyspoc.statistics.base import Statistic
+from pyspoc.component.statistics.association.correlation import PartialCorrelation
+from pyspoc.component.statistics.base import Statistic
 from pyspoc._tag import Tag
 
 

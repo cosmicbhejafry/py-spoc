@@ -1,7 +1,6 @@
 # %%
-from pyspoc.rstatistics.fractal import (
-    _funcs_py as fpy,
-    _funcs_numba as fnb,
+from pyspoc.component.rstatistics.fractal import _funcs_numba as fnb, _funcs_py as fpy
+from pyspoc.component.rstatistics.fractal import (
     renyi,
 )
 

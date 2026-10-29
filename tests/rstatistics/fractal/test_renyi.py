@@ -3,8 +3,8 @@ from itertools import pairwise
 import numpy as np
 import pytest
 
-from pyspoc.rstatistics.fractal import base as fractal_base_module
-from pyspoc.rstatistics.fractal.renyi import (
+from pyspoc.component.rstatistics.fractal import base as fractal_base_module
+from pyspoc.component.rstatistics.fractal.renyi import (
     RenyiEntropy,
     _get_renyi_entropy,
     _get_renyi_entropy_numba,

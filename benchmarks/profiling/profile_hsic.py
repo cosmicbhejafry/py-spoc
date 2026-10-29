@@ -3,7 +3,7 @@ from time import perf_counter
 
 import numpy as np
 
-from pyspoc.statistics.association.distance.hsic import HilbertSchmidtIndependenceCriterion
+from pyspoc.component.statistics.association.distance.hsic import HilbertSchmidtIndependenceCriterion
 from pyspoc.profiling import profile_component_cpu
 from pyspoc.settings import settings
 

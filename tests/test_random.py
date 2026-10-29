@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from pyspoc._exceptions import OptionalDependencyMissingError
+from pyspoc.exceptions import OptionalDependencyMissingError
 from pyspoc._random import RandomSeedMixin, resolve_random_seed
 from pyspoc._random.numpy import make_numpy_generator
 from pyspoc._random.torch import make_torch_generator

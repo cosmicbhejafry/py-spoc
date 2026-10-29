@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 import re
 
-from pyspoc._base import Component as LibraryComponent
-from pyspoc.config import Config
+from pyspoc.component._base import Component as LibraryComponent
+from pyspoc.config.config import Config
 from pyspoc.settings import settings
-from pyspoc._exceptions import MissingComponentPropertyError
+from pyspoc.exceptions import MissingComponentPropertyError
 from pyspoc._tag import Tag
 
 
@@ -50,7 +50,7 @@ class DummyComponent(Component):
         return ["dummy"]
 
     @staticmethod
-    def _get_component_type() -> type:
+    def _get_component_archetype() -> type:
         return Component
 
     def compute(self, data: np.ndarray) -> np.ndarray:

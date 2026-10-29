@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pyspoc.statistics.dimreduce.orthopcae import _estimator
+from pyspoc.component.statistics.dimreduce.orthopcae import _estimator
 
 #data = np.load("/home/gsc225/Projects/hcda/py-spoc/pyspoc/data/cml.npy")
 data = np.load("/home/gsc225/Projects/hcda/py-spoc/pyspoc/data/forex.npy")
@@ -27,7 +27,7 @@ print("Learned Gamma (Scale):", model.decoder_bn.weight)
 print("Learned Beta (Shift) :", model.decoder_bn.bias)
 #%%
 
-from pyspoc.rstatistics.dimreduce.orthopcae.rstatistics import (
+from pyspoc.component.rstatistics.dimreduce.orthopcae.rstatistics import (
     OrthogonalPCAEVarianceElbow, OrthogonalPCAEVarianceExplainedRatio)
 
 orthopcae_ve = OrthogonalPCAEVarianceElbow(256, 5, train_steps=1000)
@@ -41,7 +41,7 @@ results
 plt.plot(results)
 plt.show()
 # %%
-import pyspoc.rstatistics.dimreduce.orthopcae.rstatistics as rsf
+import pyspoc.component.rstatistics.dimreduce.orthopcae.rstatistics as rsf
 
 est = _estimator.OrthogonalPCAEEstimator(256, 7, train_steps=1000)
 est.fit(data)

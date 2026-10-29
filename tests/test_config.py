@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pyspoc.config import Config
+from pyspoc.config.config import Config
 
 
 @pytest.mark.parametrize(

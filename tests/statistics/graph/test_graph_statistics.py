@@ -3,11 +3,11 @@ import numpy as np
 import pytest
 from scipy.stats import wasserstein_distance
 
-from pyspoc.statistics.graph import (
+from pyspoc.component.statistics.graph import (
     CorrelationGraph, CovarianceGraph, DistributionGraph,
     ProximityGraph, RegressionGraph, ChowLiuTree,
 )
-from pyspoc.statistics.graph._base import GraphStatistic
+from pyspoc.component.statistics.graph._base import GraphStatistic
 
 DATA = np.random.default_rng(41).normal(size=(32, 4))
 

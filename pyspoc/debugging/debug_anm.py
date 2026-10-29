@@ -1,6 +1,6 @@
 import numpy as np
 
-from pyspoc.statistics.causal import AdditiveNoiseModel
+from pyspoc.component.statistics.causal import AdditiveNoiseModel
 from pyspoc.dataset import Dataset
 
 np.random.seed(42)

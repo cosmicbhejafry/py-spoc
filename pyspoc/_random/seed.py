@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from typing import TYPE_CHECKING
 
-from pyspoc._exceptions import OptionalDependencyMissingError
+from pyspoc.exceptions import OptionalDependencyMissingError
 from pyspoc._initialization import AutoInitializedMixin
 from pyspoc._argchecking import check_integer
 from pyspoc.settings import settings

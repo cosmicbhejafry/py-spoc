@@ -17,7 +17,7 @@ from typing import List, Literal, cast
 from time import time
 from typeguard import check_type
 
-from pyspoc import _base
+from pyspoc.component import _base
 from pyspoc import _argchecking
 from pyspoc.settings import settings
 

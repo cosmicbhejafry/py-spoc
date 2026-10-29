@@ -1,0 +1,217 @@
+Statistics:
+    EllipticEnvelope:
+        ee:
+          squared: false
+          invert: false
+          assume_centered: false
+          support_fraction: null
+          contamination: 0.1
+          random_seed: null
+          dim: p
+          nan_policy: raise
+    OAS:
+        oas:
+          squared: false
+          invert: false
+          assume_centered: false
+          dim: p
+          nan_policy: raise
+    LedoitWolf:
+        lw:
+          squared: false
+          invert: false
+          assume_centered: false
+          block_size: 1000
+          dim: p
+          nan_policy: raise
+    ShrunkCovariance:
+        sc:
+          squared: false
+          invert: false
+          assume_centered: false
+          shrinkage: 0.1
+          dim: p
+          nan_policy: raise
+    KendallTau:
+        std:
+          dim: p
+          nan_policy: raise
+          squared: false
+          alternative: two-sided
+    SpearmanR:
+        std:
+          dim: p
+          nan_policy: raise
+          squared: false
+          alternative: two-sided
+    PowerEnvelopeCorrelation:
+        orth:
+          dim: p
+          nan_policy: raise
+          orth: true
+          log: false
+          absolute: false
+    LinearRegressorError:
+        LinearRegression:
+          model: LinearRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        RidgeCV:
+          model: RidgeCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        Lasso:
+          model: Lasso
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        ElasticNet:
+          model: ElasticNet
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        LarsCV:
+          model: LarsCV
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        LassoLarsIC:
+          model: LassoLarsIC
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        OrthogonalMatchingPursuit:
+          model: OrthogonalMatchingPursuit
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        ARDRegression:
+          model: ARDRegression
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+        BayesianRidge:
+          model: BayesianRidge
+          error: mean_squared_error
+          force_positive_tweedie: false
+          dim: p
+          nan_policy: raise
+    PairwiseDistance:
+        manhattan:
+          metric: manhattan
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        nan_euclidean:
+          metric: nan_euclidean
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        cubic:
+          metric: cubic
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        chebyshev:
+          metric: chebyshev
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        cosine:
+          metric: cosine
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        braycurtis:
+          metric: braycurtis
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        canberra:
+          metric: canberra
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        correlation:
+          metric: correlation
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+    GromovWassersteinTau:
+        std:
+          dim: p
+          nan_policy: raise
+    HilbertSchmidtIndependenceCriterion:
+        rbf:
+          biased: false
+          metric: rbf
+          downsample: true
+          dim: p
+          nan_policy: raise
+          kernel_kwargs: {}
+Reducers:
+    Determinant:
+        scaled:
+          scaled: true
+    SingularValues:
+        four:
+          num_values: 4
+          dim: p
+          nan_policy: raise
+    Moment:
+        three:
+          moments:
+          - 1
+          - 2
+          - 3
+    EntryWiseMatrixNorm:
+        p2q1:
+          p: 1
+          q: 2
+          dim: p
+          nan_policy: raise
+    Norm:
+        fro:
+          order: fro
+          dim: p
+          nan_policy: raise
+        nuc:
+          order: nuc
+          dim: p
+          nan_policy: raise
+        l2:
+          order: 2
+          dim: p
+          nan_policy: raise
+    SchattenNorm:
+        p3:
+          p: 3
+          dim: p
+          nan_policy: raise
+    EffectiveRank:
+        std:
+          dim: p
+          nan_policy: raise
+    StableRank:
+        std:
+          dim: p
+          nan_policy: raise
+ReducedStatistics: {}

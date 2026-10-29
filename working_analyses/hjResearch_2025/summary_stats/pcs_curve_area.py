@@ -1,6 +1,6 @@
 import numpy as np
 from pyspoc import ReducedStatistic
-from pyspoc.rstatistics import PCABase
+from pyspoc.component.rstatistics import PCABase
 from typing import Union
 
 

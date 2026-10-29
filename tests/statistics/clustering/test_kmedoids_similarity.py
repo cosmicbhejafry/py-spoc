@@ -17,7 +17,7 @@ def _classes():
 
 def test_current_kmedoids_adapter_is_importable():
     statistic, estimator = _classes()
-    from pyspoc.statistics.base import Statistic
+    from pyspoc.component.statistics.base import Statistic
     assert issubclass(statistic, Statistic)
     assert callable(estimator.get_or_create)
 

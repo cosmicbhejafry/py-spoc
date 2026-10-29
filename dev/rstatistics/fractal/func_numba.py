@@ -1,9 +1,9 @@
 # %%
 
 # %%
-import pyspoc.rstatistics.fractal._funcs_py as fpy
-import pyspoc.rstatistics.fractal._funcs_numba as fnb
-import pyspoc.rstatistics.fractal.renyi as renyi
+import pyspoc.component.rstatistics.fractal._funcs_py as fpy
+import pyspoc.component.rstatistics.fractal._funcs_numba as fnb
+import pyspoc.component.rstatistics.fractal.renyi as renyi
 import pyspoc.data.generators.fractal as fgen
 import numpy as np
 import matplotlib.pyplot as plt

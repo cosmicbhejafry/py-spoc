@@ -6,7 +6,7 @@ import inspect
 
 from collections.abc import Callable
 from functools import wraps
-from typing import Concatenate, Generic, ParamSpec, TypeVar
+from typing import Concatenate, Generic, ParamSpec, TypeVar, cast
 
 
 _Owner = TypeVar("_Owner")
@@ -111,3 +111,107 @@ class hybridmethod(Generic[_Owner, _P, _R]):
         # should see only the parameters they actually supply.
         setattr(bound, "__signature__", self._bound_signature)
         return bound
+
+
+class hybridproperty(hybridmethod[_Owner, [], _R]):
+    """Evaluate a read-only getter against its accessing instance or class.
+
+    Parameters
+    ----------
+    method : callable
+        Getter accepting exactly one positional receiver parameter. The
+        receiver is the instance for instance access and the accessing class
+        for class access. No additional arguments are accepted.
+
+    Notes
+    -----
+    Values are evaluated on every access, not cached. Instance assignment and
+    deletion are prohibited; replacing the attribute on the class remains
+    possible, as with a normal Python property.
+
+    Class access to an abstract getter returns the descriptor itself rather
+    than evaluating the getter. This preserves ABC abstractness checks in
+    subclasses that have not implemented the property.
+    """
+
+    def __init__(self, method: Callable[[_Owner | type[_Owner]], _R]) -> None:
+        """Store a getter after validating its receiver-only signature.
+
+        Parameters
+        ----------
+        method : callable
+            Unbound getter with exactly one positional receiver parameter.
+
+        Raises
+        ------
+        TypeError
+            If the getter does not accept exactly one positional parameter.
+        """
+        parameters = tuple(inspect.signature(method).parameters.values())
+        if len(parameters) != 1 or parameters[0].kind not in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            raise TypeError(
+                "hybridproperty requires exactly one positional receiver parameter."
+            )
+        super().__init__(method)
+
+    # This intentional descriptor specialization returns the result, not the
+    # callable promised by hybridmethod. Retain precise value typing for users.
+    def __get__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, instance: _Owner | None, owner: type[_Owner],
+    ) -> _R:
+        """Return the getter's value for the accessing receiver.
+
+        Parameters
+        ----------
+        instance : object or None
+            Accessing instance, or ``None`` for access through a class.
+        owner : type
+            Class through which the descriptor is accessed.
+
+        Returns
+        -------
+        _R
+            Getter result. For an abstract getter accessed through a class,
+            the descriptor itself is returned for ABC introspection instead.
+        """
+        if instance is None and self.__isabstractmethod__:
+            # ABCMeta inspects inherited abstract attributes using getattr().
+            # Evaluating here could either raise or make an unfinished getter
+            # look concrete merely because its result is not marked abstract.
+            return cast(_R, self)
+        return super().__get__(instance, owner)()
+
+    def __set__(self, instance: _Owner, value: object) -> None:
+        """Reject instance assignment to this read-only property.
+
+        Parameters
+        ----------
+        instance : object
+            Instance receiving the attempted assignment.
+        value : object
+            Proposed replacement value.
+
+        Raises
+        ------
+        AttributeError
+            Always; no setter is provided.
+        """
+        raise AttributeError("hybridproperty is read-only")
+
+    def __delete__(self, instance: _Owner) -> None:
+        """Reject instance deletion of this read-only property.
+
+        Parameters
+        ----------
+        instance : object
+            Instance receiving the attempted deletion.
+
+        Raises
+        ------
+        AttributeError
+            Always; no deleter is provided.
+        """
+        raise AttributeError("hybridproperty is read-only")

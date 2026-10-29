@@ -5,12 +5,12 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from pyspoc.rstatistics.dimreduce.orthopcae import rstatistics as rstatistics_module
-from pyspoc.rstatistics.dimreduce.orthopcae.rstatistics import (
+from pyspoc.component.rstatistics.dimreduce.orthopcae import rstatistics as rstatistics_module
+from pyspoc.component.rstatistics.dimreduce.orthopcae.rstatistics import (
     OrthogonalPCAEVarianceElbow,
     OrthogonalPCAEVarianceExplainedRatio,
 )
-from pyspoc.statistics.dimreduce.orthopcae._state import (
+from pyspoc.component.statistics.dimreduce.orthopcae._state import (
     OrthogonalPCAEFittedState,
 )
 

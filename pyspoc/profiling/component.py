@@ -12,7 +12,7 @@ from typing import Any, TYPE_CHECKING
 import numpy as np
 
 from pyspoc._argchecking import check_integer, check_natural_number
-from pyspoc._exceptions import OptionalDependencyMissingError
+from pyspoc.exceptions import OptionalDependencyMissingError
 from pyspoc.settings import settings
 from .reports import (
     CPUProfileRun,

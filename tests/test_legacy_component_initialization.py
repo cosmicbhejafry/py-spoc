@@ -5,7 +5,7 @@ import inspect
 import pytest
 import yaml
 
-from pyspoc._base import Component as LibraryComponent
+from pyspoc.component._base import Component as LibraryComponent
 
 
 class Component(LibraryComponent):

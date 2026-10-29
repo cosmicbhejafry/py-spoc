@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from pyspoc.settings import settings
-from pyspoc.statistics.association.distance.hsic import (
+from pyspoc.component.statistics.association.distance.hsic import (
     HilbertSchmidtIndependenceCriterion,
     pairwise_hsic,
 )

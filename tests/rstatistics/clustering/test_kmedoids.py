@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from sklearn_extra.cluster import KMedoids
 
-from pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics import KMedoidsErrors
+from pyspoc.component.rstatistics.clustering.kclustering.kmedoids.statistics import KMedoidsErrors
 from pyspoc.settings import settings
-from pyspoc.statistics.clustering.kclustering.kmedoids._base import KMedoidsEstimator
+from pyspoc.component.statistics.clustering.kclustering.kmedoids._base import KMedoidsEstimator
 
 
 # An unresolved annotation must fail a test, not silently skip runtime checking.

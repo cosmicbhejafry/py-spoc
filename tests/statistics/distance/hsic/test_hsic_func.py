@@ -5,9 +5,9 @@ import pytest
 
 from sklearn.metrics import pairwise_kernels
 
-import pyspoc.statistics.association.distance.hsic.func as hsic_func
+import pyspoc.component.statistics.association.distance.hsic.func as hsic_func
 from pyspoc.settings import settings
-from pyspoc.statistics.association.distance.hsic.func import (
+from pyspoc.component.statistics.association.distance.hsic.func import (
     center_kernel,
     compute_kernel,
     hsic_from_kernels,

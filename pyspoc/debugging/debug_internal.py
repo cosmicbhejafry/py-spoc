@@ -1,4 +1,4 @@
-from pyspoc.config import Config
+from pyspoc.config.config import Config
 
 #cfg = Config.from_archetypes(
 #    "boom",

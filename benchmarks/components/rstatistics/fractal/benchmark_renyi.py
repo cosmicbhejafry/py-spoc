@@ -3,7 +3,7 @@ import pytest
 
 from itertools import product
 
-from pyspoc.rstatistics.fractal.renyi import (
+from pyspoc.component.rstatistics.fractal.renyi import (
     _get_renyi_entropy,
     _get_renyi_entropy_py,
     _get_renyi_entropy_numba_fast,

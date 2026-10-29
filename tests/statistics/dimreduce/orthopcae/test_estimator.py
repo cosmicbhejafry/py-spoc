@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 import torch
 
-from pyspoc.statistics.dimreduce.orthopcae import _estimator as estimator_module
-from pyspoc.statistics.dimreduce.orthopcae._estimator import (
+from pyspoc.component.statistics.dimreduce.orthopcae import _estimator as estimator_module
+from pyspoc.component.statistics.dimreduce.orthopcae._estimator import (
     OrthogonalPCAEEstimator,
 )
 from pyspoc.settings import settings

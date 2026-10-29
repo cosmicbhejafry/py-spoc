@@ -3,7 +3,7 @@ import numpy as np
 
 from itertools import product
 
-from pyspoc.rstatistics.ranks import EffectiveRank, StableRank
+from pyspoc.component.rstatistics.ranks import EffectiveRank, StableRank
 
 ns = [10,50,100,1000]
 ps = [1,2,5,10,100]

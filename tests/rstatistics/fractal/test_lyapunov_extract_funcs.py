@@ -3,13 +3,13 @@ import pytest
 
 from itertools import product
 
-from pyspoc.rstatistics.fractal._funcs_py import (
+from pyspoc.component.rstatistics.fractal._funcs_py import (
     get_log10_scales,
     get_datseries_scales,
     get_adaptive_box_scales
 )
 
-from pyspoc.rstatistics.fractal._funcs_numba import (
+from pyspoc.component.rstatistics.fractal._funcs_numba import (
     compute_deshmukh_slope_estimate
 )
 

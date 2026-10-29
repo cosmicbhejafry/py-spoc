@@ -16,7 +16,7 @@ from pyspoc.settings import settings
 from .types import NumpyRealTensorUpTo2D
 
 if TYPE_CHECKING:
-    from pyspoc.config import Config
+    from pyspoc.config.config import Config
     from pyspoc.calculator import Calculator
 
 

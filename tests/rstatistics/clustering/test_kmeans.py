@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from sklearn.cluster import KMeans
 
-from pyspoc.rstatistics.clustering.kclustering.kmeans.statistics import KMeansErrors
+from pyspoc.component.rstatistics.clustering.kclustering.kmeans.statistics import KMeansErrors
 from pyspoc.settings import settings
-from pyspoc.statistics.clustering.kclustering.kmeans._base import KMeansEstimator
+from pyspoc.component.statistics.clustering.kclustering.kmeans._base import KMeansEstimator
 
 
 # An unresolved annotation must fail a test, not silently skip runtime checking.

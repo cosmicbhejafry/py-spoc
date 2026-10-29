@@ -11,12 +11,12 @@ from typing import Any, Literal, TYPE_CHECKING, overload
 from collections.abc import Collection
 
 # From this package
-from pyspoc._base import Component
+from pyspoc.component._base import Component
 from pyspoc.dataset import Dataset
-from pyspoc.config import Config
-from pyspoc.rstatistics.base import ReducedStatistic
-from pyspoc.statistics.base import Statistic
-from pyspoc.reducers.base import Reducer
+from pyspoc.config.config import Config
+from pyspoc.component.rstatistics.base import ReducedStatistic
+from pyspoc.component.statistics.base import Statistic
+from pyspoc.component.reducers.base import Reducer
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
 from pyspoc.settings import settings
 

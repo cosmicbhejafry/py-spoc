@@ -21,10 +21,10 @@ from types import UnionType
 from numbers import Real
 from typeguard import CollectionCheckStrategy, TypeCheckError, check_type
 
-from pyspoc import _base
-from pyspoc._exceptions import InvalidStandardisedCausalGraphError
+from pyspoc.component import _base
+from pyspoc.exceptions import InvalidStandardisedCausalGraphError
 from pyspoc.settings import settings
-from pyspoc._descriptors import hybridmethod
+from pyspoc._descriptors import hybridmethod, hybridproperty
 
 
 _P = ParamSpec("_P")
@@ -220,6 +220,17 @@ class RuntimeTypeCheckedMixin:
                     member_name,
                     cls._wrap_type_checked_callable(member, member_name),
                 )
+                continue
+
+            if isinstance(member, hybridproperty):
+                # Handle this before hybridmethod: rebuilding it as a method
+                # would make attribute access return a callable again. Like
+                # ordinary properties, getter checks follow the property policy.
+                if cls._type_check_properties:
+                    wrapped = cls._wrap_type_checked_callable(
+                        member.method, member_name,
+                    )
+                    setattr(cls, member_name, hybridproperty(wrapped))
                 continue
 
             if isinstance(member, property):

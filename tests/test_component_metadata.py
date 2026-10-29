@@ -9,7 +9,7 @@ from typing import Self
 import pytest
 
 from pyspoc._argchecking import RuntimeTypeCheckedMixin
-from pyspoc._base import Component as LibraryComponent, get_obj_init_args, hybridmethod
+from pyspoc.component._base import Component as LibraryComponent, get_obj_init_args, hybridmethod
 
 
 class Component(LibraryComponent):

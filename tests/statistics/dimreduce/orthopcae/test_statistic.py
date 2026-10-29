@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from pyspoc.statistics.dimreduce.orthopcae import _mixin as mixin_module
-from pyspoc.statistics.dimreduce.orthopcae._base import (
+from pyspoc.component.statistics.dimreduce.orthopcae import _mixin as mixin_module
+from pyspoc.component.statistics.dimreduce.orthopcae._base import (
     OrthogonalPCAEStatistic,
 )
 from pyspoc.settings import settings

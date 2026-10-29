@@ -7,7 +7,7 @@ from types import ModuleType
 from typing import Iterable
 from numba.core.registry import CPUDispatcher
 
-from pyspoc.rstatistics.fractal import _funcs_numba
+from pyspoc.component.rstatistics.fractal import _funcs_numba
 
 
 def _format_annotation(annotation: object) -> str:
