@@ -13,6 +13,44 @@ todo's:
 
 ### GTEX- 
 
+
+#### gtex_geneSub_N100_P100__mode_partition.csv - done
+
+(~3500 datasets)
+50 chunk- approx 70 datasets, 100 chunk- approx 35 datasets
+
+```qsub -N gtex100_d -J 1-50 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P100__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=50 run_pyspoc.pbs```
+(done,took roughly 1-2min per chunk for 50 chunks)
+
+```qsub -N gtex100_m -J 1-50 -l walltime=00:20:00 -l select=1:ncpus=2:mem=4gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P100__mode_partition.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=50 run_pyspoc.pbs```
+(done,took roughly 1-2min per chunk for 50 chunks)
+
+```qsub -N gtex100_p -J 1-75 -l walltime=00:30:00 -l select=1:ncpus=4:mem=6gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P100__mode_partition.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=75 run_pyspoc.pbs```
+(takes 2min per dataset, so 140min for 70 ds)
+
+#### gtex_geneSub_N200_P100__mode_partition.csv  - done
+
+```qsub -N gtex21_d -J 1-50 -l walltime=00:10:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_geneSub_N200_P100__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=50 run_pyspoc.pbs```
+(done,1-2mins roughly per chunk)
+
+```qsub -N gtex21_m -J 1-50 -l walltime=00:10:00 -l select=1:ncpus=2:mem=4gb -v MANIFEST=metadata_files/gtex_geneSub_N200_P100__mode_partition.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs```
+(done,3mins roughly per chunk)
+
+```qsub -N gtex21_p -J 1-200 -l walltime=00:30:00 -l select=1:ncpus=2:mem=6gb -v MANIFEST=metadata_files/gtex_geneSub_N200_P100__mode_partition.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=200 run_pyspoc.pbs```
+(about 17min per chunk)
+
+#### gtex_geneSub_N100_P200__mode_partition.csv
+
+(~3500 datasets)
+50 chunk- approx 70 datasets, 100 chunk- approx 35 datasets
+
+```qsub -N gtex12_d -J 1-50 -l walltime=00:10:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P200__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=50 run_pyspoc.pbs``` (done)
+
+```qsub -N gtex12_m -J 1-50 -l walltime=00:30:00 -l select=1:ncpus=2:mem=4gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P200__mode_partition.csv,CONFIG=configs/manifold_stats.yml,CONFIG_NAME=manifold_stats,N_CHUNKS=50 run_pyspoc_pooled.pbs```
+
+```qsub -N gtex12_p -J 1-200 -l walltime=00:30:00 -l select=1:ncpus=4:mem=6gb -v MANIFEST=metadata_files/gtex_geneSub_N100_P200__mode_partition.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=200 run_pyspoc.pbs```
+(to run)
+
 #### gtex_N100_P100__mode_partition.csv -- done
 
 ```qsub -N gtex100_d -J 1-25 -l walltime=00:20:00 -l select=1:ncpus=2:mem=1gb -v MANIFEST=metadata_files/gtex_N100_P100__mode_partition.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=25 run_pyspoc.pbs```
