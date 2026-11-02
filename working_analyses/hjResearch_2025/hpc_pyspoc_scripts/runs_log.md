@@ -78,8 +78,23 @@ qsub -N gtex_pic -J 1-40 -l walltime=01:00:00 -l select=1:ncpus=4:mem=6gb -v MAN
 (20min per dataset roughly)
 
 
+### SYNTHETIC N = 1000, P = 100
+syn_data_N1000_P100_10seeds.csv 
+8060 DATASETS
 
-### SYNTHETIC N = 1000, P = 100- syn_data_N1000_P100_num_seed_10.csv
+#### distance- 
+8secs per dataset in test
+<!-- 200 chunks -> ~400secs per chunk < 10mins -->
+<!-- ```qsub -N d_syn -J 1-3 -l walltime=00:15:00 -l select=1:ncpus=1:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P100_10seeds.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=200 run_pyspoc_pooled.pbs``` -->
+
+
+```qsub -N d_syn -J 1-3 -l walltime=00:15:00 -l select=1:ncpus=1:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P100_10seeds.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=200 run_pyspoc_pooled.pbs```
+
+pyspoc internal yaml - ~2mins per dataset in test
+manifold- 20seconds to 4mins per dataset in test
+
+
+### SYNTHETIC N = 1000, P = 100- syn_data_N1000_P100_num_seed_10.csv -- ARCHIVED
 
 ```qsub -J 3-100 -l walltime=00:10:00 -l select=1:ncpus=2:mem=2gb -v MANIFEST=metadata_files/syn_data_N1000_P100_num_seed_10.csv,CONFIG=configs/dist_distrib_stats_metricSweep.yml,CONFIG_NAME=distance_distrib_stats,N_CHUNKS=100 run_pyspoc_pooled.pbs``` 
 (actually took about 1min for 1 chunk with ~30-40 datasets)

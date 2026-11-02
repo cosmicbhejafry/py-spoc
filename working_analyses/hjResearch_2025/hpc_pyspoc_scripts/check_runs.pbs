@@ -1,0 +1,18 @@
+# #!/bin/bash
+# # check_job.pbs -- summary report after an array finishes
+# #PBS -N check
+# #PBS -l select=1:ncpus=1:mem=1gb
+# #PBS -l walltime=00:10:00
+# #PBS -j oe
+# #PBS -o logs/
+# cd "$PBS_O_WORKDIR"
+
+# NUM=${JOBID%%[*}
+# REPORT=pbs_job_outs/check_${NUM}.txt
+# {
+#   echo "job $JOBID ($CONFIG_NAME) finished $(date '+%F %T')"
+#   echo "subjob logs without 'DONE!':"
+#   grep -L 'DONE!' logs/*${NUM}*.o* 2>/dev/null || true
+#   echo "parquet files: $(ls "$RESULTS_DIR"/*.parquet 2>/dev/null | wc -l)"
+#   echo "error files:   $(ls "$RESULTS_DIR"/*.errors.json 2>/dev/null | wc -l)"
+# } > "$REPORT"

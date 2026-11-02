@@ -312,7 +312,7 @@ class DimReductionMethodsBase(ReducedStatistic):
         
         return jaccard_sim
     
-    def _kNN_distances_arr(self, R, k, dist_X, dist_X_reduced):
+    def _kNN_distances_arr(self, R, k, dist_X, dist_X_reduced=None):
         # output is two matrices of size N,k each
         
         #for each i, list of col indices j that are within kNN
@@ -321,8 +321,10 @@ class DimReductionMethodsBase(ReducedStatistic):
         nn_X_index = np.argsort(R, axis=1)[:, :k] # (sorted)
 
         nn_X_dist = np.take_along_axis(dist_X,nn_X_index,axis=1)
-        nn_X_reduced_dist = np.take_along_axis(dist_X_reduced,nn_X_index,axis=1)        
-        # apply summary functions on these dists. of nearest neighbours
+        
+        nn_X_reduced_dist = None
+        if dist_X_reduced is not None:
+            nn_X_reduced_dist = np.take_along_axis(dist_X_reduced,nn_X_index,axis=1)        
                 
         return nn_X_dist, nn_X_reduced_dist       
 
@@ -343,11 +345,8 @@ class DimReductionStatistics(DimReductionMethodsBase):
     STATISTICS_DICT["continuity_auc"] = ("_stat_continuity_auc",True,["C_auc","C_logWt_auc"])
     STATISTICS_DICT["lcmc_auc"] = ("_stat_lcmc_auc",True,["lcmc_auc","lcmc_logWt_auc"])
     STATISTICS_DICT["q_local_global"] = ("_stat_q_local_global",True,["q_local","q_global"])
+    STATISTICS_DICT["jaccard_knn"] = ("_stat_jaccard_knn",True,['median_Js','iqr_Js','min Js'])
 
-    # STATISTICS_DICT["jaccard_knn"] = ("_stat_jaccard_knn",True,[])
-    # STATISTICS_DICT["knn_dist_minmax_ratio"] = ("_stat_knn_dist_minmax_ratio",True,[])
-    # STATISTICS_DICT["knn_dist_var"] = ("_stat_knn_dist_var",True,[])
-    
     def __init__(self,method : str = 'PCA',embedding_dim=2,random_state=None,
                  stats=None,metric='euclidean',
                  dim: Literal["n", "p"] = "p",nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
@@ -356,7 +355,7 @@ class DimReductionStatistics(DimReductionMethodsBase):
                          dim=dim,nan_policy=nan_policy)
         
         self.metric = metric
-        
+        self.knn_kfrac = 0.1
         self.stats = list(stats) if stats is not None else ["residual_variance"]
         
         unknown = set(self.stats) - set(self.STATISTICS_DICT.keys())
@@ -378,7 +377,7 @@ class DimReductionStatistics(DimReductionMethodsBase):
                        "trustworthiness" : None, 
                        "continuity" : None,
                        "lcmc" : None}
-
+        
         if self.get_ranks:
             dr_obj_dict["R"] = self._ranking_matrix(dist_X)
             dr_obj_dict["R_reduced"] = self._ranking_matrix(dist_X_red)
@@ -430,14 +429,95 @@ class DimReductionStatistics(DimReductionMethodsBase):
         dr_obj['lcmc_argmax'] = lcmc_kmax
         return list(q_lg)
 
-    def _stat_jaccard_knn(self,dr_obj,k=2):
-        self._jaccard_sim_kNN(dr_obj["R"],dr_obj["R_reduced"],k)
-        pass
+    def _stat_jaccard_knn(self,dr_obj):
+        k = int(self.knn_kfrac * dr_obj["R"].shape[0])
+        jaccard_sim = self._jaccard_sim_kNN(dr_obj["R"],dr_obj["R_reduced"],k)        
+        iqr = np.quantile(jaccard_sim,0.75)-np.quantile(jaccard_sim,0.25)
+        return [np.median(jaccard_sim), iqr, np.min(jaccard_sim)]    
+        
+# ---------------------------------
 
-    def _stat_knn_dist_minmax_ratio(self):
+class kNNintrinsicDimStatistics(DimReductionMethodsBase):
+    name = "kNNintrinsicDimStatistics"
+    identifier = "kNNintrinsicDimStatistics"    
+    # labels = ["non-linear", "topology"]
+    
+    # stat , needs ranks or coranking, function outputs
+    STATISTICS_DICT = {}
+    
+    STATISTICS_DICT["2nn_logratio_mle"] = ("_stat_2nn_logratio_mle",['2nn_intrinsic_dim'])
+    
+    def __init__(self,stats=None,metric='euclidean',
+                 dim: Literal["n", "p"] = "p",nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise"):
+        # removed **kwargs for now
+        super().__init__(method='PCA',embedding_dim=2,random_state=None,
+                         dim=dim,nan_policy=nan_policy)
+        
+        self.metric = metric
+        self.knn_kfrac = 0.1
+        self.stats = list(stats) if stats is not None else ["2nn_logratio_mle"]
+        
+        unknown = set(self.stats) - set(self.STATISTICS_DICT.keys())
+        if len(unknown) > 0:
+            raise ValueError(f"unknown stats {unknown}\nsupported list- {self.STATISTICS_DICT.keys()}")
+
+    def _compute(self, data: np.ndarray):
+                
+        dist_X = self._pairwise_distance_mtx(data,metric=self.metric)
+        
+        dr_obj_dict = {"dist_X" : dist_X, "dist_X_reduced" : None, 
+                       "R" : None, "R_reduced" : None}
+        
+        dr_obj_dict["R"] = self._ranking_matrix(dist_X)
+        
+        # dist_X_red = self._pairwise_distance_mtx(X_reduced,metric=self.metric)        
+        # dr_obj_dict["R_reduced"] = self._ranking_matrix(dist_X_red)
+        
+        out_vals = []
+        for s in self.stats:
+            stat_v = getattr(self,self.STATISTICS_DICT[s][0])(dr_obj_dict)
+            out_vals.extend(stat_v)
+            
+        return np.array(out_vals).flatten()
+
+    def _stat_2nn_logratio_mle(self,dr_obj):
+        # adapted from sklearn twoNN
+        # https://scikit-dimension.readthedocs.io/en/latest/skdim.id.TwoNN.html
+        k = 2
+        nn_dist, _ = self._kNN_distances_arr(dr_obj["R"], k, 
+                                                        dr_obj["dist_X"], dr_obj["dist_X_reduced"])       
+        
+        d2_d1_ratio = nn_dist[:,1] / nn_dist[:,0]
+        
+        discard_fraction = 0.1
+        
+        _mu = d2_d1_ratio[np.isfinite(d2_d1_ratio)]
+        N = len(_mu)
+        n_keep = int(N * (1 - discard_fraction))
+        if n_keep < 2:
+            raise ValueError("Fewer than 2 points left to estimate the dimension.")
+
+        # print(np.all(_mu >= 1))
+        # print(N,n_keep)
+
+        # discard the largest ratios
+        mu = np.sort(_mu)[:n_keep]
+
+        # Empirical cumulate
+        log_mu = np.log(mu)
+        d = (n_keep - 1) / (np.sum(log_mu) + (N - n_keep) * log_mu[-1])        
+        return [d]
+
+    def _stat_knn_dkp1_dk_logratio(self,dr_obj):
+        # Maximum Likelihood Estimation of Intrinsic Dimension
+        k = int(self.knn_kfrac * dr_obj["R"].shape[0])
+
+        nn_dist, _ = self._kNN_distances_arr(dr_obj["R"], k, 
+                                                        dr_obj["dist_X"], dr_obj["dist_X_reduced"])       
+        
+        dkp1_dk_ratio = np.log(dr_obj['nn_distX'][:,1:] / dr_obj['nn_distX'][:,:-1])
+        
         pass
     
     def _stat_knn_dist_var(self):
         pass
-        
-# ---------------------------------
