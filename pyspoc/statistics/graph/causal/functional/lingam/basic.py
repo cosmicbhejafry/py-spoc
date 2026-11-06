@@ -4,12 +4,12 @@ from typing import Literal, Any
 from causallearn.search.FCMBased.lingam import (
     ICALiNGAM,
     DirectLiNGAM,
-    RCD
-)
+    RCD)
 
 import pyspoc._argchecking as argchk
-from pyspoc._utils.lib import OPTIONAL_MODULES
 from pyspoc.settings import settings
+from pyspoc._exceptions import OptionalDependencyMissingError, OptionalDependencyImportError
+from pyspoc._utils.lib import OPTIONAL_MODULES
 from pyspoc._tag import Tag
 from pyspoc.statistics.graph.causal._base import CausalGraphStatistic
 
@@ -246,12 +246,17 @@ class CAMUVLiNGAMCausalGraph(CausalGraphStatistic):
 
         try:
             from causallearn.search.FCMBased.lingam.CAMUV import execute
-        except ModuleNotFoundError as e:
+        except (ModuleNotFoundError, ImportError) as e:
             if e.name in OPTIONAL_MODULES:
-                raise ModuleNotFoundError(
-                    f"Extended module {e.name} is required for {self.get_name()}. "
-                    "Install with 'pip install \"pyspoc[extended]\"'")
-
+                if isinstance(e, ModuleNotFoundError):
+                    raise OptionalDependencyMissingError(
+                        dependency=e.name,
+                        feature="lingam.CAMUVLiNGAMCausalGraph",
+                        install_hint="extended") from e
+                
+                raise OptionalDependencyImportError(
+                        dependency=e.name,
+                        feature="lingam.CAMUVLiNGAMCausalGraph") from e
             raise e
 
         P, U = execute(

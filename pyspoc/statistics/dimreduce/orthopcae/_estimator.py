@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from ._model import OrthogonalPCAE
-from pyspoc._estimators.fitting import LazyFittedCachedEstimatorMixin
 from pyspoc.settings import settings
-from pyspoc._exceptions import MissingOptionalModuleError
+from pyspoc._utils.lib import OPTIONAL_MODULES
+from pyspoc._estimators.fitting import LazyFittedCachedEstimatorMixin
+from pyspoc._exceptions import OptionalDependencyMissingError, OptionalDependencyImportError
 
 try:
     import torch
@@ -15,20 +16,24 @@ try:
     import torch.nn as nn
     from torch.utils.data import DataLoader, TensorDataset
     from pyspoc._random.torch import make_torch_generator
-except ModuleNotFoundError as e:
-    package_name = __package__
-
+except (ModuleNotFoundError, ImportError) as e:
     from pyspoc._utils.lib import TORCH_URL
 
-    if package_name:
-        package_name += " "
+    if e.name not in OPTIONAL_MODULES:
+        raise e
+    
+    if isinstance(e, ModuleNotFoundError):
+        details = (f"We recommend installing torch directly rather "
+            "than through pySPoC, which will allow for hardware-specific installation. "
+            f"Installation instructions can be found here: {TORCH_URL}.")
+        raise OptionalDependencyMissingError(
+            dependency="torch",
+            feature="orthopcae",
+            details=details) from e
 
-    msg = (f"pySPoC module {package_name}requires the torch module, "
-           "which was not found. We recommend installing torch directly rather "
-           "than through pySPoC, which will allow for a machine-specific installation. "
-           f"Installation instructions can be found here: {TORCH_URL}.")
-    raise MissingOptionalModuleError(
-        msg, name=e.name, path=e.path)
+    raise OptionalDependencyImportError(
+        dependency="torch",
+        feature="orthopcae") from e
 
 
 

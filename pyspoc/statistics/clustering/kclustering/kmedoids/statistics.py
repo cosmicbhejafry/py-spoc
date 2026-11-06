@@ -5,13 +5,14 @@ from typing import Literal
 from numpy import ndarray
 
 from pyspoc.settings import settings
+from pyspoc.types import DistanceMetric
 from pyspoc._tag import Type, Tag
 from ._base import KMedoidsStatistic, KMedoidsEstimator
-from .._mixin import KClusteringSimilarityMixin
+from ..._mixin import ClusteringSimilarityMixin
 
 
 
-class KMedoidsSimilarity(KMedoidsStatistic, KClusteringSimilarityMixin):
+class KMedoidsSimilarity(KMedoidsStatistic, ClusteringSimilarityMixin):
     """Calculate pairwise similarities between fitted K-Medoids medoids.
 
     Each row and column of the result represents one fitted cluster. The
@@ -29,13 +30,14 @@ class KMedoidsSimilarity(KMedoidsStatistic, KClusteringSimilarityMixin):
         library-wide seed.
     initializer : {"k-medoids++", "random", "heuristic", "build"}, default="heuristic"
         Medoid initialization strategy passed to scikit-learn.
-    metric : string, default="euclidean"
-        What distance metric to use. See :obj:`AVAILABLE_DISTANCES` for a list of
-        available distance metrics.
     algorithm : {"alternate", "pam"}, default="alternate"
         Which algorithm to use. "alternate" is faster while "pam" is more accurate.
         Corresponds to the "method" argument in the KMedoids constructor:
         :meth:`sklearn_extra.cluster.KMedoids.__init__`.
+    metric : DistanceMetric, default="euclidean"
+        A string identifier for a supported distance metric used in the KMedoids algorithm's
+        determination of selected medoids. See :class:`DistanceMetric` for the list of supported
+        distance metrics and their formulae.
     kernel : {"rbf", "mahalanobis_rbf", "laplacian", \
                 "inverse_distance", "mahalanobis_inverse_distance", \
                 "cosine", "correlation"}, default="rbf"
@@ -87,28 +89,9 @@ class KMedoidsSimilarity(KMedoidsStatistic, KClusteringSimilarityMixin):
             max_iter: int = 300,
             random_seed: int | None = None,
             initializer: Literal["k-medoids++", "random", "heuristic", "build"] = "heuristic",
-            metric: Literal["euclidean",
-                "nan_euclidean",
-                "manhattan",
-                "cosine",
-                "braycurtis",
-                "canberra",
-                "chebyshev",
-                "correlation",
-                "dice",
-                "hamming",
-                "jaccard",
-                "haversine",
-                "mahalanobis",
-                "matching",
-                "minkowski",
-                "rogerstanimoto",
-                "russellrao",
-                "seuclidean",
-                "sokalsneath",
-                "sqeuclidean",
-                "yule"] = "euclidean",
             algorithm: Literal["alternate", "pam"] = "alternate",
+            metric: DistanceMetric = "euclidean",
+            minkowski_p: float | None = None,
             kernel: Literal[
                 "rbf",
                 "mahalanobis_rbf",
@@ -129,14 +112,15 @@ class KMedoidsSimilarity(KMedoidsStatistic, KClusteringSimilarityMixin):
             max_iter=max_iter,
             random_seed=random_seed,
             initializer=initializer,
-            metric=metric,
             algorithm=algorithm,
+            metric=metric,
+            minkowski_p=minkowski_p,
             dim=dim,
             nan_policy=nan_policy)
-        KClusteringSimilarityMixin.__init__(
+        ClusteringSimilarityMixin.__init__(
             self=self,
             kernel=kernel,
             gamma=gamma)
     
     def _get_result(self, data: ndarray, fitted_estimator: KMedoidsEstimator) -> ndarray | float:
-        return KClusteringSimilarityMixin._get_result(self, data, fitted_estimator)
+        return ClusteringSimilarityMixin._get_result(self, data, fitted_estimator)

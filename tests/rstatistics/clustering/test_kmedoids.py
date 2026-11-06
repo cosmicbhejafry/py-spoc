@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from sklearn_extra.cluster import KMedoids
 
-from pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics import KMedoidsErrors
+from pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics import KMedoidsInertia
 from pyspoc.settings import settings
 from pyspoc.statistics.clustering.kclustering.kmedoids._base import KMedoidsEstimator
 
@@ -33,7 +33,7 @@ def _estimator_args(**overrides):
     """Return a complete, inexpensive estimator configuration."""
     return {
         "k": 2, "max_iter": 40, "random_seed": 17, "metric": "euclidean",
-        "initializer": "random", "algorithm": "alternate", **overrides,
+        "initializer": "random", "algorithm": "alternate", "minkowski_p": None, **overrides,
     }
 
 
@@ -50,7 +50,7 @@ def _reference_inertias(data, min_k=2, max_k=3, metric="euclidean", algorithm="a
 
 def _sweep(**overrides):
     """Use the same explicit options as the independent reference fits."""
-    return KMedoidsErrors(**{
+    return KMedoidsInertia(**{
         "min_k": 2, "max_k": 3, "max_iter": 40, "random_seed": 17,
         "metric": "euclidean", "initializer": "random", "algorithm": "alternate",
         **overrides,
@@ -118,7 +118,8 @@ def test_metric_and_configuration_reach_sklearn(data):
     assert model.random_state == 17
     assert operation.params["metric"] == "manhattan"
     assert operation.params["algorithm"] == "pam"
-    assert set(operation._estimator_kwargs) == {"metric", "initializer", "algorithm"}
+    assert set(operation._estimator_kwargs) == {
+        "metric", "initializer", "algorithm", "minkowski_p"}
 
 
 def test_none_seed_is_resolved_before_cache_lookup(data):
@@ -181,6 +182,6 @@ def test_sweep_cannot_exceed_observation_count(data):
 def test_sweep_has_distinct_kmedoids_metadata():
     """A copied KMeans identifier would make the two families indistinguishable."""
     operation = _sweep()
-    assert operation.get_identifier() == "kmedoids-errors"
-    assert operation.get_long_name() == "KMedoids - Error Distribution"
+    assert operation.get_identifier() == "kmedoids-inertia"
+    assert operation.get_long_name() == "KMedoids - Inertia Distribution"
 

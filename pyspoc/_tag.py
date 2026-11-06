@@ -7,6 +7,7 @@ class Tag(Enum):
     DIRECTED = "directed"
     DISTANCE = "distance"
     DISTRIBUTION = "distribution"
+    EMPIRICAL = "empirical"
     FRACTAL = "fractal"
     GAUSSIAN = "gaussian"
     PARAMETRIC = "parametric"
@@ -26,6 +27,7 @@ class Tag(Enum):
 
 
 class Signature(Enum):
+    ASSOCIATION = "association"
     BLOBBINESS = "blobbiness"
     CAUSAL = "causal"
     DENSITY = "density"

@@ -1,19 +1,29 @@
 from __future__ import annotations
 
+import sys
+import inspect
 import numpy as np
 import scipy as sp
 import mne_connectivity as mnec
 
 from scipy.linalg import pinvh
-from typing import Union, Literal
+from typing import Any, Union, Literal, TypeAlias
 from collections.abc import Collection
 
+from pyspoc.settings import settings
 from pyspoc._tag import Tag, Type, Signature
 from pyspoc.statistics.base import Statistic, PairwiseStatistic
 from pyspoc.statistics.association.covariance import (
     GraphicalLasso,
     LedoitWolf
 )
+
+CorrelationEstimators: TypeAlias = Literal[
+    "Pearson",
+    "SpearmanR",
+    "KendallTau",
+    "PowerEnvelopeCorrelation",
+    "PartialCorrelation"]
 
 
 class Pearson(Statistic):
@@ -28,11 +38,14 @@ class Pearson(Statistic):
     _tags = (Tag.SYMMETRICAL, Tag.SIGNED)
 
 
-    def __init__(self,
-                 dim: str = "p",
-                 nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
-                 squared: bool = False,
-                 alternative: Literal["two-sided", "less", "greater"] = "two-sided"):
+    def __init__(
+            self,
+            squared: bool = False,
+            alternative: Literal["two-sided", "less", "greater"] = "two-sided",
+            dim: str = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+    ):
 
         # Storing the squared argument.
         self._squared = squared
@@ -69,10 +82,12 @@ class SpearmanR(PairwiseStatistic):
 
     def __init__(
             self,
-            dim: str = "p",
-            nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
             squared: bool = False,
-            alternative: Literal["two-sided", "less", "greater"] = "two-sided"):
+            alternative: Literal["two-sided", "less", "greater"] = "two-sided",
+            dim: str = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+    ):
         
         self._squared = squared
         self._alternative = alternative
@@ -111,10 +126,12 @@ class KendallTau(PairwiseStatistic):
 
     def __init__(
             self,
-            dim: str = "p",
-            nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
             squared: bool = False,
-            alternative: Literal["two-sided", "less", "greater"] = "two-sided"):
+            alternative: Literal["two-sided", "less", "greater"] = "two-sided",
+            dim: str = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+    ):
         
         self._squared = squared
         self._nan_policy = nan_policy
@@ -159,11 +176,13 @@ class PowerEnvelopeCorrelation(Statistic):
 
     def __init__(
             self,
-            dim: str = "p",
-            nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
             orth: bool = False,
             log: bool = False,
-            absolute: bool = False):
+            absolute: bool = False,
+            dim: str = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+    ):
 
         self._orth = "pairwise" if orth else False
 
@@ -267,9 +286,8 @@ class PartialCorrelation(Statistic):
 
     def __init__(
             self,
-            dim: Literal["n", "p"] = "p",
             squared: bool = False,
-            nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
+            dim: Literal["n", "p"] = "p",
             assume_centered: bool = False,
             inversion_method: Literal[
                 "pseudo",
@@ -285,7 +303,10 @@ class PartialCorrelation(Statistic):
             cv_enet_tol: float = 1e-4,
             cv_max_iter: int = 100,
             cv_mode: Literal["cd", "lars"] = "cd",
-            cv_eps: float = np.finfo(np.float64).eps):
+            cv_eps: float = np.finfo(np.float64).eps,
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+    ):
 
         self._squared = squared
         self._dim = dim
@@ -371,3 +392,19 @@ class PartialCorrelation(Statistic):
                 cv_eps=self._cv_eps)
         
         return estimator._compute(data)
+
+
+class CorrelationFactory(Statistic):
+    
+    @staticmethod
+    def build(
+            estimator: CorrelationEstimators,
+            **kwargs: Any
+    ) -> Statistic | None:
+        module = sys.modules[__name__]
+
+        for name, cls in inspect.getmembers(module, inspect.isclass):
+            if (cls.__module__ == module.__name__
+                and issubclass(cls, Statistic)
+                and name == estimator):
+                return cls(**kwargs)

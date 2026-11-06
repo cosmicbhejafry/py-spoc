@@ -105,9 +105,9 @@ class SettingsValues:
 
     ### Threading
 
-    max_worker_threads : int or None, optional
+    max_worker_threads : int
         Maximum Python worker threads used by pySPoC execution machinery. If
-        ``None``, use the logical CPUs available to the current process.
+        `-1`, use all logical CPUs available to the current process.
     max_memory_fraction : float, default=0.5
         Maximum fraction of available memory used by pySPoC for multi-core
         processing. If the memory allocation required from the specified
@@ -198,7 +198,7 @@ class SettingsValues:
     numba_caching: bool = False
 
     # Threading
-    max_worker_threads: int | None = None
+    max_worker_threads: int = -1
     max_memory_fraction: float = 0.5
 
     # Determinism
@@ -215,7 +215,7 @@ class SettingsValues:
     numba_error_model: NumbaErrorModel = "numpy"
     numba_fastmath: bool = False
     numba_boundschecking: bool = False
-
+    numba_nogil: bool = True
 
 
 class Settings:
@@ -368,9 +368,8 @@ class Settings:
 
             #### Threading
         
-        max_worker_threads : int or None, optional
-            Maximum Python worker threads used by pySPoC execution machinery. If
-            ``None``, use the logical CPUs available to the current process.
+        Maximum Python worker threads used by pySPoC execution machinery. If
+            `-1`, use all logical CPUs available to the current process.
         max_memory_fraction : float, default=0.5
             Maximum fraction of available memory used by pySPoC for multi-core
             processing. If the memory allocation required from the specified

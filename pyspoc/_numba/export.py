@@ -21,7 +21,6 @@ def export_func(
 
 
 def export_module_funcs(module: ModuleType) -> None:
-
     for obj_name, obj in vars(module):
         if inspect.isfunction(obj) or isinstance(obj, CPUDispatcher):
             export_func(module, obj)

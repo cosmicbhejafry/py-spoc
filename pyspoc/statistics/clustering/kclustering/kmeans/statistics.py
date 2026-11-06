@@ -9,11 +9,11 @@ from pyspoc.settings import settings
 from pyspoc._tag import Tag, Type
 from ._base import KMeansEstimator
 from ._base import KMeansStatistic
-from .._mixin import KClusteringSimilarityMixin
+from ..._mixin import ClusteringSimilarityMixin
 
 
 
-class KMeansSimilarity(KMeansStatistic, KClusteringSimilarityMixin):
+class KMeansSimilarity(KMeansStatistic, ClusteringSimilarityMixin):
     """Calculate pairwise similarities between fitted K-Means centres.
 
     Each row and column of the result represents one fitted cluster. The
@@ -45,6 +45,9 @@ class KMeansSimilarity(KMeansStatistic, KClusteringSimilarityMixin):
         variation can be more efficient on some datasets with well-defined clusters, by
         using the triangle inequality. However it's more memory intensive due to the allocation
         of an extra array of shape (n_samples, n_clusters).
+    tol : float, default=0.001, requires: >0
+        Relative tolerance with regards to Frobenius norm of the difference in the cluster centers
+        of two consecutive iterations to declare convergence.
     kernel : {"rbf", "mahalanobis_rbf", "laplacian", \
               "inverse_distance", "mahalanobis_inverse_distance", \
               "cosine", "correlation"}, default="rbf"
@@ -95,9 +98,9 @@ class KMeansSimilarity(KMeansStatistic, KClusteringSimilarityMixin):
             k: int,
             max_iter: int = 300,
             random_seed: int | None = None,
-            tol: float = 0.0001,
             initializer: Literal["k-means++", "random"] = "k-means++",
             algorithm: Literal["lloyd", "elkan"] = "lloyd",
+            tol: float = 0.0001,
             kernel: Literal[
                 "rbf",
                 "mahalanobis_rbf",
@@ -117,12 +120,12 @@ class KMeansSimilarity(KMeansStatistic, KClusteringSimilarityMixin):
             k=k,
             max_iter=max_iter,
             random_seed=random_seed,
-            tol=tol,
             initializer=initializer,
             algorithm=algorithm,
+            tol=tol,
             dim=dim,
             nan_policy=nan_policy)
-        KClusteringSimilarityMixin.__init__(
+        ClusteringSimilarityMixin.__init__(
             self=self,
             kernel=kernel,
             gamma=gamma)
@@ -134,4 +137,4 @@ class KMeansSimilarity(KMeansStatistic, KClusteringSimilarityMixin):
             fitted_estimator: KMeansEstimator
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
         
-        return KClusteringSimilarityMixin._get_result(self, data, fitted_estimator)
+        return ClusteringSimilarityMixin._get_result(self, data, fitted_estimator)

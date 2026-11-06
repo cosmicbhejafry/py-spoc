@@ -12,17 +12,19 @@ from sklearn_extra.cluster import KMedoids
 import pyspoc._argchecking as argchk
 
 from pyspoc._tag import Tag, Signature
-from pyspoc._estimators import LazyFittedCachedEstimatorMixin
 from pyspoc._random import RandomSeedMixin
 from pyspoc.statistics.base import Statistic
+from .._base import ClusteringEstimator
 
 
 _LOGGER = logging.getLogger(__name__)
 
+TClusteringModel = TypeVar("TClusteringModel", bound=KMeans | KMedoids)
+
 
 
 class KClusteringEstimator(
-    LazyFittedCachedEstimatorMixin[KMeans | KMedoids]):
+    ClusteringEstimator[TClusteringModel]):
     """Manage a scikit-learn backed KClustering model.
 
     The estimator combines runtime constructor checking, library-wide random
@@ -61,17 +63,38 @@ class KClusteringEstimator(
 
         self._k = k # Already checked by KClusteringStatisticMixin
         self._max_iter = max_iter # Already checked by KClusteringStatisticBaseMixin
-        super().__init__()
+        super().__init__(random_seed=random_seed)
     
 
-    # The abstract fitting hook inherited from LazyFittedCachedEstimatorMixin
+    # The abstract fitting hook inherited from ClusteringEstimator
     # must be overridden by concrete class.
     # Its public fit() method handles thread-safe locking, data equivalence,
     # and the fitted-state transition around this operation.
     @abstractmethod
-    def _fit_estimator(self, data: np.ndarray) -> KMeans | KMedoids:
+    def _fit_estimator(self, data: np.ndarray) -> TClusteringModel:
         pass
 
+
+    def _get_centres(self) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+        model = self._get_model()
+        centers = model.cluster_centers_
+
+        if not isinstance(centers, np.ndarray):
+            raise RuntimeError(
+                "The fitted KClustering model did not return a valid cluster_centers_ array.")
+
+        return centers
+
+
+    def _predict(self, data: np.ndarray) -> np.ndarray:
+        model = self._get_model()
+        return model.predict(data)
+
+
+    def _compute_inertia(self) -> float:
+        model = self._get_model()
+        return model.inertia_
+    
 
 
 TKClusteringEstimator = TypeVar("TKClusteringEstimator", bound=KClusteringEstimator)

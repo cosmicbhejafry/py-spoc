@@ -8,7 +8,7 @@ def test_optional_dependency_error_is_a_structured_import_error() -> None:
     error = OptionalDependencyMissingError(
         "torch",
         feature="model training",
-        install_hint="Install pySPoC with the 'extended' extra.",
+        details="Install pySPoC with the 'extended' extra.",
     )
 
     assert isinstance(error, ImportError)

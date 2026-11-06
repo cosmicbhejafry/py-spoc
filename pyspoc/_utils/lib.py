@@ -4,7 +4,8 @@ from pathlib import Path
 
 OPTIONAL_MODULES = (
     "torch",
-    "pygam"
+    "pygam",
+    "geomloss"
 )
 
 # URLs

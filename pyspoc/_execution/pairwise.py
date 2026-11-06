@@ -3,39 +3,50 @@
 from __future__ import annotations
 
 import math
-import os
 import numpy as np
 
 from collections.abc import Callable, Iterator, Sequence
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextvars import copy_context
-from typing import Literal, TypeAlias, TypeVar
+from typing import TypeAlias, TypeVar
+from functools import partial
 from tqdm.auto import tqdm
 
+from pyspoc.types import PairwiseSymmetryType
 from pyspoc._argchecking import check_natural_number
-from pyspoc.settings import settings
+
+from .generic import resolve_worker_limit
+from .execution import execute_parallel, execute_serial
 
 
-PairwiseSymmetryType: TypeAlias = Literal["exact", "negative", "reciprocal", "triangular"]
-PairwiseOperation: TypeAlias = Callable[[np.ndarray, np.ndarray], np.ndarray | float]
 PairIndex: TypeAlias = tuple[int, int]
-PairResult: TypeAlias = tuple[int, int, np.ndarray | float]
+PairResult: TypeAlias = tuple[PairIndex, np.ndarray | float]
+PairwiseOperation: TypeAlias = Callable[
+    [np.ndarray, np.ndarray], np.ndarray | float]
+PairwiseChunkOperation: TypeAlias = Callable[
+    [Sequence[tuple[PairIndex, PairIndex]]], tuple[list[PairResult], list[Exception]]]
+IndexedPairwiseOperation: TypeAlias = Callable[
+    [np.ndarray, np.ndarray, PairIndex], np.ndarray | float]
 PreparedPairValue = TypeVar("PreparedPairValue")
 
 _DEFAULT_CHUNKS_PER_WORKER = 8
 
 
-def execute_pairwise(
-    data: np.ndarray,
-    operation: PairwiseOperation,
-    data_b: np.ndarray | None = None,
-    *,
-    symmetry_type: PairwiseSymmetryType | None = None,
-    max_workers: int | None = None,
-    chunks_per_worker: int = _DEFAULT_CHUNKS_PER_WORKER,
-    throw_first_error: bool = False,
-    tqdm_pos: int | None = None
-) -> tuple[np.ndarray, list[Exception]]:
+def parepare_pairwise(
+        data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+        operation: PairwiseOperation,
+        data_b: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
+        *,
+        symmetry_type: PairwiseSymmetryType | None = None,
+        max_workers: int | None = None,
+        chunks_per_worker: int = _DEFAULT_CHUNKS_PER_WORKER,
+        throw_first_error: bool = False,
+        indexed_operation: IndexedPairwiseOperation | None = None
+) -> tuple[
+        PairwiseChunkOperation | None,
+        Iterator[Sequence[tuple[PairIndex, PairIndex]]] | None,
+        int,
+        np.ndarray]:
 
     """Apply an operation to all required pairs of data columns concurrently.
 
@@ -57,10 +68,14 @@ def execute_pairwise(
     max_workers : int or None, optional
         Maximum worker threads. If ``None``, use
         ``settings.current.max_worker_threads`` and then the logical CPUs
-        available to this process when that setting is also ``None``.
+        available to this process when that setting is ``-1`` or ``None``.
     chunks_per_worker : int, default=8
         Target number of dynamically scheduled chunks per worker. More chunks
         improve load balancing; fewer reduce scheduling overhead.
+    indexed_operation : Callable or None, optional
+        Alternative callback accepting ``(x, y, (i, j))``. When supplied, this
+        is called instead of ``operation``, exposing stable column indices for
+        per-pair estimator lookup without inspecting or hashing column values.
 
     Returns
     -------
@@ -96,8 +111,6 @@ def execute_pairwise(
         raise ValueError("Pairwise symmetry cannot be used with two data arrays.")
     if symmetry_type not in (None, "exact", "negative", "reciprocal", "triangular"):
         raise ValueError(f"Unsupported pairwise {symmetry_type = !r}.")
-    if tqdm_pos is None:
-        tqdm_pos = 2
 
     # Resolve semantic argument requirements.
     check_natural_number(chunks_per_worker, arg_name="chunks_per_worker")
@@ -106,7 +119,6 @@ def execute_pairwise(
     # Get second data matrix information (if provided)
     column_count = data.shape[1]
     second_column_count = column_count if data_b is None else data_b.shape[1]
-    second_data = data if data_b is None else data_b
 
     # Initialise the results matrix
     pair_count = (
@@ -114,99 +126,140 @@ def execute_pairwise(
         if data_b is not None or symmetry_type is None
         else column_count * (column_count + 1) // 2
     )
+
+    second_data = data if data_b is None else data_b
+    column_count = data.shape[1]
+    second_column_count = second_data.shape[1]
     result = np.empty((column_count, second_column_count), dtype=float)
 
     if pair_count == 0:
-        return result, []
+        return None, None, 0, result
 
     # Set up async worker count and chunking.
     worker_count = min(worker_limit, pair_count)
     target_chunk_count = min(pair_count, worker_count * chunks_per_worker)
     chunk_size = math.ceil(pair_count / target_chunk_count)
-    chunks = _chunk_pairs(
-        _iter_pair_indices(column_count, second_column_count, symmetry_type),
-        chunk_size,
-    )
+    pairs = _iter_pairs(column_count, second_column_count, symmetry_type)
+    chunks = _chunk_pairs(pairs, chunk_size)
 
+    chunk_operation = partial(
+        _compute_pairwise_chunk,
+            data=data,
+            second_data=second_data,
+            operation=operation,
+            throw_first_error=throw_first_error,
+            indexed_operation=indexed_operation)
+    
+    return chunk_operation, chunks, worker_count, result
+
+
+def execute_pairwise(
+        data: np.ndarray,
+        operation: PairwiseOperation,
+        data_b: np.ndarray | None = None,
+        *,
+        symmetry_type: PairwiseSymmetryType | None = None,
+        max_workers: int | None = None,
+        chunks_per_worker: int = _DEFAULT_CHUNKS_PER_WORKER,
+        throw_first_error: bool = False,
+        tqdm_pos: int | None = 2,
+        indexed_operation: IndexedPairwiseOperation | None = None,
+) -> tuple[np.ndarray, list[Exception]]:
+
+    """Apply an operation to all required pairs of data columns concurrently.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Two-dimensional first input whose columns form the objects being compared.
+        The array is shared read-only by convention across worker threads.
+    operation : Callable
+        Function accepting two one-dimensional column views and returning the
+        value assigned to their result-matrix entry.
+    data_b : numpy.ndarray or None, optional
+        Optional second input. When supplied, every column of ``data`` is
+        compared with every column of ``data_b`` and the result is rectangular.
+    symmetry_type : {"exact", "negative", "reciprocal", "triangular}, optional
+        Relationship used to derive ``(j, i)`` from a computed ``(i, j)``.
+        ``None`` computes every ordered pair independently. Symmetry is only
+        valid when ``data_b`` is omitted.
+    max_workers : int or None, optional
+        Maximum worker threads. If ``None``, use
+        ``settings.current.max_worker_threads`` and then the logical CPUs
+        available to this process when that setting is ``-1`` or ``None``.
+    chunks_per_worker : int, default=8
+        Target number of dynamically scheduled chunks per worker. More chunks
+        improve load balancing; fewer reduce scheduling overhead.
+    indexed_operation : Callable or None, optional
+        Alternative callback accepting ``(x, y, (i, j))``. When supplied, this
+        is called instead of ``operation``, exposing stable column indices for
+        per-pair estimator lookup without inspecting or hashing column values.
+
+    Returns
+    -------
+    numpy.ndarray
+        Matrix with shape ``(data.shape[1], data_b.shape[1])``. When
+        ``data_b`` is omitted, both dimensions are ``data.shape[1]``.
+
+    Raises
+    ------
+    TypeError
+        If an integer execution argument has an incompatible type.
+    ValueError
+        If input rank, symmetry, or execution arguments are invalid.
+
+    Notes
+    -----
+    One thread pool is created for the complete matrix. Pair indices are
+    divided into more chunks than workers, and the executor assigns the next
+    chunk whenever a worker becomes available. This retains dynamic load
+    balancing without allocating one Future for every pair.
+
+    Each chunk receives a separate copy of the caller's context so temporary
+    pySPoC settings remain visible without entering one Context concurrently
+    from several threads.
+    """
+
+    chunk_operation, chunks, worker_count, results = parepare_pairwise(
+        data=data,
+        operation=operation,
+        data_b=data_b,
+        symmetry_type=symmetry_type,
+        max_workers=max_workers,
+        chunks_per_worker=chunks_per_worker,
+        throw_first_error=throw_first_error,
+        indexed_operation=indexed_operation)
+
+    # Get second data matrix information (if provided)
+    if chunk_operation is None:
+        return results, []
+    
     # Initialise exceptions list.
     exceptions = []
 
     # Avoid executor setup when configuration or input size permits only one
     # worker. The same chunk machinery keeps serial and concurrent semantics
     # aligned.
+    
+
     if worker_count == 1:
-        chunks = list(chunks)
-        n_chunks = len(chunks)
+        results, exceptions = execute_serial(
+            chunk_operation=chunk_operation,
+            chunks=chunks,
+            results=results,
+            tqdm_pos=tqdm_pos
+        )
+    else:
+        results, exceptions = execute_parallel(
+            chunk_operation=chunk_operation,
+            chunks=chunks,
+            worker_count=worker_count,
+            results=results,
+            tqdm_pos=tqdm_pos
+        )
 
-        with tqdm(
-            total=n_chunks,
-            position=tqdm_pos,
-            leave=False) as chunk_pbar:
-
-            for chunk in chunks:
-
-                chunk_results, chunk_exceptions = _compute_chunk(
-                    data,
-                    second_data,
-                    operation,
-                    chunk,
-                    throw_first_error)
-                
-                _store_chunk_results(
-                    result,
-                    chunk_results,
-                    symmetry_type,
-                )
-                exceptions.extend(chunk_exceptions)
-                chunk_pbar.update(1)
-
-        return result, exceptions
-
-    executor = ThreadPoolExecutor(
-        max_workers=worker_count,
-        thread_name_prefix="pyspoc-pairwise",
-    )
-    futures: list[Future[list[PairResult]]] = []
-
-    try:
-        for chunk in chunks:
-            # Context objects cannot be entered by multiple threads at once;
-            # create an independent snapshot for each scheduled chunk.
-            context = copy_context()
-            future = executor.submit(
-                context.run,
-                _compute_chunk,
-                data,
-                second_data,
-                operation,
-                chunk,
-                throw_first_error
-            )
-            futures.append(future)
-
-        n_futures = len(futures)
-
-        with tqdm(
-            total=n_futures,
-            position=tqdm_pos,
-            leave=False) as future_pbar:
-
-            # Consume chunks in completion order. A fast worker immediately takes
-            # another queued chunk rather than waiting for earlier submissions.
-            for i, future in enumerate(as_completed(futures)):
-                chunk_results, chunk_exceptions = future.result()
-                _store_chunk_results(result, chunk_results, symmetry_type)
-                exceptions.extend(chunk_exceptions)
-                future_pbar.update(1)
-
-    except BaseException:
-        for future in futures:
-            future.cancel()
-        raise
-    finally:
-        executor.shutdown(wait=True, cancel_futures=True)
-
-    return result, exceptions
+    results = _apply_symmetry(results, symmetry_type)
+    return results, exceptions
 
 
 def execute_pairwise_barrier(
@@ -218,7 +271,7 @@ def execute_pairwise_barrier(
     max_workers: int | None = None,
     anchor_count: int | None = None,
     throw_first_error: bool = False,
-    tqdm_pos: int | None = None
+    tqdm_pos: int | None = 2
 ) -> tuple[np.ndarray, list[Exception]]:
 
     """Execute symmetric pair comparisons with a bounded prepared-data cache.
@@ -397,9 +450,206 @@ def execute_pairwise_barrier(
                         del futures
                         iter_pbar.update(1)
 
-            # Assignment of the next block would otherwise evaluate its
-            # preparations while this complete block was still referenced.
-            del anchors
+                # Release this block BEFORE preparing the next one. Assignment
+                # evaluates its right-hand side first, so relying on the next
+                # ``anchors = ...`` would briefly retain both complete blocks.
+                del anchors
+
+    return result, exceptions
+
+
+def execute_pairwise_barrier_old(
+    data: np.ndarray,
+    prepare: Callable[[np.ndarray], PreparedPairValue],
+    operation: Callable[[PreparedPairValue, PreparedPairValue], float],
+    data_b: np.ndarray | None = None,
+    *,
+    max_workers: int | None = None,
+    anchor_count: int | None = None,
+    throw_first_error: bool = False,
+    tqdm_pos: int | None = None
+) -> tuple[np.ndarray, list[Exception]]:
+
+    """Execute symmetric pair comparisons with a bounded prepared-data cache.
+
+    At most one prepared value outside the anchor block is retained, and every
+    comparison against that shared value must finish before the next value is
+    prepared. Consequently, persistent prepared storage is bounded by
+    ``anchor_count + 1`` values.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Two-dimensional first input whose columns are prepared as anchors.
+    prepare : Callable
+        Convert one column into the potentially expensive representation used
+        by ``operation``.
+    operation : Callable
+        Compare two prepared values and return one scalar. The comparison is
+        assumed to be symmetric when ``data_b`` is omitted.
+    data_b : numpy.ndarray or None, optional
+        Optional second input. Its prepared columns are streamed through each
+        anchor block, producing a rectangular cross-comparison matrix.
+    max_workers : int or None, optional
+        Maximum worker threads, resolved identically to :func:`execute_pairwise`.
+    anchor_count : int or None, optional
+        Maximum prepared anchors retained in one block. If ``None``, use the
+        resolved worker count. The worker count is capped by this value.
+
+    Returns
+    -------
+    numpy.ndarray
+        Symmetric square matrix when ``data_b`` is omitted; otherwise a matrix
+        with shape ``(data.shape[1], data_b.shape[1])``.
+
+    Notes
+    -----
+    Anchor values are prepared concurrently, up to ``max_workers`` at a time,
+    and must all complete before pair comparisons begin. Values streamed after
+    the anchor block remain sequential so only one non-anchor prepared value
+    exists during a comparison phase.
+
+    Later columns are prepared again for each preceding anchor block. This is
+    the deliberate computation-for-memory trade-off that permits a strict
+    cache bound without storing every prepared column. Decoupling anchors from
+    workers lets serial execution reuse several expensive prepared values
+    whenever memory permits.
+    """
+
+    # Basic argument checking.
+    if data.ndim != 2:
+        raise ValueError("Pairwise execution requires a two-dimensional data array.")
+    if data_b is not None and data_b.ndim != 2:
+        raise ValueError("Pairwise execution requires a two-dimensional second data array.")
+    if tqdm_pos is None:
+        tqdm_pos = 2
+
+    # Get column counts and initialise result matrix.
+    column_count = data.shape[1]
+    second_column_count = column_count if data_b is None else data_b.shape[1]
+    result = np.empty((column_count, second_column_count), dtype=float)
+
+    if column_count == 0 or second_column_count == 0:
+        return result, []
+
+    # Set up the worker count.
+    requested_workers = min(resolve_worker_limit(max_workers), column_count)
+
+    # Set up the anchors. These are memoised results from a certain number of
+    # computations that speed up pairwise comparisons. The number stored in memory
+    # is dictated by memory availability.
+    if anchor_count is None:
+        selected_anchor_count = requested_workers
+    else:
+        selected_anchor_count = min(
+            check_natural_number(anchor_count, arg_name="anchor_count"),
+            column_count,
+        )
+
+    # Get the resolved worker count.
+    worker_count = min(requested_workers, selected_anchor_count)
+
+    # Retain the allocation-free serial fast path only when there is also a
+    # single anchor. Multiple cached anchors still require blocked scheduling,
+    # even though its executor may contain only one worker.
+    if worker_count == 1 and selected_anchor_count == 1:
+        return _execute_pairwise_barrier_serial(
+            data, prepare, operation, data_b, throw_first_error)
+
+    # Initialise exceptions for gathering pairwise errors.
+    exceptions = []
+
+    # Begin thread pool execution.
+    with ThreadPoolExecutor(
+        max_workers=worker_count,
+        thread_name_prefix="pyspoc-pairwise-barrier",
+    ) as executor:
+
+        n_iter = 0
+        block_starts = list(range(0, column_count, selected_anchor_count))
+
+        for block_start in block_starts:
+            j_start = block_start if data_b is None else 0
+            n_iter += max(0, second_column_count - j_start)
+
+        with tqdm(
+                total=n_iter,
+                position=tqdm_pos,
+                leave=False) as iter_pbar:
+
+            # Iterate through the left pairwise blocks.
+            for block_start in block_starts:
+                block_stop = min(block_start + selected_anchor_count, column_count)
+                anchor_indices = tuple(range(block_start, block_stop))
+                anchor_kernels = _prepare_anchor_block(
+                    executor,
+                    data,
+                    prepare,
+                    anchor_indices,
+                )
+
+                # Iterate through the right pairwise comparison blocks.
+                j_start = block_start if data_b is None else 0
+
+                for j in range(j_start, second_column_count):
+                    within_anchor_block = data_b is None and j < block_stop
+                    shared = (
+                        anchor_kernels[j - block_start]
+                        if within_anchor_block
+                        else prepare((data if data_b is None else data_b)[:, j])
+                    )
+                    active_anchors = (
+                        j - block_start + 1
+                        if within_anchor_block
+                        else len(anchor_indices)
+                    )
+                    futures: list[Future[float]] = []
+
+                    try:
+                        for anchor in anchor_kernels[:active_anchors]:
+                            context = copy_context()
+                            futures.append(
+                                executor.submit(context.run, operation, anchor, shared)
+                            )
+                        del anchor
+
+                        # Resolving every Future is the phase barrier: ``shared``
+                        # remains alive and the next column is not prepared until
+                        # the complete worker group has finished with this one.
+                        for offset, future in enumerate(futures):
+                            i = anchor_indices[offset]
+
+                            try:
+                                value = future.result()
+                            except Exception as e:
+                                e.add_note(f"Exception occurred for pair {i=}, {j=}.")
+
+                                if throw_first_error:
+                                    raise e
+                                
+                                exceptions.append(e)
+                                value = np.nan
+
+                            result[i, j] = value
+
+                            if data_b is None:
+                                result[j, i] = value
+
+                    except BaseException:
+                        for future in futures:
+                            future.cancel()
+                        raise
+                    finally:
+                        # Do not retain a completed phase's streamed value while
+                        # constructing the next potentially large value.
+                        del shared
+                        del futures
+                        iter_pbar.update(1)
+
+                # Release this block BEFORE preparing the next one. Assignment
+                # evaluates its right-hand side first, so relying on the next
+                # ``anchors = ...`` would briefly retain both complete blocks.
+                del anchor_kernels
 
     return result, exceptions
 
@@ -500,47 +750,38 @@ def _execute_pairwise_barrier_serial(
                 del shared
                 iter_pbar.update(1)
 
+            # The serial path has the same block-transition hazard: constructing
+            # the next anchor must not overlap the previous anchor's lifetime.
+            del anchor
+
     return result, exceptions
 
 
-def resolve_worker_limit(max_workers: int | None) -> int:
-    """Resolve an explicit, configured, or process-aware worker limit."""
-    if max_workers is not None:
-        return check_natural_number(max_workers, arg_name="max_workers")
-
-    configured_workers = settings.current.max_worker_threads
-    if configured_workers is not None:
-        return check_natural_number(
-            configured_workers,
-            arg_name="settings.max_worker_threads",
-        )
-
-    process_cpu_count = getattr(os, "process_cpu_count", os.cpu_count)
-    return process_cpu_count() or 1
-
-
-def _iter_pair_indices(
+def _iter_pairs(
     column_count: int,
     second_column_count: int,
-    symmetry_type: PairwiseSymmetryType | None) -> Iterator[PairIndex]:
+    symmetry_type: PairwiseSymmetryType | None
+) -> Iterator[tuple[PairIndex, PairIndex]]:
     """Yield ordered or upper-triangular pair coordinates lazily."""
 
     for i in range(column_count):
         first_j = 0 if symmetry_type is None else i
 
         for j in range(first_j, second_column_count):
-            yield i, j
+            yield (i, j), (i, j)
 
 
 def _chunk_pairs(
-    pairs: Iterator[PairIndex],
-    chunk_size: int,) -> Iterator[tuple[PairIndex, ...]]:
+    pairs: Iterator[tuple[PairIndex, PairIndex]],
+    chunk_size: int
+) -> Iterator[Sequence[tuple[PairIndex, PairIndex]]]:
     """Yield bounded immutable batches from a lazy pair-index iterator."""
 
-    chunk: list[PairIndex] = []
+    chunk: list[tuple[PairIndex, PairIndex]] = []
 
     for pair in pairs:
         chunk.append(pair)
+
         if len(chunk) == chunk_size:
             yield tuple(chunk)
             chunk.clear()
@@ -549,20 +790,29 @@ def _chunk_pairs(
         yield tuple(chunk)
 
 
-def _compute_chunk(
+def _compute_pairwise_chunk(
+    chunk: Sequence[tuple[PairIndex, PairIndex]],
+    *,
     data: np.ndarray,
-    data_b: np.ndarray,
+    second_data: np.ndarray,
     operation: PairwiseOperation,
-    pairs: Sequence[PairIndex],
-    throw_first_error: bool = False) -> tuple[list[PairResult], list[Exception]]:
+    throw_first_error: bool = False,
+    indexed_operation: IndexedPairwiseOperation | None = None,
+) -> tuple[list[PairResult], list[Exception]]:
     """Compute one batch serially inside a worker thread."""
 
     results = list()
     exceptions = list()
     
-    for i, j in pairs:
+    for index, _ in chunk:
+        i, j = index
+
         try:
-            value = operation(data[:, i], data_b[:, j])
+            if indexed_operation is None:
+                value = operation(data[:, i], second_data[:, j])
+            else:
+                value = indexed_operation(data[:, i], second_data[:, j], (i, j))
+
         except Exception as e:
             e.add_note(f"Exception occurred for pair {i=}, {j=}.")
 
@@ -572,31 +822,41 @@ def _compute_chunk(
             exceptions.append(e)
             value = np.nan
             
-        finally:
-            result = (i,j, value)
-            results.append(result)
+        # Only store a value after successful computation or handled failure.
+        # A finally block here would mask a re-raised exception if value was
+        # never assigned by the failing operation.
+        result = ((i, j), value)
+        results.append(result)
     
     return results, exceptions
 
 
-def _store_chunk_results(
-    output: np.ndarray,
-    chunk_results: Sequence[PairResult],
-    symmetry_type: PairwiseSymmetryType | None):
+def _apply_symmetry(
+    results: np.ndarray,
+    symmetry_type: PairwiseSymmetryType | None) -> np.ndarray:
     """Store completed values and derive their opposite-triangle entries."""
 
-    for i, j, value in chunk_results:
-        output[i, j] = value
+    if symmetry_type is None:
+        return results
 
-        if i == j or symmetry_type is None:
-            continue
+    if results.ndim != 2:
+        return results
 
-        match symmetry_type:
-            case "exact":
-                output[j, i] = value
-            case "negative":
-                output[j, i] = -value
-            case "reciprocal":
-                output[j, i] = 1 / value
-            case "triangular":
-                output[j, i] = 0
+    n, p = results.shape
+    
+    for i in range(n):
+        for j in range(i+1, p):
+            
+            value = results[i,j]
+            
+            match symmetry_type:
+                case "exact":
+                    results[j, i] = value
+                case "negative":
+                    results[j, i] = -value
+                case "reciprocal":
+                    results[j, i] = 1 / value
+                case "triangular":
+                    results[j, i] = 0
+    
+    return results

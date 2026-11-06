@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import Self, Any, TypeVar, Generic, final
+from typing import Self, TypeVar, Generic, final
 from abc import ABC, abstractmethod
 from threading import RLock
 
@@ -60,7 +60,11 @@ class LazyFittedCachedEstimatorMixin(
         return self._model_
     
 
-    def _ensure_fitted(self, data: np.ndarray):
+    def _ensure_fitted(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    ):
+        
         if self._pyspoc_is_fitted:
             self._validate_fitted_data(data)
             return
@@ -90,13 +94,19 @@ class LazyFittedCachedEstimatorMixin(
                 "with this estimator."
             )
 
-    def _validate_fitted_data(self, data: np.ndarray):
+    def _validate_fitted_data(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    ):
         if not type(self)._is_data_match(self, data):
             raise ValueError(
                 "Input data does not match the dataset used for fitting."
             )
 
     @abstractmethod
-    def _fit_estimator(self, data: np.ndarray) -> Any:
+    def _fit_estimator(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    ) -> TModel:
         """Fit the concrete estimator."""
         pass

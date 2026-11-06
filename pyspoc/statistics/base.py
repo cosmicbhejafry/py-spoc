@@ -125,12 +125,10 @@ class StatisticBase(Component, ABC):
         # if cached_result:
         #    return cached_result
 
-        # Else compute from scratch with a copy of the data.
-        data = dataset.get_data()
-
+        # Else compute from scratch.
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            result = self.compute(data, dataset_nan_policy=dataset.nan_policy)
+            result = self.compute(dataset=dataset, dataset_nan_policy=dataset.nan_policy)
 
             if captured and self._active_calculator is not None:
                 self._active_calculator._add_warnings(captured)
@@ -146,10 +144,39 @@ class StatisticBase(Component, ABC):
         self._calculate_kwargs = dict()
         return result
     
-        
+
+    @overload
     def compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+            **kwargs: Any
+    ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
+          np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
+          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
+          np.floating | np.integer |
+          float | int):
+        ...
+
+
+    @overload
+    def compute(
+            self,
+            *,
+            dataset: Dataset,
+            **kwargs: Any
+    ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
+          np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
+          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
+          np.floating | np.integer |
+          float | int):
+        ...
+
+        
+    def compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
+            *,
+            dataset: Dataset | None = None,
             **kwargs: Any
     ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
           np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
@@ -167,26 +194,24 @@ class StatisticBase(Component, ABC):
             2-dimensional floating point cloud data matrix with observations along the rows
             and features along the columns.
 
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}, optional
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
-
 
         Returns
         -------
         :class:`StatisticResultNDArray`
             Statistic estimate.
         """
+        is_direct_compute = True
+        
+        if dataset is not None:
+            dataset_nan_policy = dataset.nan_policy
+            is_direct_compute = False
+            data = dataset.get_data()
 
         self._compute_kwargs = kwargs
-        dataset_nan_policy = kwargs.get("dataset_nan_policy")
-        is_direct_compute = dataset_nan_policy is None
         matrix = np.asarray(data, copy=True) if is_direct_compute else data
         matrix = self._set_dim(matrix)
 
-        if dataset_nan_policy == self._nan_policy:
+        if dataset is not None and dataset_nan_policy == self._nan_policy:
             return self._compute(matrix)
 
         nan_rows = np.isnan(matrix).any(axis=1)
@@ -301,7 +326,8 @@ class Statistic(StatisticBase, ABC):
     @overload
     def compute(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+            **kwargs: Any
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         """
         Compute the Statistic for the given point cloud data matrix.
@@ -313,6 +339,12 @@ class Statistic(StatisticBase, ABC):
             2-dimensional floating point cloud data matrix with observations along the rows
             and features along the columns.
             
+            ### Key-word Arguments
+
+        force_serial: bool, default=False
+            Forces the Statistic to use serial compute, even if configured for asynchronous
+            execution.
+
 
         Returns
         -------
@@ -320,92 +352,76 @@ class Statistic(StatisticBase, ABC):
             Statistic estimate.
         """
         ...
-
+        
 
     @overload
     def compute(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
             *,
-            dataset_nan_policy: Literal["raise", "row-omit", "col-omit"]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
-        """
-        Compute the Statistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[int, int]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}, optional
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
-
-        Returns
-        -------
-        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]`
-            Statistic estimate.
-        """
-        ...
-
-
-    @overload
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            **kwargs
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
-        """
-        Compute the Statistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[int, int]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}, optional
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
-
-        ## Optional Parameters
-
-        kwargs: Any
-            Additional Statistic-specific keyword arguments used during computation.
-
-        Returns
-        -------
-        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]`
-            Statistic estimate.
-        """
-        ...
-
-
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+            dataset: Dataset,
             **kwargs: Any
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
-        dataset_nan_policy = kwargs.get("dataset_nan_policy", settings.current.data_nan_policy)
+        """
+        Compute the Statistic for the given point cloud data matrix.
 
-        result = super().compute(
-            data, dataset_nan_policy=dataset_nan_policy, kwargs=kwargs)
 
-        if self._is_2d(result):
-            return result
+        Parameters
+        -------
+        dataset : Dataset
+            pySPoC object representing a cleaned and catalogued 2-dimensional floating point cloud
+            data matrix with additional processing directives.
 
-        raise ValueError(
-            f"compute() returned a result of incorrect type: {type(result)}, "
-            "expected: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]")
-    
-    
+            ### Key-word Arguments
+
+        force_serial: bool, default=False
+            Forces the Statistic to use serial compute, even if configured for asynchronous
+            execution.
+
+
+        Returns
+        -------
+        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]`
+            Statistic estimate.
+        """
+        ...
+
+
+    def compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
+            *,
+            dataset: Dataset | None = None,
+            **kwargs: Any
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
+        
+        force_serial = kwargs.get("force_serial", False)
+
+        # Set to unsafe thread safety to force serial compute.
+        if force_serial:
+            thread_safety = self._thread_safety
+            self._thread_safety = "unsafe"
+
+        try:
+            if dataset is not None:
+                result = super().compute(
+                    dataset=dataset, kwargs=kwargs)
+            else:
+                result = super().compute(
+                    data=data, kwargs=kwargs)
+
+            if self._is_2d(result):
+                return result
+
+            raise ValueError(
+                f"compute() returned a result of incorrect type: {type(result)}, "
+                "expected: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]")
+        
+        finally:
+            if force_serial:
+                # Reinstate original thread safety parameter.
+                self._thread_safety = thread_safety
+
+
     @staticmethod
     def _is_2d(result: np.ndarray
     ) -> TypeGuard[np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]]:
@@ -480,16 +496,18 @@ class PairwiseStatistic(Statistic):
             internal_parallelism=internal_parallelism,
             thread_safety=thread_safety)
 
+
     @property
     def is_ordered(self) -> bool:
         return self._is_ordered
+    
 
     @property
     def symmetry_type(self) -> str | None:
         return self._symmetry_type
-    
 
-    @abstractmethod
+
+        
     def _pairwise_compute(
         self,
         x: np.ndarray[tuple[int], np.dtype[np.floating]],
@@ -497,16 +515,41 @@ class PairwiseStatistic(Statistic):
     ) -> (np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
           np.floating | np.integer |
           float | int):
-        pass
+        """Compare two columns, or override ``_pairwise_compute_indexed`` instead."""
+
+        raise NotImplementedError("Implement a pairwise computation hook.")
+    
+
+    def _pairwise_compute_indexed(
+            self, x: np.ndarray, y: np.ndarray, index: tuple[int, int]
+    ) -> (np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
+          np.floating | np.integer |
+          float | int):
+        """Compute one entry with its column indices available.
+
+        Parameters
+        ----------
+        x, y : numpy.ndarray
+            Column views of the prepared input (after axis selection and sorting).
+        index : tuple[int, int]
+            Output row and column indices. These may also identify a model in
+            a pairwise estimator fitted to this same prepared input.
+
+        Returns
+        -------
+        float or numpy scalar
+            Scalar result for this pair. The default implementation delegates
+            to the existing two-vector hook for backwards compatibility.
+        """
+        return self._pairwise_compute(x, y)
 
 
-    def _compute(self, data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    def _compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         """ Compute statistics over all pairwise permutations.
         """
-        if self._dim == "n":
-            data = data.T
-
         if self._is_ordered:
             data = np.sort(data, axis=0)
 
@@ -524,7 +567,8 @@ class PairwiseStatistic(Statistic):
             max_workers=max_workers,
             symmetry_type=self._symmetry_type,
             throw_first_error=throw_first_pairwise_error,
-            tqdm_pos=tqdm_pos)
+            tqdm_pos=tqdm_pos,
+            indexed_operation=self._pairwise_compute_indexed)
 
         if exceptions and error_policy == "all":
             raise ExceptionGroup(

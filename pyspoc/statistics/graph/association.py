@@ -9,11 +9,7 @@ from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
 import pyspoc._argchecking as argchk
 
 from pyspoc._tag import Tag, Type, Signature
-from pyspoc.statistics.association.correlation import (
-    Pearson,
-    SpearmanR,
-    KendallTau,
-    PartialCorrelation)
+from pyspoc.statistics.association.correlation import CorrelationFactory
 from pyspoc.statistics.association.covariance import (
     Covariance)
 from pyspoc.settings import settings
@@ -106,35 +102,28 @@ class CorrelationGraph(GraphStatistic):
                 self._tags,
                 remove_tags=Tag.SIGNED)
 
-        match estimator:
-            case "Pearson":
-                self._base_stat = Pearson(
-                    dim=self.dim,
-                    squared=False,
-                    nan_policy=nan_policy)
-            case "Spearman":
-                self._base_stat = SpearmanR(
-                    dim=self.dim,
-                    squared=False,
-                    nan_policy=nan_policy)
-                self._tags = self._get_modified_tags(
-                    self._tags,
-                    add_tags=Tag.NONLINEAR)
-            case "KendallTau":
-                self._base_stat = KendallTau(
-                    dim=self.dim,
-                    squared=False,
-                    nan_policy=nan_policy)
-                self._tags = self._get_modified_tags(
-                    self._tags,
-                    add_tags=Tag.NONLINEAR)
-            case "Partial":
-                self._base_stat = PartialCorrelation(
-                    dim=self.dim,
-                    squared=False,
-                    inversion_method="pseudo",
-                    nan_policy=nan_policy,
-                    assume_centered=assume_centered)
+        estimator_kwargs = {
+            "dim": dim,
+            "squared": False,
+            "nan_policy": nan_policy
+        }
+
+        if estimator == "Partial":
+            estimator_kwargs["inversion_method"] = "pseudo"
+            estimator_kwargs["assume_centered"] = assume_centered
+
+        base_stat = CorrelationFactory.build(
+            estimator, **estimator_kwargs)
+
+        if base_stat is None:
+            raise ValueError(f"Correlation estimator '{estimator}' is not supported.")
+
+        self._base_stat = base_stat
+
+        if estimator in ("Spearman", "KendallTau"):
+            self._tags = self._get_modified_tags(
+                self._tags,
+                add_tags=Tag.NONLINEAR)
 
 
     def _compute(self, data: np.ndarray) -> np.ndarray:

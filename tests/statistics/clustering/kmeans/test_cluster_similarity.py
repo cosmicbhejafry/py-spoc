@@ -29,12 +29,13 @@ class ModelStub:
 
 @dataclass
 class EstimatorStub:
-    """Minimal estimator exposing a fitted model to the Statistic."""
+    """Expose centres through the shared clustering estimator interface."""
 
     model: ModelStub
 
-    def _get_model(self) -> ModelStub:
-        return self.model
+    def _get_centres(self) -> np.ndarray:
+        """Return deterministic centres without fitting an external model."""
+        return self.model.cluster_centers_
 
 
 CENTRES = np.array(
