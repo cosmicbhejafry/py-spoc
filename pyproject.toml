@@ -79,7 +79,8 @@ profiling = [
 
 extended = [
   "torch",
-  "pygam"
+  "pygam",
+  "geomloss"
 ]
 
 all = [

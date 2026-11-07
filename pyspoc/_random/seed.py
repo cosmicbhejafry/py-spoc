@@ -133,7 +133,7 @@ class RandomSeedMixin(AutoInitializedMixin):
             raise OptionalDependencyMissingError(
                 "torch",
                 feature="PyTorch random-number generation",
-                install_hint="Install pySPoC with the 'extended' extra.",
+                details="Install pySPoC with the 'extended' extra.",
             ) from error
 
         generator = torch.Generator(device=device)

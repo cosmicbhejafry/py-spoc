@@ -18,11 +18,11 @@ from pathlib import Path
 
 import pyspoc._argchecking as argchk
 from pyspoc.settings import settings
-from pyspoc._utils import lib
-from pyspoc._base import Component
 from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc.statistics.base import Statistic
 from pyspoc.reducers.base import Reducer
+from pyspoc._utils import lib
+from pyspoc._base import Component
 
 
 class Config:
@@ -49,7 +49,6 @@ class Config:
 
     _cached_modules = dict()
     _cached_module_classes = dict()
-    _available_dependencies = pyb.get_available_optional_deps()
 
     def __init__(self, name: str):
         self._name = name
@@ -960,7 +959,7 @@ class Config:
         if dependencies:
             dependency_list = cls._yaml_str_list_to_list(dependencies)
             dependency_set = set(dependency_list)
-            missing_dependencies = dependency_set.difference(cls._available_dependencies)
+            missing_dependencies = dependency_set.difference(lib.OPTIONAL_MODULES)
 
             if missing_dependencies:
                 dependency_delimited = ",".join(dependency_set)

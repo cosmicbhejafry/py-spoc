@@ -8,6 +8,7 @@ from typing import Any, Literal
 from abc import ABC
 from sklearn.cluster import KMeans
 
+import pyspoc._argchecking as argchk
 from pyspoc.settings import settings
 from .._base import KClusteringStatistic, KClusteringEstimator
 
@@ -16,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 
-class KMeansEstimator(KClusteringEstimator):
+class KMeansEstimator(KClusteringEstimator[KMeans]):
     """Manage a scikit-learn backed KMeans model.
 
     The estimator combines runtime constructor checking, library-wide random
@@ -70,7 +71,7 @@ class KMeansEstimator(KClusteringEstimator):
             random_seed: int | None,
             tol: float,
             initializer: Literal["k-means++", "random"],
-            algorithm: Literal["lloyd", "elkan"],
+            algorithm: Literal["lloyd", "elkan"]
         ):
         """Initialize K-Means configuration and unfitted state.
 
@@ -168,6 +169,9 @@ class KMeansStatistic(KClusteringStatistic[KMeansEstimator], ABC):
         variation can be more efficient on some datasets with well-defined clusters, by
         using the triangle inequality. However it's more memory intensive due to the allocation
         of an extra array of shape (n_samples, n_clusters).
+    tol : float, requires: >0
+        Relative tolerance with regards to Frobenius norm of the difference in the cluster centers
+        of two consecutive iterations to declare convergence.
     dim : {"n", "p"}
         Axis whose elements become variables in the returned matrix.
         ``"p"`` compares data columns; ``"n"`` compares data rows.
@@ -200,12 +204,14 @@ class KMeansStatistic(KClusteringStatistic[KMeansEstimator], ABC):
             k: int,
             max_iter: int,
             random_seed: int | None,
-            tol: float,
             initializer: Literal["k-means++", "random"],
             algorithm: Literal["lloyd", "elkan"],
+            tol: float,
             dim: Literal["n", "p"],
             nan_policy: Literal["raise", "row-omit", "col-omit"]):
 
+        tol = argchk.check_float(tol, exclusive_minimum=0, arg_name="tol")
+        
         estimator_kwargs = {
             "tol": tol,
             "initializer": initializer,

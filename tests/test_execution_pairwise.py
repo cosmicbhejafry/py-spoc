@@ -296,36 +296,52 @@ def test_barrier_executor_prepares_anchor_block_concurrently() -> None:
     assert len(preparation_threads) == 3
 
 
-def test_barrier_executor_bounds_live_prepared_values() -> None:
+@pytest.mark.parametrize("max_workers, anchor_count", [(1, 1), (1, 3), (2, 2), (3, 3)])
+@pytest.mark.parametrize("cross_arrays", [False, True])
+def test_barrier_executor_bounds_live_prepared_values(
+    max_workers: int, anchor_count: int, cross_arrays: bool,
+) -> None:
+    # Count actual live objects, not just entries in the anchor collection.
+    # In particular, this detects a stale block retained during preparation of
+    # its successor. The lock also protects concurrent preparation counters.
+    counter_lock = threading.Lock()
+
     class PreparedValue:
         live_count = 0
         maximum_live_count = 0
 
         def __init__(self, value: float) -> None:
             self.value = value
-            type(self).live_count += 1
-            type(self).maximum_live_count = max(
-                type(self).maximum_live_count,
-                type(self).live_count,
-            )
+            with counter_lock:
+                type(self).live_count += 1
+                type(self).maximum_live_count = max(
+                    type(self).maximum_live_count,
+                    type(self).live_count,
+                )
 
         def __del__(self) -> None:
-            type(self).live_count -= 1
+            with counter_lock:
+                type(self).live_count -= 1
 
     data = np.tile(np.arange(7.0), (3, 1))
+    data_b = np.tile(np.arange(10.0, 15.0), (3, 1)) if cross_arrays else None
 
     result, errors = execute_pairwise_barrier(
         data,
         lambda column: PreparedValue(float(column[0])),
         lambda first, second: first.value + second.value,
-        max_workers=2,
+        data_b,
+        max_workers=max_workers,
+        anchor_count=anchor_count,
     )
 
     np.testing.assert_array_equal(
         result,
-        np.add.outer(np.arange(7.0), np.arange(7.0)),
+        np.add.outer(np.arange(7.0), np.arange(10.0, 15.0) if cross_arrays else np.arange(7.0)),
     )
-    assert PreparedValue.maximum_live_count <= 3
+    assert not errors
+    assert PreparedValue.maximum_live_count <= anchor_count + 1
+    assert PreparedValue.live_count == 0
 
 @pytest.mark.parametrize("max_workers", [1, 3])
 def test_worker_failures_are_returned_by_default(max_workers):

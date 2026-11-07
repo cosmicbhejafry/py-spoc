@@ -36,7 +36,7 @@ class Moment(Reducer):
 
 class SingularValues(Reducer, ReducedStatistic):
 
-    _name = "SVD"
+    _long_name = "SVD"
     _identifier = "svd"
     _labels = ["vector"]
 
@@ -55,7 +55,7 @@ class SingularValues(Reducer, ReducedStatistic):
 
     @property
     def name(self) -> str:
-        return self._name
+        return self._long_name
     
     @property
     def identifier(self) -> str:
@@ -154,7 +154,7 @@ class Trace(Reducer):
 
 class Determinant(Reducer):
 
-    _name = "Matrix determinant"
+    _name = "Matrix Determinant"
     _identifier = "det"
     _labels = ["square", "scalar"]
 
@@ -178,7 +178,7 @@ class Determinant(Reducer):
     def tags(self) -> list[str]:
         return self._labels
 
-    def reduce(self, data: np.ndarray) -> np.ndarray | float:
+    def reduce(self, data: np.ndarray) -> np.floating | float:
         sign, logabsdet = np.linalg.slogdet(data)
         absdet = np.exp(logabsdet)
 
@@ -189,3 +189,18 @@ class Determinant(Reducer):
             return sign * (absdet ** (1 / data.ndim))
 
         return sign * absdet
+
+
+class LogDeterminant(Determinant):
+
+    _name = "Matrix Log-Determinant"
+    _identifier = "logdet"
+
+
+    def reduce(self, data: np.ndarray) -> np.floating | float:
+        _, logabsdet = np.linalg.slogdet(data)
+
+        if self._scaled:
+            return logabsdet / data.ndim
+
+        return logabsdet

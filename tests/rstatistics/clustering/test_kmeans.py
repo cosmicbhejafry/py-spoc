@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from sklearn.cluster import KMeans
 
-from pyspoc.rstatistics.clustering.kclustering.kmeans.statistics import KMeansErrors
+from pyspoc.rstatistics.clustering.kclustering.kmeans.statistics import KMeansInertia
 from pyspoc.settings import settings
 from pyspoc.statistics.clustering.kclustering.kmeans._base import KMeansEstimator
 
@@ -50,7 +50,7 @@ def _reference_inertias(data, min_k=2, max_k=3):
 
 def _sweep(**overrides):
     """Use the same explicit options as the independent reference fits."""
-    return KMeansErrors(**{
+    return KMeansInertia(**{
         "min_k": 2, "max_k": 3, "max_iter": 40, "random_seed": 17,
         "tol": 0.02, "initializer": "random", "algorithm": "lloyd",
         **overrides,
@@ -174,3 +174,10 @@ def test_sweep_cannot_exceed_observation_count(data):
     """After transposition, the five original features become observations."""
     with pytest.raises(ValueError, match="number of data points"):
         _sweep(dim="n", max_k=6).compute(data)
+
+
+def test_sweep_has_distinct_kmeans_metadata():
+    """Keep KMeans metadata distinct from the generalised DBSCAN family."""
+    operation = _sweep()
+    assert operation.get_identifier() == "kmeans-inertia"
+    assert operation.get_long_name() == "KMeans - Inertia Distribution"

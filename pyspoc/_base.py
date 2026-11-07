@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import os
 import inspect
 import pkgutil
 import re
@@ -747,6 +746,7 @@ class Component(
             Associated Configuration: {cfg_name}
             """)
 
+
     @classmethod
     def __info__(cls):
         """Describe the component class and its constructor parameters.
@@ -887,46 +887,6 @@ def convert_mdf_to_ddf(df):
                          columns=['SPI-1', 'SPI-2'],
                          dropna=False).T.droplevel(0)
     return ddf
-
-
-def is_jpype_jvm_available():
-    """Check whether a JVM is accessible via Jpype"""
-    try:
-        import jpype as jp # pyright: ignore[reportMissingImports] # pylint: disable=E0401
-        if not jp.isJVMStarted():
-            jarloc = (os.path.dirname(os.path.abspath(__file__)) + "/lib/jidt/infodynamics.jar")
-            # if JVM not started, start a session
-            print(f"Starting JVM with java class {jarloc}.")
-            jp.startJVM(jp.getDefaultJVMPath(), "-ea", "-Djava.class.path=" + jarloc)
-        return True
-    except Exception as e:
-        print(f"Jpype JVM not available: {e}")
-        return False
-
-
-def is_octave_available():
-    """Check whether octave is available"""
-    try:
-        from oct2py import Oct2Py # pyright: ignore[reportMissingImports] # pylint: disable=E0401
-        oc = Oct2Py()
-        oc.exit()
-        return True
-    except Exception as e: # pyright: ignore
-        print(f"Octave not available: {e}")
-        return False
-
-
-def get_available_optional_deps():
-    """Bundle all the optional dependency checks together."""
-
-    optional_deps = list()
-    if is_octave_available():
-        optional_deps.append("octave")
-
-    if is_jpype_jvm_available():
-        optional_deps.append("java")
-
-    return optional_deps
 
 
 @typechecked

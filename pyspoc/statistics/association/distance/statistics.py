@@ -3,12 +3,13 @@ import numpy as np
 from abc import ABC
 from typing import Literal
 
+from pyspoc.types import DistanceMetric, PairwiseSymmetryType
 from pyspoc.settings import settings
 from pyspoc.statistics.base import PairwiseStatistic
 from pyspoc._tag import Tag, Type, Signature
 
 
-class BasePairwiseDistance(PairwiseStatistic, ABC):
+class BaseDistanceBasedAssociation(PairwiseStatistic, ABC):
 
     _signatures = (Signature.DENSITY,)
     _type = Type.DESCRIPTIVE
@@ -16,40 +17,27 @@ class BasePairwiseDistance(PairwiseStatistic, ABC):
 
     def __init__(
             self,
-            metric: Literal[
-                "euclidean",
-                "nan_euclidean",
-                "manhattan",
-                "cosine",
-                "braycurtis",
-                "canberra",
-                "chebyshev",
-                "correlation",
-                "dice",
-                "hamming",
-                "jaccard",
-                "haversine",
-                "mahalanobis",
-                "matching",
-                "minkowski",
-                "rogerstanimoto",
-                "russellrao",
-                "seuclidean",
-                "sokalsneath",
-                "sqeuclidean",
-                "yule"] = "euclidean",
+            metric: DistanceMetric,
+            is_ordered: bool = False,
+            symmetry_type: PairwiseSymmetryType = "exact",
             dim: Literal["n", "p"] = "p",
             nan_policy: Literal[
-                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
+            internal_parallelism: Literal["serial", "parallel"] = "serial",
+            thread_safety: Literal["safe", "unsafe"] = "unsafe"
+        ):
         
-        super().__init__(is_ordered=False,
+        super().__init__(is_ordered=is_ordered,
+                         symmetry_type=symmetry_type,
                          dim=dim,
-                         nan_policy=nan_policy)
+                         nan_policy=nan_policy,
+                         internal_parallelism=internal_parallelism,
+                         thread_safety=thread_safety)
 
         self._metric = metric
 
 
-class HellerHellerGorfine(BasePairwiseDistance):
+class HellerHellerGorfine(BaseDistanceBasedAssociation):
     """Heller-Heller-Gorfine independence criterion"""
 
     _long_name = "Heller-Heller-Gorfine Independence Criterion"
@@ -58,6 +46,28 @@ class HellerHellerGorfine(BasePairwiseDistance):
     _signatures = (Signature.NONLINEARITY,)
     _type = Type.DESCRIPTIVE
 
+    def __init__(
+            self,
+            metric: DistanceMetric,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
+
+        super().__init__(
+            metric=metric,
+            dim=dim,
+            nan_policy=nan_policy,
+            internal_parallelism="serial")
+
+
+    def _compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
+        
+        return super()._compute(data)
+    
+    
     def _pairwise_compute(
             self,
             x: np.ndarray[tuple[int], np.dtype[np.floating]],
@@ -72,39 +82,22 @@ class HellerHellerGorfine(BasePairwiseDistance):
 
 
 
-class DistanceCorrelation(BasePairwiseDistance):
+class DistanceCorrelation(BaseDistanceBasedAssociation):
     """Distance correlation"""
 
     _name = "Distance correlation"
     _identifier = "dcorr"
-    _labels = ["unsigned", "distance", "unordered", "nonlinear", "undirected"]
+    _tags = (Tag.DISTANCE, Tag.NONLINEAR)
+    _signatures = (Signature.ASSOCIATION,)
+    _type = Type.DESCRIPTIVE
 
     def __init__(
             self,
+            metric: DistanceMetric = "euclidean",
+            biased: bool = False,
             dim: Literal["n", "p"] = "p",
-            metric: Literal[
-                "euclidean",
-                "nan_euclidean",
-                "manhattan",
-                "cosine",
-                "braycurtis",
-                "canberra",
-                "chebyshev",
-                "correlation",
-                "dice",
-                "hamming",
-                "jaccard",
-                "haversine",
-                "mahalanobis",
-                "matching",
-                "minkowski",
-                "rogerstanimoto",
-                "russellrao",
-                "seuclidean",
-                "sokalsneath",
-                "sqeuclidean",
-                "yule"] = "euclidean",
-            biased: bool = False):
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
         
         self._biased = biased
 
@@ -112,8 +105,11 @@ class DistanceCorrelation(BasePairwiseDistance):
             self._identifier += ".biased"
 
         super().__init__(
+            metric=metric,
             dim=dim,
-            metric=metric)
+            nan_policy=nan_policy,
+            internal_parallelism="serial",
+            thread_safety="safe")
 
     def _pairwise_compute(
             self,
@@ -131,12 +127,14 @@ class DistanceCorrelation(BasePairwiseDistance):
 
 
 
-class MultiscaleGraphCorrelation(BasePairwiseDistance):
+class MultiscaleGraphCorrelation(BaseDistanceBasedAssociation):
     """Multiscale graph correlation"""
 
     _name = "Multiscale graph correlation"
     _identifier = "mgc"
-    _labels = ["distance", "unsigned", "unordered", "nonlinear", "undirected"]
+    _tags = (Tag.DISTANCE, Tag.NONLINEAR)
+    _signatures = (Signature.ASSOCIATION,)
+    _type = Type.DESCRIPTIVE
 
 
     def _pairwise_compute(

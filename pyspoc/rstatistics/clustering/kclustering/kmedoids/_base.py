@@ -2,6 +2,7 @@ from typing import Literal
 from abc import ABC
 
 from pyspoc.settings import settings
+from pyspoc.types import DistanceMetric
 from pyspoc.statistics.clustering.kclustering.kmedoids._base import KMedoidsEstimator
 from .._base import KClusteringSweepStatistic
 
@@ -31,6 +32,9 @@ class KMedoidsSweepStatistic(KClusteringSweepStatistic[KMedoidsEstimator], ABC):
         Which algorithm to use. "alternate" is faster while "pam" is more accurate.
         Corresponds to the "method" argument in the KMedoids constructor:
         :meth:`sklearn_extra.cluster.KMedoids.__init__`.
+    metric : DistanceMetric, default="euclidean"
+        A string identifier for a supported distance metric. See :class:`DistanceMetric` for the
+        list of supported distance metrics and their formulae.
     dim : {"n", "p"}, default="p"
         Axis whose elements become variables in the returned matrix.
         ``"p"`` compares data columns; ``"n"`` compares data rows.
@@ -66,28 +70,9 @@ class KMedoidsSweepStatistic(KClusteringSweepStatistic[KMedoidsEstimator], ABC):
             random_seed: int | None = None,
             initializer: Literal[
                 "k-medoids++", "random", "heuristic", "build"] = "heuristic",
-            metric: Literal["euclidean",
-                "nan_euclidean",
-                "manhattan",
-                "cosine",
-                "braycurtis",
-                "canberra",
-                "chebyshev",
-                "correlation",
-                "dice",
-                "hamming",
-                "jaccard",
-                "haversine",
-                "mahalanobis",
-                "matching",
-                "minkowski",
-                "rogerstanimoto",
-                "russellrao",
-                "seuclidean",
-                "sokalsneath",
-                "sqeuclidean",
-                "yule"] = "euclidean",
             algorithm: Literal["alternate", "pam"] = "alternate",
+            metric: DistanceMetric = "euclidean",
+            minkowski_p: float | None = None,
             dim: Literal["n", "p"] = "p",
             nan_policy: Literal[
                 "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
@@ -95,7 +80,8 @@ class KMedoidsSweepStatistic(KClusteringSweepStatistic[KMedoidsEstimator], ABC):
         estimator_kwargs = {
             "initializer": initializer,
             "algorithm": algorithm,
-            "metric": metric}
+            "metric": metric,
+            "minkowski_p": minkowski_p}
     
         super().__init__(
             clustering_type=KMedoidsEstimator,

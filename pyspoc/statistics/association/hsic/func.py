@@ -673,12 +673,6 @@ def pairwise_hsic(
     matrix = np.asarray(data)
     second_matrix = None if data_b is None else np.asarray(data_b)
     
-    if matrix.ndim != 2:
-        raise ValueError("HSIC input must be a two-dimensional data matrix.")
-    if second_matrix is not None and second_matrix.ndim != 2:
-        raise ValueError("Second HSIC input must be a two-dimensional data matrix.")
-    if matrix.shape[0] == 0:
-        raise ValueError("HSIC input must contain at least one sample.")
     if second_matrix is not None and matrix.shape[0] != second_matrix.shape[0]:
         raise ValueError("HSIC inputs must contain the same number of samples.")
     if not biased and matrix.shape[0] < 4:

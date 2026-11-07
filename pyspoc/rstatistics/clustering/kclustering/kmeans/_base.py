@@ -1,6 +1,7 @@
 from typing import Literal
 from abc import ABC
 
+import pyspoc._argchecking as argchk
 from pyspoc.settings import settings
 from pyspoc.statistics.clustering.kclustering.kmeans._base import KMeansEstimator
 from .._base import KClusteringSweepStatistic
@@ -41,6 +42,9 @@ class KMeansSweepStatistic(KClusteringSweepStatistic[KMeansEstimator], ABC):
         variation can be more efficient on some datasets with well-defined clusters, by
         using the triangle inequality. However it's more memory intensive due to the allocation
         of an extra array of shape (n_samples, n_clusters).
+    tol : float, default=0.0001, requires>0
+        Relative tolerance with regards to Frobenius norm of the difference in the cluster centers
+        of two consecutive iterations to declare convergence.
     dim : {"n", "p"}, default="p"
         Axis whose elements become variables in the returned matrix.
         ``"p"`` compares data columns; ``"n"`` compares data rows.
@@ -73,14 +77,15 @@ class KMeansSweepStatistic(KClusteringSweepStatistic[KMeansEstimator], ABC):
         max_k: int,
         max_iter: int = 300,
         random_seed: int | None = None,
-        algorithm: Literal["lloyd", "elkan"] = "lloyd",
         initializer: Literal["k-means++", "random"] = "k-means++",
+        algorithm: Literal["lloyd", "elkan"] = "lloyd",
         tol: float = 0.0001,
         dim: Literal["n", "p"] = "p",
         nan_policy: Literal[
             "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy):
 
-   
+        tol = argchk.check_float(tol, exclusive_minimum=0, arg_name="tol")
+        
         super().__init__(
             clustering_type=KMeansEstimator,
             min_k=min_k,
@@ -91,6 +96,6 @@ class KMeansSweepStatistic(KClusteringSweepStatistic[KMeansEstimator], ABC):
             nan_policy=nan_policy,
             estimator_kwargs={
                 "initializer": initializer,
-                "tol": tol,
-                "algorithm": algorithm
+                "algorithm": algorithm,
+                "tol": tol
             })

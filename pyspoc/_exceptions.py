@@ -1,23 +1,12 @@
 """Public exception types raised by pySPoC."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 
 if TYPE_CHECKING:
      from pyspoc._base import Component
 
-
-class MissingOptionalModuleError(ModuleNotFoundError):
-
-    def __init__(
-            self,
-            *args: object,
-            name: str,
-            path: str):
-        
-        super().__init__(*args, name=name, path=path)
-        
 
 
 class InvalidStandardisedCausalGraphError(ValueError):
@@ -68,9 +57,99 @@ class MissingComponentPropertyError(NotImplementedError):
         return self._message
         
 
+class OptionalDependencyImportError(ImportError):
+        """
+        Indicate that a requested feature requires a dependency that failed
+        to import correctly.
 
-class OptionalDependencyMissingError(ImportError):
-    """Indicate that a requested feature requires an unavailable dependency.
+        Parameters
+        ----------
+        dependency : str
+            Import or distribution name of the missing optional dependency.
+        feature : str or None, default=None
+            Feature that requires the dependency, if a more specific description
+            is useful to the caller.
+        details : str or None
+            Installation guidance supplied by the raising code.
+
+        Attributes
+        ----------
+        dependency : str
+            Import or distribution name supplied by the raising code.
+        feature : str or None
+            Feature that could not be used.
+        details : str or None
+            Installation guidance supplied by the raising code.
+
+        Notes
+        -----
+        This exception subclasses :class:`ImportError`, so existing handlers for
+        failed imports remain compatible. Callers that want to distinguish an
+        optional dependency from other import failures can catch this type more
+        specifically.
+        """
+
+        @overload
+        def __init__(
+                self,
+                dependency: str,
+                *,
+                feature: str | None = None,
+                details: str | None = None):
+            ...
+
+        @overload
+        def __init__(
+                self,
+                *,
+                dependency: str,
+                message: str):
+            ...
+
+        
+        def __init__(
+                self,
+                dependency: str,
+                *,
+                feature: str | None = None,
+                details: str | None = None,
+                message: str | None = None):
+
+            self._build_message(
+                dependency,
+                feature=feature,
+                details=details)
+    
+            super().__init__(message, name=dependency)
+
+
+        def _build_message(
+                self,
+                dependency: str,
+                *,
+                feature: str | None = None,
+                details: str | None = None) -> str:
+            
+            self.dependency = dependency
+            self.feature = feature
+            self.details = details
+    
+            message = f"Optional dependency {dependency!r} is required"
+            
+            if feature is not None:
+                message += f" to use {feature}"
+            
+            message += "."
+    
+            if details is not None:
+                message += f" {details}"
+
+            return message
+
+
+class OptionalDependencyMissingError(OptionalDependencyImportError):
+    """
+    Indicate that a requested feature requires an unavailable dependency.
 
     Parameters
     ----------
@@ -79,8 +158,10 @@ class OptionalDependencyMissingError(ImportError):
     feature : str or None, default=None
         Feature that requires the dependency, if a more specific description
         is useful to the caller.
-    install_hint : str or None, default=None
-        Optional installation guidance appended to the exception message.
+    install_hint: str or None
+        Flag to include with pySPoC installation to install optional module (ie. pyspoc[flag]).
+    details : str or None
+        Installation guidance supplied by the raising code.
 
     Attributes
     ----------
@@ -88,12 +169,14 @@ class OptionalDependencyMissingError(ImportError):
         Import or distribution name supplied by the raising code.
     feature : str or None
         Feature that could not be used.
-    install_hint : str or None
+    install_hint: str or None
+        Flag to include with pySPoC installation to install optional module (ie. pyspoc[flag]).
+    details : str or None
         Installation guidance supplied by the raising code.
 
     Notes
     -----
-    This exception subclasses :class:`ImportError`, so existing handlers for
+    This exception subclasses :class:`ModuleNotFoundError`, so existing handlers for
     failed imports remain compatible. Callers that want to distinguish an
     optional dependency from other import failures can catch this type more
     specifically.
@@ -104,17 +187,22 @@ class OptionalDependencyMissingError(ImportError):
             dependency: str,
             *,
             feature: str | None = None,
-            install_hint: str | None = None):
+            install_hint: str | None = None,
+            details: str | None = None):
         self.dependency = dependency
         self.feature = feature
-        self.install_hint = install_hint
+        self.install_hint = details
+        self.details = details
 
-        message = f"Optional dependency {dependency!r} is required"
-        if feature is not None:
-            message += f" to use {feature}"
-        message += "."
+        message = self._build_message(
+            dependency,
+            feature=feature,
+            details=details)
 
         if install_hint is not None:
-            message += f" {install_hint}"
+            message += (f" Use pip install pyspoc[{install_hint}] to "
+                "include this optional dependency in installation.")
 
-        super().__init__(message, name=dependency)
+        super().__init__(
+            dependency=dependency,
+            message=message)

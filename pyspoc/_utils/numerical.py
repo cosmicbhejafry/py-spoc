@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.linalg as la
 
+from pyspoc.types import SummaryType
+
 
 def spsd_matrix_power(
     A: np.ndarray,
@@ -40,3 +42,39 @@ def spsd_matrix_power(
     A_pow = (v * w_pow) @ v.T
 
     return (A_pow + A_pow.T) / 2
+
+
+def summarize(
+        array: np.ndarray[tuple[int], np.dtype[np.floating]],
+        summary_type: SummaryType
+) -> np.floating | float:
+    
+    match summary_type:
+
+        case "mean":
+            return array.mean()
+
+        case "median":
+            return np.median(array)
+
+        case "sum":
+            return np.sum(array)
+
+        case "min":
+            return array.min()
+
+        case "max":
+            return array.max()
+
+        case "stdev":
+            return array.std()
+
+        case "iqr":
+            return (np.quantile(array, 0.75) -
+                    np.quantile(array, 0.25))
+
+        case "range":
+            return (array.max() - array.min())
+
+        case _:
+            return array.mean()

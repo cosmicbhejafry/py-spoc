@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from typing import Literal
+from typing import Literal, Any
 from abc import ABC, abstractmethod
 from sklearn.metrics.pairwise import (
     laplacian_kernel,
@@ -13,10 +13,14 @@ from scipy.spatial.distance import euclidean
 
 from pyspoc._argchecking import check_float
 from pyspoc._utils import numerical as pn
-from ._base import KClusteringEstimator
+from pyspoc._argchecking import RuntimeTypeCheckedMixin
+from ._base import ClusteringEstimator
 
 
-class KClusteringMixin(ABC):
+
+class ClusteringMixin(
+    RuntimeTypeCheckedMixin,
+    ABC):
 
     # Implementation will override the abstract extraction hook inherited from Statistic.
     # The base class has already resolved and fitted the shared estimator.
@@ -24,12 +28,14 @@ class KClusteringMixin(ABC):
     def _get_result(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            fitted_estimator: KClusteringEstimator) -> np.ndarray | np.floating | float:
+            fitted_estimator: ClusteringEstimator,
+            **kwargs: Any) -> np.ndarray | np.floating | float:
         pass
 
 
 
-class KClusteringSimilarityMixin(KClusteringMixin, ABC):
+class ClusteringSimilarityMixin(
+    ClusteringMixin, ABC):
     """Calculate pairwise similarities between fitted K-clusters.
 
     Each row and column of the result represents one fitted cluster. The
@@ -71,8 +77,7 @@ class KClusteringSimilarityMixin(KClusteringMixin, ABC):
                 "inverse_distance",
                 "mahalanobis_inverse_distance",
                 "cosine",
-                "correlation",
-            ] ,
+                "correlation"],
             gamma: float | None,
     ):
 
@@ -113,7 +118,7 @@ class KClusteringSimilarityMixin(KClusteringMixin, ABC):
     def _get_result(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            fitted_estimator: KClusteringEstimator
+            fitted_estimator: ClusteringEstimator
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
         """Construct a pairwise similarity matrix from a fitted estimator.
 
@@ -138,12 +143,12 @@ class KClusteringSimilarityMixin(KClusteringMixin, ABC):
         """
 
         # Borrow fitted centres without exposing or mutating the cached model.
-        model = fitted_estimator._get_model()
-        centres = model.cluster_centers_
+        centres = fitted_estimator._get_centres()
 
         if centres is None:
-            raise RuntimeError("Fitted estimator has no cluster centres. "
-                               "Check that fit() completed successfully.")
+            raise RuntimeError(
+                "Fitted estimator has no cluster centres. "
+                "Check that fit() completed successfully.")
 
         gamma = self._gamma if self._gamma is not None else 1 / data.shape[1]
 

@@ -654,8 +654,18 @@ class RuntimeTypeCheckedMixin:
             raise TypeError(f"Invalid {value_description}: {error}") from error
 
 
-def check_natural_number(arg_value: int, arg_name: Optional[str] = None) -> int:
+_TAny = TypeVar("_TAny")
 
+
+def check_not_none(arg_value: _TAny, arg_name: Optional[str] = None) -> _TAny:
+    if arg_value is None:
+        name = arg_name or _base.retrieve_arg_name(arg_value) or "value"
+        raise TypeError(f"{name} not be None.")
+
+    return arg_value
+
+
+def check_natural_number(arg_value: int, arg_name: Optional[str] = None) -> int:
     return check_integer(arg_value=arg_value, minimum=1, arg_name=arg_name)
 
 

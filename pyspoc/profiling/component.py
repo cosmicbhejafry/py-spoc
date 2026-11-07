@@ -28,7 +28,7 @@ except ImportError as error:  # pragma: no cover - depends on optional environme
     raise OptionalDependencyMissingError(
         "psutil",
         feature="Component CPU profiling",
-        install_hint="Install pySPoC with the 'profiling' extra.",
+        details="Install pySPoC with the 'profiling' extra.",
     ) from error
 
 

@@ -2,8 +2,14 @@ import numpy as np
 
 from numba import njit
 
+from pyspoc.settings import settings
 
-@njit
+
+@njit(
+    cache=settings.current.numba_caching,
+    boundscheck=settings.current.numba_boundschecking,
+    error_model=settings.current.numba_error_model,
+    fastmath=settings.current.numba_fastmath)
 def array_equal_numba(x: np.ndarray, y: np.ndarray, equal_nan: bool = False):
     """
     Return whether two one-dimensional arrays are elementwise equal.
