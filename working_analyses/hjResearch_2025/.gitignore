@@ -2,3 +2,5 @@
 !/hpc_pyspoc_scripts/py_scripts
 !/hpc_pyspoc_scripts/*.pbs
 !/hpc_pyspoc_scripts/*.md
+!/hpc_pyspoc_scripts/*.awk
+!/hpc_pyspoc_scripts/*.sh
