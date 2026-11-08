@@ -96,7 +96,7 @@ class EigenValues(Reducer):
         return self._labels
 
     def reduce(self, data: np.ndarray) -> np.ndarray | float:
-        eigs = np.linalg.eigvals(data)
+        eigs = np.abs(np.linalg.eigvals(data))
         return eigs[:self._num_values]
 
 

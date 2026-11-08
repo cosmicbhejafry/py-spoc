@@ -1,8 +1,9 @@
 import numpy as np
 
-from typing import Union, Literal, Any
+from typing import Union, Literal, Any, get_args
 from sklearn.metrics import pairwise_distances
 
+from pyspoc.types import DistanceMetric
 from pyspoc.settings import settings
 from pyspoc.statistics.base import Statistic, PairwiseStatistic
 from pyspoc._tag import Tag, Type
@@ -11,29 +12,6 @@ from pyspoc._tag import Tag, Type
 # implemented natively in order to be viable.
 
 
-AVAILABLE_DISTANCES = (
-    "euclidean",
-    "nan_euclidean",
-    "manhattan",
-    "cosine",
-    "braycurtis",
-    "canberra",
-    "chebyshev",
-    "correlation",
-    "dice",
-    "hamming",
-    "jaccard",
-    "haversine",
-    "mahalanobis",
-    "matching",
-    "minkowski",
-    "rogerstanimoto",
-    "russellrao",
-    "seuclidean",
-    "sokalsneath",
-    "sqeuclidean",
-    "yule"
-)
 
 class PairwiseDistance(Statistic):
 
@@ -45,29 +23,7 @@ class PairwiseDistance(Statistic):
 
     def __init__(
             self,
-            metric: Literal[
-                "euclidean",
-                "nan_euclidean",
-                "manhattan",
-                "cubic",
-                "cosine",
-                "braycurtis",
-                "canberra",
-                "chebyshev",
-                "correlation",
-                "dice",
-                "hamming",
-                "jaccard",
-                "haversine",
-                "mahalanobis",
-                "matching",
-                "minkowski",
-                "rogerstanimoto",
-                "russellrao",
-                "seuclidean",
-                "sokalsneath",
-                "sqeuclidean",
-                "yule"] = "euclidean",
+            metric: DistanceMetric = "euclidean",
             force_finite: bool = False,
             dim: Literal["n", "p"] = "p",
             nan_policy: Literal[
@@ -94,7 +50,7 @@ class PairwiseDistance(Statistic):
 
     @staticmethod
     def available_distances() -> tuple[str, ...]:
-        return AVAILABLE_DISTANCES
+        return get_args(DistanceMetric)
 
     def _compute(self, data: np.ndarray) -> np.ndarray:
         n_jobs = settings.current.max_worker_threads or -1

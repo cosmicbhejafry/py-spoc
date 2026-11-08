@@ -506,7 +506,6 @@ class PairwiseStatistic(Statistic):
     def symmetry_type(self) -> str | None:
         return self._symmetry_type
 
-
         
     def _pairwise_compute(
         self,

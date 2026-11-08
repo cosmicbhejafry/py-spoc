@@ -16,8 +16,7 @@ from pyspoc.statistics.ot.sinkhorn.divergence import (
 from pyspoc.statistics.ot.sinkhorn.plan import (
     PairwiseSinkhornPlanEstimator,
     PairwiseSinkhornPlanEffectiveDestinationsSummary,
-    PairwiseSinkhornPlanEntropy,
-    
+    PairwiseSinkhornPlanEntropy
 )
 
 

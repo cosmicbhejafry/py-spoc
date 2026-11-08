@@ -37,26 +37,6 @@ class AdditiveNoiseModel(PairwiseStatistic):
             is_ordered=True,
             symmetry_type="exact")
 
-    @classmethod
-    def get_long_name(cls) -> str:
-        return cls._long_name
-
-    @classmethod
-    def get_identifier(cls) -> str:
-        return cls._identifier
-
-    @classmethod
-    def get_signatures(cls) -> tuple[Signature, ...]:
-        return cls._signatures
-
-    @classmethod
-    def get_type(cls) -> tuple[Type, ...]:
-        return cls._types
-
-    @classmethod
-    def get_tags(cls) -> tuple[Tag, ...]:
-        return cls._tags
-
     
     # monkey-patch the anm_score function
     @staticmethod
@@ -97,26 +77,6 @@ class ConditionalDistributionSimilarity(PairwiseStatistic):
     _types = (Type.DESCRIPTIVE,)
     _tags = (Tag.DIRECTED, Tag.NONLINEAR)
 
-    @classmethod
-    def get_long_name(cls) -> str:
-        return cls._long_name
-
-    @classmethod
-    def get_identifier(cls) -> str:
-        return cls._identifier
-
-    @classmethod
-    def get_signatures(cls) -> tuple[Signature, ...]:
-        return cls._signatures
-
-    @classmethod
-    def get_type(cls) -> tuple[Type, ...]:
-        return cls._types
-
-    @classmethod
-    def get_tags(cls) -> tuple[Tag, ...]:
-        return cls._tags
-
 
     def __init__(
             self,
@@ -147,25 +107,6 @@ class RegressionErrorCausalInference(PairwiseStatistic):
     _types = (Type.DESCRIPTIVE,)
     _tags = (Tag.DIRECTED, Tag.NONLINEAR)
 
-    @classmethod
-    def get_long_name(cls) -> str:
-        return cls._long_name
-
-    @classmethod
-    def get_identifier(cls) -> str:
-        return cls._identifier
-
-    @classmethod
-    def get_signatures(cls) -> tuple[Signature, ...]:
-        return cls._signatures
-
-    @classmethod
-    def get_type(cls) -> tuple[Type, ...]:
-        return cls._types
-
-    @classmethod
-    def get_tags(cls) -> tuple[Tag, ...]:
-        return cls._tags
 
     def __init__(
             self,
@@ -197,25 +138,6 @@ class InformationGeometricConditionalIndependence(PairwiseStatistic):
     _types = (Type.DESCRIPTIVE,)
     _tags = (Tag.DIRECTED, Tag.NONLINEAR)
 
-    @classmethod
-    def get_long_name(cls) -> str:
-        return cls._long_name
-
-    @classmethod
-    def get_identifier(cls) -> str:
-        return cls._identifier
-
-    @classmethod
-    def get_signatures(cls) -> tuple[Signature, ...]:
-        return cls._signatures
-
-    @classmethod
-    def get_type(cls) -> tuple[Type, ...]:
-        return cls._types
-
-    @classmethod
-    def get_tags(cls) -> tuple[Tag, ...]:
-        return cls._tags
 
     def __init__(
             self,

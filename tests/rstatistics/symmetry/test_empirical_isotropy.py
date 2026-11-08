@@ -8,7 +8,7 @@ and eleven transformations keep the suite fast while exercising partial chunks.
 import numpy as np
 import pytest
 
-from pyspoc.rstatistics.symmetry.reflection import HouseholderIsotropy
+from pyspoc.rstatistics.symmetry.reflection import HouseholderEmpiricalIsotropy
 from pyspoc.rstatistics.symmetry.rotation import (
     GivensEmpiricalIsotropy,
     HarrEmpiricalIsotropy,
@@ -25,7 +25,7 @@ pytestmark = [
 @pytest.fixture(params=[
     pytest.param((GivensEmpiricalIsotropy, "n_rotations"), id="givens"),
     pytest.param((HarrEmpiricalIsotropy, "n_rotations"), id="haar"),
-    pytest.param((HouseholderIsotropy, "n_reflections"), id="householder"),
+    pytest.param((HouseholderEmpiricalIsotropy, "n_reflections"), id="householder"),
 ])
 def make_statistic(request):
     """Use the family-specific count argument while sharing all expectations."""
