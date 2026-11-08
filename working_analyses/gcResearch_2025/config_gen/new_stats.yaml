@@ -1,0 +1,338 @@
+Statistics:
+  pyspoc.statistics.association.distance.statistics:
+    DistanceCorrelation:
+      schemes:
+        manhattan:
+          metric: manhattan
+          biased: false
+          dim: p
+          nan_policy: raise
+        euclidean:
+          metric: euclidean
+          biased: false
+          dim: p
+          nan_policy: raise
+    MultiscaleGraphCorrelation:
+      schemes:
+        manhattan:
+          metric: manhattan
+          dim: p
+          nan_policy: raise
+        euclidean:
+          metric: euclidean
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.causal:
+    ConditionalDistributionSimilarity:
+      schemes:
+        main:
+          dim: p
+          nan_policy: raise
+    InformationGeometricConditionalIndependence:
+      schemes:
+        main:
+          dim: p
+          nan_policy: raise
+    RegressionErrorCausalInference:
+      schemes:
+        main:
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.clustering.kclustering.kmeans.statistics:
+    KMeansSimilarity:
+      schemes:
+        main:
+          k: 5
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.clustering.kclustering.kmedoids.statistics:
+    KMedoidsSimilarity:
+      schemes:
+        main:
+          k: 5
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.clustering.dbscan.statistics:
+    DBScanSimilarity:
+      schemes:
+        main:
+          eps: null
+          desired_k: 5
+          max_discover_eps_iter: 10
+          min_samples: 5
+          algorithm: auto
+          leaf_size: 30
+          metric: euclidean
+          minkowski_p: null
+          n_jobs: -1
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.distance:
+    GromovWassersteinTau:
+      schemes:
+        main:
+          dim: p
+          nan_policy: raise
+    PairwiseDistance:
+      schemes:
+        manhattan:
+          metric: manhattan
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+        euclidean:
+          metric: euclidean
+          force_finite: false
+          dim: p
+          nan_policy: raise
+          kwargs: {}
+  pyspoc.statistics.distribution.distance.quantile:
+    PairwiseQuantileDistance:
+      schemes:
+        q0.5:
+          p: 0.5
+          dim: p
+          nan_policy: raise
+        q1:
+          p: 1
+          dim: p
+          nan_policy: raise
+        q2:
+          p: 2
+          dim: p
+          nan_policy: raise
+        q3:
+          p: 3
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.distribution.divergence.kl:
+    KullbackLeiblerDivergence:
+      schemes:
+        main:
+          kde_kernel: gaussian
+          kde_bw: scott
+          kl_resolution: 1000
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.information:
+    MutualInformation:
+      schemes:
+        nn3:
+          n_neighbors: 3
+          threshold: null
+          random_seed: null
+          dim: p
+          nan_policy: raise
+        nn5:
+          n_neighbors: 5
+          threshold: null
+          random_seed: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.ot.sinkhorn.plan:
+    PairwiseSinkhornPlanEffectiveDestinationsSummary:
+      schemes:
+        main:
+          loss: euclidean
+          summary_type: mean
+          epsilon: 0.001
+          sigma: 0.05
+          max_iter: 1000
+          normalisation: data
+          dim: p
+          nan_policy: raise
+    PairwiseSinkhornPlanEntropy:
+      schemes:
+        main:
+          loss: euclidean
+          entropy_type: mass-weighted
+          epsilon: 0.001
+          sigma: 0.05
+          max_iter: 1000
+          normalisation: data
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.ot.wasserstein:
+    PairwiseWassersteinDistance:
+      schemes:
+        w1:
+          p: 1
+          dim: p
+          nan_policy: raise
+        w2:
+          p: 2
+          dim: p
+          nan_policy: raise
+Reducers:
+  pyspoc.reducers.basic:
+    Moment:
+      schemes:
+        main:
+          moments:
+          - 2
+          - 3
+          - 4
+    SingularValues:
+      schemes:
+        main:
+          num_values: 5
+          dim: p
+          nan_policy: raise
+    EigenValues:
+      schemes:
+        main:
+          num_values: 5
+    LogDeterminant:
+      schemes:
+        main:
+          scaled: true
+ReducedStatistics:
+  pyspoc.rstatistics.clustering.kclustering.kmeans.statistics:
+    KMeansInertia:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          dim: p
+          nan_policy: raise
+    KMeansSILScores:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          silhouette_metric: euclidean
+          silhouette_minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMeansDispersionSummaries:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          dispersion_measure: within-cluster
+          dispersion_minkowski_p: 1
+          inner_summary: mean
+          outer_summary: mean
+          dim: p
+          nan_policy: raise
+  pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics:
+    KMedoidsInertia:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMedoidsSILScores:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          silhouette_metric: null
+          silhouette_minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMedoidsDispersionSummaries:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          dispersion_measure: within-cluster
+          dispersion_minkowski_p: 1
+          inner_summary: mean
+          outer_summary: mean
+          dim: p
+          nan_policy: raise
+  pyspoc.rstatistics.fractal.corrsum:
+    CorrelationSum:
+      schemes:
+        main:
+          slope_estimation_method: hybrid
+          r2_thresh: 0.9
+          monotonic_tol: 0.1
+          deshmukh_reg_proportion: 0.25
+          minimum_scaling_region: 0.1
+          minimum_scaling_points: null
+          initial_scale_method: datseries
+          scale_length: null
+          scale_adaption_iters: 20
+          kwargs: {}
+  pyspoc.rstatistics.symmetry.reflection:
+    HouseholderEmpiricalIsotropy:
+      schemes:
+        main:
+          n_reflections: 1000
+          random_seed: 0
+          dim: p
+          nan_policy: raise
+  pyspoc.rstatistics.symmetry.rotation:
+    EigenIsotropy:
+      schemes:
+        main:
+          dim: p
+          nan_policy: raise
+    GivensEmpiricalIsotropy:
+      schemes:
+        main:
+          n_rotations: 1000
+          random_seed: 0
+          dim: p
+          nan_policy: raise
+    HarrEmpiricalIsotropy:
+      schemes:
+        main:
+          n_rotations: 1000
+          random_seed: 0
+          dim: p
+          nan_policy: raise

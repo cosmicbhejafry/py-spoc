@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from sklearn.cluster import DBSCAN
 from sklearn.metrics import pairwise_distances_chunked
 from sklearn.utils.validation import check_array
+from scipy.spatial.distance import pdist
 
 import pyspoc._argchecking as argchk
 
@@ -529,7 +530,9 @@ class DBScanStatistic(
 
     def __init__(
             self,
-            eps: float,
+            eps: float | None,
+            desired_k : float | None,
+            max_discover_eps_iter: float | None,
             min_samples: int,
             algorithm: Literal[
                 "auto", "ball_tree", "kd_tree", "brute"],
@@ -540,8 +543,22 @@ class DBScanStatistic(
             dim: Literal["n", "p"],
             nan_policy: Literal["raise", "row-omit", "col-omit"]):
 
-        # eps must be greater than 0.
-        self._eps = argchk.check_float(eps, exclusive_minimum=0, arg_name="eps")
+        self._eps = None
+        self._desired_k = None
+        self._max_discover_eps_iter = None
+
+        if eps is not None:
+            # eps must be greater than 0.
+            self._eps = argchk.check_float(eps, exclusive_minimum=0, arg_name="eps")
+
+        else:
+            if desired_k is None:
+                raise ValueError("Either eps or k must be supplied.")
+
+            self._desired_k = argchk.check_natural_number(desired_k, arg_name="k")
+            self._max_discover_eps_iter = argchk.check_natural_number(
+                max_discover_eps_iter, arg_name="max_discovery_iter")
+
 
         super().__init__(
             dim=dim,
@@ -578,10 +595,74 @@ class DBScanStatistic(
             raise ValueError(
                 "The minimum samples (min_samples) must not exceed the number of data points.")
 
-        # Resolve dimensions against this particular dataset without mutating
-        # the originally requested component configuration.
-        fitted_estimator = self._get_fitted_estimator(eps=self._eps, data=data)
-        return self._get_result(data=data, fitted_estimator=fitted_estimator)
+        if self._eps is not None:
+            # Resolve dimensions against this particular dataset without mutating
+            # the originally requested component configuration.
+            fitted_estimator = self._get_fitted_estimator(eps=self._eps, data=data)
+            return self._get_result(data=data, fitted_estimator=fitted_estimator)
+
+        return self._compute_by_k(data)
+
+
+    def _compute_by_k(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
+    ) ->  np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+        eps = pdist(data, metric="euclidean").mean()
+        fit_results = self._fit_by_k(eps, data=data, prev_eps=None, prev_k=None)
+        prev_eps = eps
+        result, k, eps = fit_results
+
+        if k == self._desired_k:
+            return result
+
+        prev_k = k
+        best_result = result
+        closest_k = k
+
+        for _ in range(self._max_discover_eps_iter):
+            fit_results = self._fit_by_k(
+                eps=eps, data=data, prev_eps=prev_eps, prev_k=prev_k)
+            prev_eps = eps
+            result, k, eps = fit_results
+
+            if k == self._desired_k:
+                return result
+
+            if abs(k - self._desired_k) < abs(closest_k - self._desired_k):
+                closest_k = k
+                best_result = result
+
+        return best_result
+
+
+    def _fit_by_k(
+            self,
+            eps: float,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+            prev_eps: float | None,
+            prev_k: int | None):
+        
+        fitted_estimator = self._get_fitted_estimator(eps=eps, data=data)
+        result = self._get_result(data=data, fitted_estimator=fitted_estimator)
+        k = result.shape[1]
+
+        if k == self._desired_k:
+            return result, k, eps
+        
+        if k == 0:
+            return result, k, eps*2
+
+        if k > self._desired_k:
+            if prev_k is None or k <= prev_k:
+                return result, k, eps*2
+            
+            return result, k, abs(eps - prev_eps) / 2
+
+        if prev_k is None or k >= prev_k:
+            return result, k, eps/2
+
+        return result, k, abs(eps - prev_eps) / 2
 
 
     @abstractmethod

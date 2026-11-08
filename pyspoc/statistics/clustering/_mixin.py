@@ -150,6 +150,9 @@ class ClusteringSimilarityMixin(
                 "Fitted estimator has no cluster centres. "
                 "Check that fit() completed successfully.")
 
+        if centres.size == 0:
+            return np.atleast_2d([])
+
         gamma = self._gamma if self._gamma is not None else 1 / data.shape[1]
 
         # Scikit-learn provides vectorized implementations for kernels that

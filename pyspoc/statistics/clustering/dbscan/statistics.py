@@ -122,7 +122,9 @@ class DBScanSimilarity(
 
     def __init__(
             self,
-            eps: float,
+            eps: float | None = None,
+            desired_k: float | None = None,
+            max_discover_eps_iter: float | None = 10,
             min_samples: int = 5,
             algorithm: Literal[
                 "auto", "ball_tree", "kd_tree", "brute"] = "auto",
@@ -147,6 +149,8 @@ class DBScanSimilarity(
         DBScanStatistic.__init__(
             self=self,
             eps=eps,
+            desired_k=desired_k,
+            max_discover_eps_iter=max_discover_eps_iter,
             min_samples=min_samples,
             metric=metric,
             algorithm=algorithm,

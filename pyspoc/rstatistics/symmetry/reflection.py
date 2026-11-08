@@ -7,7 +7,7 @@ from ._empirical import EmpiricalIsotropy
 
 
 
-class HouseholderIsotropy(EmpiricalIsotropy):
+class HouseholderEmpiricalIsotropy(EmpiricalIsotropy):
 
     def __init__(
             self,

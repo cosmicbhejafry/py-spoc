@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 _LAZY_IMPORTS = {
     "PairwiseSinkhornDivergence": (".sinkhorn", "PairwiseSinkhornDivergence"),
     "PairwiseSinkhornPlanEntropy": (".sinkhorn", "PairwiseSinkhornPlanEntropy"),
-    "PairwiseSinkhornPlanEffectiveDestinationsSummary": {
-        ".sinkhorn", "PairwiseSinkhornPlanEffectiveDestinationsSummary"},
-    "PairwiseWassersteinDistance": {".wasserstein", "PairwiseWassersteinDistance"}
+    "PairwiseSinkhornPlanEffectiveDestinationsSummary": (
+        ".sinkhorn", "PairwiseSinkhornPlanEffectiveDestinationsSummary"),
+    "PairwiseWassersteinDistance": (".wasserstein", "PairwiseWassersteinDistance")
 }
 
 __all__ = [

@@ -5,7 +5,7 @@ from typing import Literal
 import pyspoc._argchecking as argchk
 
 from pyspoc.settings import settings
-from pyspoc.statistics.association.distance import PairwiseQuantileDistance
+from pyspoc.statistics.distribution.distance import PairwiseQuantileDistance
 
 
 class PairwiseWassersteinDistance(PairwiseQuantileDistance):

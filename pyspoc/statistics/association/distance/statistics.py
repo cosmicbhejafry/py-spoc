@@ -9,6 +9,7 @@ from pyspoc.statistics.base import PairwiseStatistic
 from pyspoc._tag import Tag, Type, Signature
 
 
+
 class BaseDistanceBasedAssociation(PairwiseStatistic, ABC):
 
     _signatures = (Signature.DENSITY,)
@@ -37,6 +38,7 @@ class BaseDistanceBasedAssociation(PairwiseStatistic, ABC):
         self._metric = metric
 
 
+
 class HellerHellerGorfine(BaseDistanceBasedAssociation):
     """Heller-Heller-Gorfine independence criterion"""
 
@@ -55,6 +57,7 @@ class HellerHellerGorfine(BaseDistanceBasedAssociation):
 
         super().__init__(
             metric=metric,
+            symmetry_type="exact",
             dim=dim,
             nan_policy=nan_policy,
             internal_parallelism="serial")
@@ -108,6 +111,7 @@ class DistanceCorrelation(BaseDistanceBasedAssociation):
             metric=metric,
             dim=dim,
             nan_policy=nan_policy,
+            symmetry_type="exact",
             internal_parallelism="serial",
             thread_safety="safe")
 
@@ -135,6 +139,22 @@ class MultiscaleGraphCorrelation(BaseDistanceBasedAssociation):
     _tags = (Tag.DISTANCE, Tag.NONLINEAR)
     _signatures = (Signature.ASSOCIATION,)
     _type = Type.DESCRIPTIVE
+
+
+    def __init__(
+            self,
+            metric: DistanceMetric,
+            dim: Literal["n", "p"] = "p",
+            nan_policy: Literal[
+                "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy
+        ):
+        
+        super().__init__(
+            metric=metric,
+            #is_ordered=is_ordered,
+            symmetry_type="exact",
+            dim=dim,
+            nan_policy=nan_policy)
 
 
     def _pairwise_compute(
