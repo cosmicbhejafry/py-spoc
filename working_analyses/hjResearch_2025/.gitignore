@@ -4,4 +4,5 @@
 !/hpc_pyspoc_scripts/*.md
 !/hpc_pyspoc_scripts/*.awk
 !/hpc_pyspoc_scripts/*.sh
-!/hpc_pyspoc_scripts/configs/fast_*.yaml
+!/hpc_pyspoc_scripts/pbs_outs_parse_scripts
+!/hpc_pyspoc_scripts/pbs_qsub_scripts

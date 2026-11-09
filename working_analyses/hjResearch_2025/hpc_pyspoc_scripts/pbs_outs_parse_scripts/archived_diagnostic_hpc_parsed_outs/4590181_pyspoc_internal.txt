@@ -1,0 +1,16 @@
+# 2026-11-09 21:34:52 | 4590181[].pbs-7 | pyspoc_internal | syn_data_N1000_P100_10seeds | array=1-2 n_chunks=4000 ncpus=2 mem=6gb mode=test
+
+# resource usage per array job (2 jobs)
+  Walltime   mean 00:02:07   median 00:02:07   min 00:02:00   max 00:02:14  
+  CPU time   mean 00:00:11   median 00:00:11   min 00:00:11   max 00:00:11  
+  CPU %      mean 12%        median 12%        min 10%        max 13%       
+  Memory     mean 0.36 GB    median 0.36 GB    min 0.25 GB    max 0.47 GB   
+
+# results across array jobs
+  jobs with results: 2
+  saved: 0 of 0 total (0.0%), skipped/pre-computed: 6
+  saved per job: mean 0.0, min 0, max 0
+  JSON error files: 0 total, in 0 of 2 jobs
+
+# timing summary (seconds) across all array jobs
+  statistic                                                                              n      mean    median      min      max

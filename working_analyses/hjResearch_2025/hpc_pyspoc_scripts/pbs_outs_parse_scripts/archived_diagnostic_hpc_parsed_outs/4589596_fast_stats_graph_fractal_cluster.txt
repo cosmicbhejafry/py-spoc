@@ -1,0 +1,65 @@
+# 2026-11-09 18:56:24 | 4589596[].pbs-7 | fast_stats_graph_fractal_cluster array=1-2 n_chunks=1000 ncpus=8 mem=32gb mode=test
+
+# resource usage per array job (2 jobs)
+  Walltime   mean 01:20:34   median 01:20:34   min 01:17:35   max 01:23:34  
+  CPU time   mean 01:39:07   median 01:39:07   min 01:38:23   max 01:39:51  
+  CPU %      mean 176%       median 176%       min 160%       max 191%      
+  Memory     mean 6.86 GB    median 6.86 GB    min 6.86 GB    max 6.86 GB   
+
+# results across array jobs
+  jobs with results: 2
+  saved: 18 of 18 total (100.0%), skipped/pre-computed: 0
+  saved per job: mean 9.0, min 9, max 9
+  JSON error files: no lines found
+
+# timing summary (seconds) across all array jobs
+  statistic                                                                              n      mean    median      min      max
+
+Total per dataset
+  all                                                                                   18     520.1     498.5      437      645
+
+Statistics
+  pyspoc.statistics.association.distance.statistics.DistanceCorrelation.euclidean       18     207.6     209.0      172      241
+  pyspoc.statistics.causal.ConditionalDistributionSimilarity.main                       18     152.1     156.0       57      225
+  pyspoc.statistics.causal.InformationGeometricConditionalIndependence.main             18      13.2      14.0        7       16
+  pyspoc.statistics.causal.RegressionErrorCausalInference.main                          18      22.2      22.0       20       25
+  pyspoc.statistics.clustering.dbscan.statistics.DBScanSimilarity.main                   7       0.0       0.0        0        0
+  pyspoc.statistics.clustering.kclustering.kmeans.statistics.KMeansSimilarity.main       2       0.5       0.5        0        1
+  pyspoc.statistics.distance.GromovWassersteinTau.main                                  11       1.4       1.0        1        2
+  pyspoc.statistics.distance.PairwiseDistance.euclidean                                  6       1.7       2.0        1        2
+  pyspoc.statistics.distance.PairwiseDistance.manhattan                                  1       1.0       1.0        1        1
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q0.5        12       0.5       0.5        0        1
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q1          17       0.3       0.0        0        1
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q2          18       0.1       0.0        0        1
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q3          18       0.4       0.0        0        1
+  pyspoc.statistics.distribution.divergence.kl.KullbackLeiblerDivergence.main           18       4.6       5.0        2        6
+  pyspoc.statistics.information.MutualInformation.nn3                                   18      54.5      53.5       48       71
+  pyspoc.statistics.information.MutualInformation.nn5                                   18      58.3      57.0       52       79
+  pyspoc.statistics.ot.wasserstein.PairwiseWassersteinDistance.w1                       18       0.2       0.0        0        1
+  pyspoc.statistics.ot.wasserstein.PairwiseWassersteinDistance.w2                       18       0.3       0.0        0        1
+
+Reductions
+  feature_covariance_stats.py.MaxCovPerFeature.max_min_median                            5       0.0       0.0        0        0
+  feature_covariance_stats.py.MeanOfMoments.moment_2to4                                 18       0.0       0.0        0        0
+  feature_covariance_stats.py.SvdAMGMRatio.sv_amgm                                       3       0.0       0.0        0        0
+  pyspoc.statistics.causal.ConditionalDistributionSimilarity.main_=>_pyspoc.reducers.basic.LogDeterminant.main    1       0.0       0.0        0        0
+  pyspoc.statistics.clustering.kclustering.kmeans.statistics.KMeansSimilarity.main_=>_pyspoc.reducers.basic.LogDeterminant.main    1       0.0       0.0        0        0
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q1_=>_pyspoc.reducers.basic.LogDeterminant.main    1       0.0       0.0        0        0
+  pyspoc.statistics.distribution.distance.quantile.PairwiseQuantileDistance.q3_=>_pyspoc.reducers.basic.LogDeterminant.main    1       0.0       0.0        0        0
+  pyspoc.statistics.information.MutualInformation.nn3_=>_pyspoc.reducers.basic.EigenValues.main    1       0.0       0.0        0        0
+  pyspoc.statistics.information.MutualInformation.nn3_=>_pyspoc.reducers.basic.LogDeterminant.main    1       0.0       0.0        0        0
+  pyspoc.statistics.information.MutualInformation.nn5_=>_pyspoc.reducers.basic.EigenValues.main    1       0.0       0.0        0        0
+  pyspoc.statistics.ot.wasserstein.PairwiseWassersteinDistance.w1_=>_pyspoc.reducers.basic.EigenValues.main    1       0.0       0.0        0        0
+  pyspoc.statistics.ot.wasserstein.PairwiseWassersteinDistance.w2_=>_pyspoc.reducers.basic.EigenValues.main    2       0.0       0.0        0        0
+
+Reduced Statistics
+  pyspoc.rstatistics.clustering.kclustering.kmeans.statistics.KMeansDispersionSummaries.main   14       0.2       0.0        0        1
+  pyspoc.rstatistics.clustering.kclustering.kmeans.statistics.KMeansInertia.main         1       0.0       0.0        0        0
+  pyspoc.rstatistics.clustering.kclustering.kmeans.statistics.KMeansSILScores.main      18       0.0       0.0        0        0
+  pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics.KMedoidsDispersionSummaries.main   18       0.4       0.0        0        3
+  pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics.KMedoidsInertia.main    18       0.3       0.0        0        1
+  pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics.KMedoidsSILScores.main   18       0.6       1.0        0        1
+  pyspoc.rstatistics.fractal.corrsum.CorrelationSum.main                                18       1.4       1.0        0        8
+  pyspoc.rstatistics.symmetry.reflection.HouseholderEmpiricalIsotropy.main              18       0.4       0.0        0        1
+  pyspoc.rstatistics.symmetry.rotation.GivensEmpiricalIsotropy.main                     18       0.2       0.0        0        1
+  pyspoc.rstatistics.symmetry.rotation.HarrEmpiricalIsotropy.main                       18       0.9       1.0        0        2

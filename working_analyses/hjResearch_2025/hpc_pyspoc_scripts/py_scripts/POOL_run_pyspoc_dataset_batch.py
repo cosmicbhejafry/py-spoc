@@ -84,6 +84,7 @@ def main():
     num_ds_saved = 0
     num_ds_tot = 0
     num_ds_skipped = 0
+    num_err_files = 0
     
     # ITERATE THRU DATASET BATCHES    
     for _, row in chunk.iterrows():
@@ -117,9 +118,10 @@ def main():
             status = "failed"
 
         if errors:
+            num_err_files+=1
             (out_dir / f"{v}.errors.json").write_text(json.dumps(errors, indent=2))
         log.info(f"{status} {v} ({time.time() - t0:.1f}s, {len(errors)} errors)")
-
+    log.info(f"STATS FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {num_err_files} JSON error files")        
     log.info(f"STATS FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {num_ds_saved} results saved out of {num_ds_tot} total; {num_ds_skipped} skipped / pre-computed")
     
 if __name__ == "__main__":

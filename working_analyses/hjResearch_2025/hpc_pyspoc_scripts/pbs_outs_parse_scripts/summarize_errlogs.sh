@@ -6,7 +6,7 @@ LOG=$1
 SEL=${2:-all}
 DIR=${3:-.}
 AWK=stat_timings.awk
-OUT_EXT=OU
+OUT_EXT=OU                           # extension of the PBS output files, e.g. <PID>[1].pbs-7.OU
 
 select_lines() {
     case "$SEL" in
@@ -76,9 +76,11 @@ select_lines | while IFS='|' read -r ts jobid rest; do
             if [ ! -f "$f" ]; then echo "## array $i: MISSING $f"; continue; fi
             awk -f "$AWK" "$f" | to_rows "$i" >> "$raw"
 
-            line=$(grep -h "STATS FOR INDEX" "$f" | tail -n 1 |
+            line=$(grep -h "results saved out of" "$f" | tail -n 1 |
                    sed -nE 's/.*: ([0-9]+) results saved out of ([0-9]+) total; ([0-9]+) skipped.*/\1 \2 \3/p')
-            if [ -n "$line" ]; then echo "$line" >> "$res"
+            json=$(grep -h "JSON error files" "$f" | tail -n 1 |
+                   sed -nE 's/.*: ([0-9]+) JSON error files.*/\1/p')
+            if [ -n "$line" ]; then echo "$line ${json:-NA}" >> "$res"
             else echo "## array $i: no final STATS line (job incomplete?)"; fi
         done
 
@@ -94,12 +96,15 @@ select_lines | while IFS='|' read -r ts jobid rest; do
         awk '
             { n++; s += $1; t += $2; k += $3
               if (n == 1 || $1 < mn) mn = $1
-              if ($1 > mx) mx = $1 }
+              if ($1 > mx) mx = $1
+              if ($4 != "NA") { jn++; j += $4; if ($4 > 0) jbad++ } }
             END {
                 if (!n) { print "  no STATS lines found"; exit }
                 printf "  jobs with results: %d\n", n
                 printf "  saved: %d of %d total (%.1f%%), skipped/pre-computed: %d\n", s, t, (t ? 100*s/t : 0), k
                 printf "  saved per job: mean %.1f, min %d, max %d\n", s/n, mn, mx
+                if (jn) printf "  JSON error files: %d total, in %d of %d jobs\n", j, jbad + 0, jn
+                else    print  "  JSON error files: no lines found"
             }' "$res"
 
         echo

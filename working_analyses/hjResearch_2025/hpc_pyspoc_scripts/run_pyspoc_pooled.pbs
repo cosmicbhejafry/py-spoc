@@ -24,7 +24,7 @@ python py_scripts/POOL_run_pyspoc_dataset_batch.py \
     --config_name "$CONFIG_NAME" \
     --index $((PBS_ARRAY_INDEX - 1 + ${OFFSET:-0})) \
     --n_chunks "$N_CHUNKS" \
-    --results_base_dir "$EPHEMERAL/31oct2026_pyspoc_runs"
+    --results_base_dir "$EPHEMERAL/nov2026_pyspoc_results"
 
 echo "DONE!"
 # qsub -v MANIFEST=metadata_files/syn_data_N1000_P10.csv,CONFIG=configs/dist_distrib_stats.yml,CONFIG_NAME=test_distance_distrib submit.pbs

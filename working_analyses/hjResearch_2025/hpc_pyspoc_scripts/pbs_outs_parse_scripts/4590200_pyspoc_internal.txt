@@ -1,0 +1,95 @@
+# 2026-11-09 21:43:15 | 4590200[].pbs-7 | pyspoc_internal | syn_data_N1000_P100_10seeds | array=51-100 n_chunks=200 ncpus=2 mem=6gb mode=all
+
+# resource usage per array job (50 jobs)
+  Walltime   mean 00:33:05   median 00:32:28   min 00:31:38   max 00:35:45  
+  CPU time   mean 00:32:47   median 00:32:26   min 00:30:20   max 00:36:57  
+  CPU %      mean 107%       median 107%       min 106%       max 114%      
+  Memory     mean 2.31 GB    median 2.42 GB    min 1.89 GB    max 2.55 GB   
+
+# results across array jobs
+  jobs with results: 50
+  saved: 2010 of 2010 total (100.0%), skipped/pre-computed: 0
+  saved per job: mean 40.2, min 40, max 41
+  JSON error files: 54 total, in 50 of 50 jobs
+
+# timing summary (seconds) across all array jobs
+  statistic                                                                              n      mean    median      min      max
+
+Total per dataset
+  all                                                                                 2010      45.3      45.0       40       51
+
+Statistics
+  pyspoc.statistics.association.correlation.KendallTau.std                            2010       2.2       2.0        1        3
+  pyspoc.statistics.association.correlation.PowerEnvelopeCorrelation.orth                7       0.1       0.0        0        1
+  pyspoc.statistics.association.correlation.SpearmanR.std                             2010       2.6       3.0        2        3
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee                        2010       2.9       3.0        0        5
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf 2010       5.7       6.0        3       10
+  pyspoc.statistics.distance.GromovWassersteinTau.std                                  226       1.5       2.0        1        2
+  pyspoc.statistics.distance.PairwiseDistance.braycurtis                                45       0.1       0.0        0        1
+  pyspoc.statistics.distance.PairwiseDistance.canberra                                 377       0.1       0.0        0        1
+  pyspoc.statistics.distance.PairwiseDistance.chebyshev                                  7       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.correlation                             1407       0.1       0.0        0        1
+  pyspoc.statistics.distance.PairwiseDistance.cosine                                     9       0.4       0.0        0        1
+  pyspoc.statistics.distance.PairwiseDistance.cubic                                      1       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.manhattan                                  1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso                      2010      10.4      10.0        9       12
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression           2010       9.2       9.0        8       11
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV                    2010      12.0      12.0       10       14
+
+Reductions
+  feature_covariance_stats.py.MaxCovPerFeature.max_min_median                            9       0.0       0.0        0        0
+  feature_covariance_stats.py.MeanOfMoments.moment_2to4                               2265       0.0       0.0        0        0
+  feature_covariance_stats.py.SvdAMGMRatio.sv_amgm                                     107       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.KendallTau.std_=>_pyspoc.rstatistics.norms.Norm.l2   26       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.KendallTau.std_=>_pyspoc.rstatistics.norms.SchattenNorm.p3   16       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.PowerEnvelopeCorrelation.orth_=>_pyspoc.rstatistics.norms.Norm.l2   28       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.PowerEnvelopeCorrelation.orth_=>_pyspoc.rstatistics.norms.Norm.nuc    2       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.PowerEnvelopeCorrelation.orth_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    8       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.SpearmanR.std_=>_pyspoc.rstatistics.norms.Norm.l2   26       0.0       0.0        0        0
+  pyspoc.statistics.association.correlation.SpearmanR.std_=>_pyspoc.rstatistics.norms.SchattenNorm.p3   14       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee_=>_pyspoc.rstatistics.norms.Norm.l2   23       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee_=>_pyspoc.rstatistics.norms.SchattenNorm.p3  199       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.LedoitWolf.lw_=>_pyspoc.rstatistics.norms.Norm.l2   21       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.LedoitWolf.lw_=>_pyspoc.rstatistics.norms.SchattenNorm.p3   46       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.OAS.oas_=>_pyspoc.rstatistics.norms.Norm.l2    8       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.OAS.oas_=>_pyspoc.rstatistics.norms.SchattenNorm.p3  113       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.ShrunkCovariance.sc_=>_pyspoc.rstatistics.norms.Norm.l2   38       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.ShrunkCovariance.sc_=>_pyspoc.rstatistics.norms.SchattenNorm.p3   24       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.ShrunkCovariance.sc_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf_=>_pyspoc.rstatistics.norms.Norm.l2  218       0.0       0.0        0        0
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf_=>_pyspoc.rstatistics.norms.Norm.nuc   20       0.0       0.0        0        0
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    1       0.0       0.0        0        0
+  pyspoc.statistics.distance.GromovWassersteinTau.std_=>_pyspoc.rstatistics.norms.Norm.l2  150       0.0       0.0        0        0
+  pyspoc.statistics.distance.GromovWassersteinTau.std_=>_pyspoc.rstatistics.norms.Norm.nuc   15       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.braycurtis_=>_pyspoc.rstatistics.norms.Norm.l2   76       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.braycurtis_=>_pyspoc.rstatistics.norms.Norm.nuc   16       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.canberra_=>_pyspoc.rstatistics.norms.Norm.l2   45       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.canberra_=>_pyspoc.rstatistics.norms.Norm.nuc   20       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.chebyshev_=>_pyspoc.rstatistics.norms.Norm.l2  162       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.chebyshev_=>_pyspoc.rstatistics.norms.Norm.nuc    2       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.chebyshev_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    2       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.correlation_=>_pyspoc.rstatistics.norms.Norm.l2   56       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.correlation_=>_pyspoc.rstatistics.norms.Norm.nuc   13       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.cosine_=>_pyspoc.rstatistics.norms.Norm.l2  211       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.cosine_=>_pyspoc.rstatistics.norms.Norm.nuc   11       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.cubic_=>_pyspoc.rstatistics.norms.Norm.l2  107       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.cubic_=>_pyspoc.rstatistics.norms.Norm.nuc    2       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.manhattan_=>_pyspoc.rstatistics.norms.Norm.l2   42       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.manhattan_=>_pyspoc.rstatistics.norms.Norm.nuc    4       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.manhattan_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    3       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.manhattan_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.nan_euclidean_=>_pyspoc.rstatistics.norms.Norm.l2   79       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.nan_euclidean_=>_pyspoc.rstatistics.norms.Norm.nuc    4       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso_=>_pyspoc.rstatistics.norms.Norm.l2   42       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso_=>_pyspoc.rstatistics.norms.Norm.nuc    4       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    6       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression_=>_pyspoc.rstatistics.norms.Norm.l2   38       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression_=>_pyspoc.rstatistics.norms.Norm.nuc    1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression_=>_pyspoc.rstatistics.norms.SchattenNorm.p3    5       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV_=>_pyspoc.rstatistics.norms.Norm.l2   44       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV_=>_pyspoc.rstatistics.norms.Norm.nuc    3       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV_=>_pyspoc.rstatistics.norms.SchattenNorm.p3   10       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV_=>_pyspoc.rstatistics.ranks.EffectiveRank.std    1       0.0       0.0        0        0

@@ -13,6 +13,7 @@ todo's:
 
 ### GTEX- 
 
+cp -r $EPHEMERAL/31oct2026_pyspoc_runs/results/per_dataset/syn_data_N1000_P100_10seeds/dist_distrib_stats_metricSweep/ ./
 
 #### gtex_geneSub_N100_P100__mode_partition.csv - done
 

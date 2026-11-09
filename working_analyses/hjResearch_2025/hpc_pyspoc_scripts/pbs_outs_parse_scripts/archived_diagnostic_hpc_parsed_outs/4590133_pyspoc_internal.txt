@@ -1,0 +1,40 @@
+# 2026-11-09 21:16:05 | 4590133[].pbs-7 | pyspoc_internal | syn_data_N1000_P100_10seeds | array=1-2 n_chunks=4000 ncpus=2 mem=6gb mode=test
+
+# resource usage per array job (2 jobs)
+  Walltime   mean 00:05:24   median 00:05:24   min 00:05:24   max 00:05:24  
+  CPU time   mean 00:01:47   median 00:01:47   min 00:01:45   max 00:01:49  
+  CPU %      mean 78%        median 78%        min 77%        max 80%       
+  Memory     mean 2.48 GB    median 2.48 GB    min 2.37 GB    max 2.59 GB   
+
+# results across array jobs
+  jobs with results: 2
+  saved: 6 of 6 total (100.0%), skipped/pre-computed: 0
+  saved per job: mean 3.0, min 3, max 3
+
+# timing summary (seconds) across all array jobs
+  statistic                                                                              n      mean    median      min      max
+
+Total per dataset
+  all                                                                                    6      54.0      54.0       52       57
+
+Statistics
+  pyspoc.statistics.association.correlation.KendallTau.std                               6       2.5       2.5        2        3
+  pyspoc.statistics.association.correlation.SpearmanR.std                                6       3.0       3.0        3        3
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee                           6       3.7       3.5        3        5
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf    6       7.7       8.0        7        8
+  pyspoc.statistics.distance.GromovWassersteinTau.std                                    3       1.7       2.0        1        2
+  pyspoc.statistics.distance.PairwiseDistance.canberra                                   3       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.cubic                                      2       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.nan_euclidean                              1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.Lasso                         6      11.8      12.0       11       12
+  pyspoc.statistics.errors.regressors.LinearRegressorError.LinearRegression              6      10.7      11.0       10       11
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV                       6      13.8      14.0       13       14
+
+Reductions
+  feature_covariance_stats.py.MeanOfMoments.moment_2to4                                  9       0.0       0.0        0        0
+  feature_covariance_stats.py.SvdAMGMRatio.sv_amgm                                       2       0.0       0.0        0        0
+  pyspoc.statistics.association.covariance.EllipticEnvelope.ee_=>_pyspoc.rstatistics.norms.Norm.l2    2       0.0       0.0        0        0
+  pyspoc.statistics.association.hsic.statistic.HilbertSchmidtIndependenceCriterion.rbf_=>_pyspoc.rstatistics.norms.Norm.nuc    1       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.correlation_=>_pyspoc.rstatistics.norms.Norm.nuc    1       0.0       0.0        0        0
+  pyspoc.statistics.distance.PairwiseDistance.nan_euclidean_=>_pyspoc.rstatistics.norms.Norm.l2    1       0.0       0.0        0        0
+  pyspoc.statistics.errors.regressors.LinearRegressorError.RidgeCV_=>_pyspoc.rstatistics.norms.Norm.l2    1       0.0       0.0        0        0

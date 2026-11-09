@@ -1,5 +1,5 @@
 #!/bin/bash
-# usage: bash submit_config.sh <1|2|3|4|all> [test]
+# usage: bash submit_config.sh <1|2|3|4|5|6|all> [test]
 set -eo pipefail
 
 MANIFEST_NAME=syn_data_N1000_P100_10seeds
@@ -14,9 +14,13 @@ submit() {
         2) CONFIG=configs/manifold_stats_ID.yml; CONFIG_NAME=manifold_stats
            N_CHUNKS=200; WALLTIME=01:00:00; NCPUS=4; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         3) CONFIG=configs/pyspoc_internal_stats_fast.yaml; CONFIG_NAME=pyspoc_internal
-           N_CHUNKS=50; WALLTIME=06:30:00; NCPUS=2; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
-        4) CONFIG=configs/fast_stats_graph_fractal_cluster.yaml; CONFIG_NAME=fast_stats_graph_fractal_cluster
-           N_CHUNKS=1000; WALLTIME=08:00:00; NCPUS=8; MEM=32gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
+           N_CHUNKS=200; WALLTIME=03:30:00; NCPUS=2; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
+        4) CONFIG=configs/fast_reducedstat_cluster_graph.yaml; CONFIG_NAME=fast_reducedstat_cluster_graph
+           N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
+        5) CONFIG=configs/faster_stats_graph_fractal_cluster.yaml; CONFIG_NAME=faster_stats_graph_fractal_cluster
+           N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
+        6) CONFIG=configs/slow_stats_graph.yaml; CONFIG_NAME=slow_stats_graph
+           N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
         *) echo "unknown config: $i" >&2; exit 1 ;;
     esac
 
@@ -44,9 +48,9 @@ submit() {
 }
 
 if [ "${1:-}" = "all" ]; then
-    for i in 1 3 2 4; do submit "$i"; done
+    for i in 1 3 2 4 5 6; do submit "$i"; done
 else
-    submit "${1:?usage: bash submit_config.sh <1|2|3|4|all> [test]}"
+    submit "${1:?usage: bash submit_config.sh <1|2|3|4|5|6|all> [test]}"
 fi
 
 # 5) CONFIG=configs/fast_stats_graph_fractal_cluster.yaml; CONFIG_NAME=fast_stats_graph_fractal_cluster
