@@ -1,5 +1,5 @@
 #!/bin/bash
-# usage: bash submit_config.sh <1|2|3|all> [test]
+# usage: bash submit_config.sh <1|2|3|4|all> [test]
 set -eo pipefail
 
 MANIFEST=metadata_files/syn_data_N1000_P100_10seeds.csv
@@ -14,6 +14,8 @@ submit() {
            N_CHUNKS=200; WALLTIME=01:00:00; NCPUS=4; MEM=6gb; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         3) CONFIG=configs/pyspoc_internal_stats_fast.yaml; CONFIG_NAME=pyspoc_internal
            N_CHUNKS=50; WALLTIME=06:30:00; NCPUS=2; MEM=6gb; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
+        4) CONFIG=configs/fast_stats_graph_fractal_cluster.yaml; CONFIG_NAME=fast_stats_graph_fractal_cluster
+           N_CHUNKS=200; WALLTIME=08:00:00; NCPUS=4; MEM=16gb; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         *) echo "unknown config: $i" >&2; exit 1 ;;
     esac
 
@@ -38,7 +40,7 @@ submit() {
 }
 
 if [ "${1:-}" = "all" ]; then
-    for i in 1 3 2; do submit "$i"; done
+    for i in 1 3 2 4; do submit "$i"; done
 else
-    submit "${1:?usage: bash submit_config.sh <1|2|3|all> [test]}"
+    submit "${1:?usage: bash submit_config.sh <1|2|3|4|all> [test]}"
 fi

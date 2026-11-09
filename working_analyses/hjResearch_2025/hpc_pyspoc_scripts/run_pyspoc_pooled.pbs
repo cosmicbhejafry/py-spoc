@@ -16,6 +16,8 @@ conda activate pyspoc_env
 
 cd "$PBS_O_WORKDIR"
 
+[ -z "$CUDA_VISIBLE_DEVICES" ] && unset CUDA_VISIBLE_DEVICES
+
 python py_scripts/POOL_run_pyspoc_dataset_batch.py \
     --manifest "$MANIFEST" \
     --config "$CONFIG" \

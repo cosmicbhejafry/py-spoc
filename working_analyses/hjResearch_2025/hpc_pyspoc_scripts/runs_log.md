@@ -105,36 +105,6 @@ manifold- 20seconds to 4mins per dataset in test
 ```qsub -N pic_test_1000_100 -J 1-100 -l walltime=02:00:00 -l select=1:ncpus=4:mem=6gb -v MANIFEST=metadata_files/syn_data_N1000_P100_num_seed_10.csv,CONFIG=configs/pyspoc_internal_stats_fast.yaml,CONFIG_NAME=pyspoc_internal_stats_fast,N_CHUNKS=100 run_pyspoc_pooled.pbs```
 (running, estimating 40-50min per job)
 
-## other helpful commands
-
-```qstat -x -f <jobid> | grep resources_used```
-
-```grep -L 'DONE!' pbs_job_outs/<jobid>*.OU | wc -l```
-
-```grep -h 'STATS FOR INDEX' pbs_job_outs/<pid>*.E*```
-
-```find results/per_dataset/syn_data_N1000_P10/ -name "*.parquet" -printf "%h\n" | sort | uniq -c```
-
-<!-- 
-cat metadata_files/syn_data_N10000_P100.csv | wc -l
-find results/per_dataset/syn_data_N10000_P100/ -name "*.parquet" -printf "%h\n" | sort | uniq -c -->
-
-tr '\r' '\n' < ERRFILE | awk '
-function secs(t,  a, n) { n = split(t, a, ":"); return n == 3 ? a[1]*3600 + a[2]*60 + a[3] : a[1]*60 + a[2] }
-/Statistic: \[/ { match($0, /\[[^]]+\]/); name = substr($0, RSTART+1, RLENGTH-2) }
-/Computing Statistics:/ && match($0, /[0-9]+\/[0-9]+ \[[0-9:]+/) {
-    split(substr($0, RSTART, RLENGTH), p, /[\/ \[]+/)
-    i = p[1]; t = secs(p[3])
-    if (i == 0) { prev = 0; name = ""; print "---- new dataset ----"; next }
-    printf "%3d  %8.0fs  %s\n", i, t - prev, (name == "" ? "(unnamed)" : name)
-    prev = t; name = ""
-} > pbs_job_outs/errlog.txt'
-
-OR: 
-tr '\r' '\n' < pbs_job_outs/<pid>.pbs-7.ER | awk -f stat_timings.awk > pbs_job_outs/err_logs_awks/errlog_gtex_N200_P500.txt
-
-<!-- ```for d in results/per_dataset/syn_data_N1000_P10/*/; do    echo "$d $(ls "$d"*.parquet 2>/dev/null | wc -l)"; done``` -->
-
 ## HISTORY
 
 NOTE: DISTANCE CONFIG HAS CHANGED

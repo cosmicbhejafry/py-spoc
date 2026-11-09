@@ -4,3 +4,4 @@
 !/hpc_pyspoc_scripts/*.md
 !/hpc_pyspoc_scripts/*.awk
 !/hpc_pyspoc_scripts/*.sh
+!/hpc_pyspoc_scripts/configs/fast_*.yaml
