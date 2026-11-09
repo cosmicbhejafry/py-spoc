@@ -8,13 +8,13 @@ MODE=${2:-full}
 submit() {
     local i=$1
     case $i in
-        1) CONFIG=configs/dist_distrib_stats_metricSweep.yml; CONFIG_NAME=dist_distrib_stats
+        1) CONFIG=configs/test_dist_distrib_rstats.yml; CONFIG_NAME=test_dist_distrib_rstats
            N_CHUNKS=100;  WALLTIME=00:10:00; NCPUS=1; MEM=2gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
         2) CONFIG=configs/manifold_stats_ID.yml; CONFIG_NAME=manifold_stats
            N_CHUNKS=200; WALLTIME=01:00:00; NCPUS=4; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         3) CONFIG=configs/pyspoc_internal_stats_fast.yaml; CONFIG_NAME=pyspoc_internal
            N_CHUNKS=50; WALLTIME=06:30:00; NCPUS=2; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
-        4) CONFIG=configs/stats_graph_fractal_cluster.yaml; CONFIG_NAME=stats_graph_fractal_cluster
+        4) CONFIG=configs/fast_stats_graph_fractal_cluster.yaml; CONFIG_NAME=fast_stats_graph_fractal_cluster
            N_CHUNKS=1000; WALLTIME=08:00:00; NCPUS=8; MEM=64gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         *) echo "unknown config: $i" >&2; exit 1 ;;
     esac
