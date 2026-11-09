@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import warnings
 import numpy as np
-import copy
 import gc
 
 from abc import ABC, abstractmethod
 from types import MethodType, FunctionType
+from typing import TypeAlias
 from pathlib import Path
 
-from pyspoc.statistics.base import Statistic
+from pyspoc.statistics.base import Statistic, StatisticResultNDArray
 from pyspoc._base import Component
 from pyspoc._tag import Tag, Type, Signature
 from pyspoc.settings import settings
 from pyspoc._exceptions import MissingComponentPropertyError
 
+
+ReducerResultNDArray: TypeAlias = (
+    np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
+    np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
+    np.floating | np.integer |
+    float | int)
 
 
 class Reducer(Component, ABC):
@@ -104,12 +110,31 @@ class Reducer(Component, ABC):
         return settings.current.reducer_properties_yaml_path
     
 
-    def calculate(self,
-                  statistic: Statistic) -> np.ndarray:
+    def calculate(
+            self,
+            statistic: Statistic) -> ReducerResultNDArray:
 
         # temporarily uncache results, TODO: fix caching mechanisms
         self.clear_cache(statistic)
 
+        statistic_result = self._get_statistic_result(statistic)
+        
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            result = self.reduce(statistic_result)
+
+            if captured and self._active_calculator is not None:
+                self._active_calculator._add_warnings(captured)
+
+        result = np.array(result)
+        self._cache_result(statistic=statistic, result=result)
+        return result
+
+
+    def _get_statistic_result(
+            self,
+            statistic: Statistic) -> StatisticResultNDArray | None:
+        
         statistic_results = self._cached_results.get(statistic)
 
         if statistic_results is not None:
@@ -118,17 +143,20 @@ class Reducer(Component, ABC):
             if result is not None:
                 return result
 
-        statistic_result = statistic._get_result()
-        statistic_result_cp = copy.deepcopy(statistic_result)
+        statistic_result = statistic._get_locally_cached_result()
         
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always")
-            result = self.reduce(statistic_result_cp)
+        if isinstance(statistic_result, np.ndarray):
+            statistic_result.flags.writeable = False
 
-            if captured and self._active_calculator is not None:
-                self._active_calculator._add_warnings(captured)
+        return statistic_result
 
-        result = np.array(result)
+
+    def _cache_result(
+            self,
+            statistic: Statistic,
+            result: ReducerResultNDArray):
+
+        statistic_results = self._cached_results.get(statistic)
 
         if statistic_results is None:
             self._cached_results[statistic] = {

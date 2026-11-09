@@ -342,7 +342,8 @@ class Calculator(RuntimeTypeCheckedMixin):
                             # If the Statistic is a ReducedStatistic (ie. an all-in-one) then
                             # store the result and continue.
                             if isinstance(stat, ReducedStatistic):
-                                self._results_dict[stat_name][""] = stat._get_result()
+                                self._results_dict[
+                                    stat_name][""] = stat._get_locally_cached_result()
                                 continue
 
                             # Reduce the result.

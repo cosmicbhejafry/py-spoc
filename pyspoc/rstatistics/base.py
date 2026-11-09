@@ -3,10 +3,9 @@ from __future__ import annotations
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import TypeGuard, Literal, Any, overload
+from typing import TypeGuard, Any, overload
 
 from pyspoc.statistics.base import StatisticBase
-from pyspoc.settings import settings
 from pyspoc.dataset import Dataset
 
 
@@ -34,44 +33,13 @@ class ReducedStatistic(StatisticBase, ABC):
             return result.flatten()
 
         return result
-    
-
-    @overload
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
-          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
-          np.floating | np.integer |
-          float | int):
-        """
-        Compute the ReducedStatistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[tuple[int, int], np.dtype[np.floating]]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-            
-
-        Returns
-        -------
-        `np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] | \
-         np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] | \
-         np.floating | np.integer | \
-         float | int`
-            ReducedStatistic estimate.
-        """
-        ...
 
 
     @overload
     def compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            *,
-            dataset_nan_policy: Literal["raise", "row-omit", "col-omit"]
+            **kwargs: Any
     ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
           np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
           np.floating | np.integer |
@@ -85,49 +53,6 @@ class ReducedStatistic(StatisticBase, ABC):
         data : np.ndarray[tuple[int, int], np.dtype[np.floating]]
             2-dimensional floating point cloud data matrix with observations along the rows
             and features along the columns.
-
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}, optional
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
-            
-
-        Returns
-        -------
-        `np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] | \
-         np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] | \
-         np.floating | np.integer | \
-         float | int`
-            ReducedStatistic estimate.
-        """
-        ...
-
-
-    @overload
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            **kwargs
-    ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
-          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
-          np.floating | np.integer |
-          float | int):
-        """
-        Compute the ReducedStatistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[tuple[int, int], np.dtype[np.floating]]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}, optional
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
             
         ## Optional Parameters
 
@@ -145,18 +70,55 @@ class ReducedStatistic(StatisticBase, ABC):
         ...
 
 
+    @overload
     def compute(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
+            *,
+            dataset: Dataset,
             **kwargs: Any
     ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
           np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
           np.floating | np.integer |
           float | int):
-        dataset_nan_policy = kwargs.get("dataset_nan_policy", settings.current.data_nan_policy)
+        """
+        Compute the ReducedStatistic for the given point cloud data matrix.
 
+
+        Parameters
+        -------
+        dataset : Dataset
+            
+        ## Optional Parameters
+
+        kwargs: Any
+            Additional Statistic-specific keyword arguments used during computation.
+
+        Returns
+        -------
+        `np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] | \
+            np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] | \
+            np.floating | np.integer | \
+            float | int`
+            ReducedStatistic estimate.
+        """
+        ...
+
+
+    def compute(
+            self,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
+            *,
+            dataset: Dataset | None = None,
+            **kwargs: Any
+    ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
+          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
+          np.floating | np.integer |
+          float | int):
+        
         result = super().compute(
-            data, dataset_nan_policy=dataset_nan_policy, kwargs=kwargs)
+            data,
+            dataset=dataset,
+            **kwargs)
 
         if self._is_1d_or_less(result):
             return result

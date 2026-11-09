@@ -5,6 +5,7 @@ from typing import Literal
 from pyspoc.types import DistanceMetric, SummaryType
 from pyspoc.settings import settings
 from pyspoc.statistics.clustering.dbscan._base import DBScanEstimator
+from pyspoc._utils.numerical import summarize
 from ._base import DBScanSweepStatistic
 from .._mixin import (
     ClusteringSILScoresMixin,
@@ -403,7 +404,7 @@ class DBScanDispersionSummaries(
             
             noise_summary = (np.nan
                 if noise_distances.size == 0
-                else self._summarize(
+                else summarize(
                     noise_distances, summary_type=self._outer_summary))
 
             if self._dispersion_measure == "noise":
@@ -415,7 +416,7 @@ class DBScanDispersionSummaries(
         if signal_distances.size == 0:
             return np.nan
         
-        signal_summary = self._summarize(
+        signal_summary = summarize(
             signal_distances, summary_type=self._outer_summary)
         
         if self._dispersion_measure == "signal":
