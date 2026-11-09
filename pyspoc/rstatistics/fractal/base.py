@@ -1,7 +1,7 @@
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import TypeGuard, Literal, Annotated
+from typing import TypeGuard, Literal, Any, Annotated
 
 from pyspoc.rstatistics.base import ReducedStatistic
 from pyspoc.settings import settings
@@ -215,7 +215,7 @@ class FractalMeasureStatistic(ReducedStatistic, ABC):
                  scale_adaption_iters: int = 20,
                  nan_policy: Literal[
                      "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
-                 **kwargs):
+                 **kwargs: Any):
         """Initialize the shared fractal-dimension estimation workflow.
 
         Parameters

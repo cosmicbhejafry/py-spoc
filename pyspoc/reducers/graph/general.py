@@ -2,7 +2,7 @@ import numpy as np
 
 from pyspoc.types import SummaryType
 from pyspoc._utils.numerical import summarize
-from ._base import GraphType, GraphReducer, GraphSummaryReducer
+from ._base import GraphType, GraphReducer
 
 class GraphEdgeCount(GraphReducer):
 
@@ -14,15 +14,15 @@ class GraphEdgeCount(GraphReducer):
             GraphType.CAUSAL_UNWEIGHTED,
             GraphType.CAUSAL_WEIGHTED)
     
-    def reduce(
+    def _reduce_graph(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
     ) -> np.integer:
         
-        return (~np.isclose(data, 0)).sum()
+        return (~np.isclose(adjacency, 0)).sum()
 
 
-class GraphDegreeSummary(GraphSummaryReducer):
+class GraphDegreeSummary(GraphReducer):
     
     def __init__(
             self,
@@ -39,17 +39,15 @@ class GraphDegreeSummary(GraphSummaryReducer):
             GraphType.WEIGHTED,
             GraphType.CAUSAL_UNWEIGHTED,
             GraphType.CAUSAL_WEIGHTED)
+    
 
-    def reduce(
+    def _reduce_graph(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
-    ) -> np.floating | float:
+            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> float:
 
-        is_neighbour = np.abs(data) > 0
+        is_neighbour = np.abs(adjacency) > 0
         row_neighbours = is_neighbour.sum(axis=0)
         col_neighbours = is_neighbour.sum(axis=1)
         degree = np.column_stack((row_neighbours, col_neighbours)).max(axis=1)
-        return summarize(degree, self._summary_type)
-
-
-
+        return float(summarize(degree, self._summary_type))
