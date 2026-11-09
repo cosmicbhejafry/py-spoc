@@ -115,7 +115,7 @@ class StatisticBase(Component, ABC):
         self._calculate_kwargs = kwargs
 
         # Get result from instance cache if present.
-        if self._cached_result:
+        if self._cached_result is not None:
             return self._cached_result
 
         # TODO: Implement class-wide Statistic caching.
@@ -128,7 +128,9 @@ class StatisticBase(Component, ABC):
         # Else compute from scratch.
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            result = self.compute(dataset=dataset, dataset_nan_policy=dataset.nan_policy)
+            result = self.compute(
+                dataset=dataset,
+                dataset_nan_policy=dataset.nan_policy)
 
             if captured and self._active_calculator is not None:
                 self._active_calculator._add_warnings(captured)
@@ -298,7 +300,7 @@ class StatisticBase(Component, ABC):
         dataset_dict[self._params] = result
 
 
-    def _get_result(self) -> StatisticResultNDArray | None:
+    def _get_locally_cached_result(self) -> StatisticResultNDArray | None:
         return self._cached_result
 
 

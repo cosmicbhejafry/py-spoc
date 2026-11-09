@@ -1,0 +1,160 @@
+Statistics:
+  pyspoc.statistics.clustering.kclustering.kmeans.statistics:
+    KMeansSimilarity:
+      schemes:
+        main:
+          k: 5
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.clustering.kclustering.kmedoids.statistics:
+    KMedoidsSimilarity:
+      schemes:
+        main:
+          k: 5
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.clustering.dbscan.statistics:
+    DBScanSimilarity:
+      schemes:
+        main:
+          eps: null
+          desired_k: 5
+          max_discover_eps_iter: 10
+          min_samples: 5
+          algorithm: auto
+          leaf_size: 30
+          metric: euclidean
+          minkowski_p: null
+          n_jobs: -1
+          kernel: rbf
+          gamma: null
+          dim: p
+          nan_policy: raise
+Reducers:
+  pyspoc.reducers.basic:
+    Moment:
+      schemes:
+        main:
+          moments:
+          - 2
+          - 3
+          - 4
+    SingularValues:
+      schemes:
+        main:
+          num_values: 5
+          dim: p
+          nan_policy: raise
+    EigenValues:
+      schemes:
+        main:
+          num_values: 5
+    LogDeterminant:
+      schemes:
+        main:
+          scaled: true
+ReducedStatistics:
+  pyspoc.rstatistics.clustering.kclustering.kmeans.statistics:
+    KMeansInertia:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          dim: p
+          nan_policy: raise
+    KMeansSILScores:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          silhouette_metric: euclidean
+          silhouette_minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMeansDispersionSummaries:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: k-means++
+          algorithm: lloyd
+          tol: 0.0001
+          dispersion_measure: within-cluster
+          dispersion_minkowski_p: 1
+          inner_summary: mean
+          outer_summary: mean
+          dim: p
+          nan_policy: raise
+  pyspoc.rstatistics.clustering.kclustering.kmedoids.statistics:
+    KMedoidsInertia:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMedoidsSILScores:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          silhouette_metric: null
+          silhouette_minkowski_p: null
+          dim: p
+          nan_policy: raise
+    KMedoidsDispersionSummaries:
+      schemes:
+        main:
+          min_k: 5
+          max_k: 15
+          max_iter: 300
+          random_seed: null
+          initializer: heuristic
+          algorithm: alternate
+          metric: euclidean
+          minkowski_p: null
+          dispersion_measure: within-cluster
+          dispersion_minkowski_p: 1
+          inner_summary: mean
+          outer_summary: mean
+          dim: p
+          nan_policy: raise

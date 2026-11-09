@@ -42,6 +42,7 @@ class EmpiricalIsotropy(ReducedStatistic):
         self._n_operations = n_operations
         self._data_var = None
         self._tot_sq_var = None
+        
 
     def _compute_isotropies(
             self,

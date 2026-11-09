@@ -1,17 +1,8 @@
 #%%
-from pyspoc import Statistic
 
-Statistic.get_available()
-#%%
-from pyspoc import ReducedStatistic
-
-ReducedStatistic.get_available()
-
-#%%
-import numpy as np
-X = np.random.standard_normal(size=(1000,10))
-
-#%%
+##############
+# STATISTICS #
+##############
 stats = []
 
 from pyspoc.statistics.association.distance import (
@@ -30,6 +21,7 @@ stats.append(("manhattan", mgc1))
 
 mgc2 = MultiscaleGraphCorrelation("euclidean")
 stats.append(("euclidean", mgc2))
+
 #%%
 from pyspoc.statistics.causal import (
     ConditionalDistributionSimilarity,
@@ -127,6 +119,11 @@ stats.append(("w1", pwd1))
 pwd2 = PairwiseWassersteinDistance(2)
 stats.append(("w2", pwd2))
 #%%
+
+############
+# REDUCERS #
+############
+
 from pyspoc.reducers.basic import (
     Moment,
     SingularValues,
@@ -148,6 +145,11 @@ reducers.append(eig)
 ld = LogDeterminant(scaled=True)
 reducers.append(ld)
 #%%
+
+######################
+# REDUCED STATISTICS #
+######################
+
 from pyspoc.rstatistics.clustering.kclustering.kmeans import (
     KMeansInertia,
     KMeansSILScores,
@@ -206,6 +208,11 @@ hei = HarrEmpiricalIsotropy()
 rstats.append(hei)
 
 #%%
+
+################
+# CONFIG BUILD #
+################
+
 from pyspoc.config import Config
 
 cfg = Config("new_stats")
@@ -237,4 +244,9 @@ for rstat in rstats:
 
     cfg.add_statistic(rstat_obj, scheme_name)
 #%%
+
+#################
+# CONFIG EXPORT #
+#################
+
 cfg.export_yaml()
