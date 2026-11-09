@@ -106,7 +106,7 @@ class ClusteringDispersionSummaryMixin(ClusteringMixin):
             within_summary = summarize(cluster_summary, self._outer_summary)
 
             if dispersion_measure == "within-cluster":
-                return within_summary
+                return float(within_summary)
        
         across_distances = fitted_estimator._compute_cross_cluster_minkowski_distances(
             data,
@@ -123,7 +123,7 @@ class ClusteringDispersionSummaryMixin(ClusteringMixin):
             across_summary = summarize(cluster_summary, self._outer_summary)
             
         if dispersion_measure == "across-cluster":
-            return across_summary
+            return float(across_summary)
 
         # Point-to-cluster cluster-to-anchor distance summary ratio
         # Anchor is centroid or medoid depending on selected option.

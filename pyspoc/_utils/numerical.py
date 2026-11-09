@@ -44,10 +44,11 @@ def spsd_matrix_power(
     return (A_pow + A_pow.T) / 2
 
 
+
 def summarize(
-        array: np.ndarray[tuple[int], np.dtype[np.floating]],
+        array: np.ndarray[tuple[int], np.dtype[np.floating | np.integer]],
         summary_type: SummaryType
-) -> np.floating | float:
+) -> np.floating | np.integer | float | int:
     
     match summary_type:
 

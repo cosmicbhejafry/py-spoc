@@ -408,7 +408,7 @@ class DBScanDispersionSummaries(
                     noise_distances, summary_type=self._outer_summary))
 
             if self._dispersion_measure == "noise":
-                return noise_summary
+                return float(noise_summary)
             
         signal_distances = fitted_estimator._compute_signal_minkowski_distances(
             data, minkowski_p=self._dispersion_minkowski_p, clusters=clusters)
@@ -420,7 +420,7 @@ class DBScanDispersionSummaries(
             signal_distances, summary_type=self._outer_summary)
         
         if self._dispersion_measure == "signal":
-            return signal_summary
+            return float(signal_summary)
         
         if signal_summary == 0:
             if noise_summary == 0:

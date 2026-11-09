@@ -1,4 +1,9 @@
 #%%
+import numpy as np
+
+X = np.random.standard_normal(size=(1000,100))
+#%%
+
 
 ##############
 # STATISTICS #
@@ -250,3 +255,7 @@ for rstat in rstats:
 #################
 
 cfg.export_yaml()
+#%%
+from pyspoc.rstatistics.fractal.corrsum import CorrelationSum
+cs = CorrelationSum(kwargs={})
+cs.compute(X)

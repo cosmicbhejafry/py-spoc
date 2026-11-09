@@ -223,4 +223,4 @@ class PairwiseSinkhornPlanEffectiveDestinationsSummary(
             out=np.zeros_like(Pi),
             where=a[:, None] > 0)
         effective_destinations = np.exp(-np.sum(xlogy(Q, Q), axis=1))
-        return summarize(effective_destinations, self._summary_type)
+        return float(summarize(effective_destinations, self._summary_type))

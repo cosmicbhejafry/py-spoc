@@ -125,55 +125,48 @@ Statistics:
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         nan_euclidean:
           metric: nan_euclidean
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         cubic:
-          metric: cubic
+          metric: minkowski
+          p: 3
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         chebyshev:
           metric: chebyshev
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         cosine:
           metric: cosine
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         braycurtis:
           metric: braycurtis
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         canberra:
           metric: canberra
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
         correlation:
           metric: correlation
           force_finite: false
           dim: p
           nan_policy: raise
-          kwargs: {}
     GromovWassersteinTau:
       schemes:
         std:
           dim: p
           nan_policy: raise
-  pyspoc.statistics.association.distance.hsic.statistic:
+  pyspoc.statistics.association.hsic.statistic:
     HilbertSchmidtIndependenceCriterion:
       schemes:
         rbf:

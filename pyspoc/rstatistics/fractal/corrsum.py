@@ -190,7 +190,7 @@ class CorrelationSum(FractalMeasureStatistic):
                 "datseries", "log-10"] = "datseries",
             scale_length: int | None = None,
             scale_adaption_iters: int = 20,
-            **kwargs):
+            **kwargs: Any):
         
         """Initialize a Rényi generalized-dimension statistic.
 
