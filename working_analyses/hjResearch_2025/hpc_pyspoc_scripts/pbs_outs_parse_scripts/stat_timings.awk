@@ -1,12 +1,22 @@
 function secs(t, a, n) { n = split(t, a, ":"); return n == 3 ? a[1]*3600 + a[2]*60 + a[3] : a[1]*60 + a[2] }
-function getname(m, parts, n) {
+
+# last part of a path ("/a/b/c.main" -> "c.main"), trimmed
+function base(s, parts, n) {
+    gsub(/^ +| +$/, "", s)
+    n = split(s, parts, "/")
+    return parts[n] != "" ? parts[n] : parts[n-1]
+}
+
+# name inside the [...] matched by the calling rule; handles "Stat => Red"
+function getname(m, k) {
     m = substr($0, RSTART, RLENGTH)
     m = substr(m, index(m, "[") + 1)
-    name = substr(m, 1, length(m) - 1)
-    n = split(name, parts, "/")
-    name = parts[n] != "" ? parts[n] : parts[n-1]   # last part (skips a trailing "/")
+    m = substr(m, 1, length(m) - 1)
+    k = index(m, "=>")
+    name = k ? base(substr(m, 1, k - 1)) "=>" base(substr(m, k + 2)) : base(m)
     gsub(/ /, "_", name)
 }
+
 function progress(phase, p, t, c) {
     if (!match($0, /[0-9]+\/[0-9]+ \[[0-9:]+/)) return
     split(substr($0, RSTART, RLENGTH), p, /[\/ \[]+/); c = p[1] + 0; t = secs(p[3])
@@ -21,9 +31,9 @@ function progress(phase, p, t, c) {
     prev = t; name = ""
 }
 
-match($0, /Statistic: \[[^]]+\]/)          { getname() }
-match($0, /Reduced Statistic \[[^]]+\]/)   { getname() }
-match($0, /Reduction:? \[[^]]+\]/)         { getname() }
+match($0, /Statistic: \[[^]]+\]/)           { getname() }
+match($0, /Reduced Statistic \[[^]]+\]/)    { getname() }
+match($0, /Reductions? *:? *\[[^]]+\]/)     { getname() }
 
 /Computing Statistics:/         { progress("Statistics") }
 /Computing Reduced Statistics:/ { progress("Reduced Statistics") }

@@ -74,16 +74,25 @@ select_lines | while IFS='|' read -r ts jobid rest; do
             else echo "## array $i: MISSING $o"; fi
 
             if [ ! -f "$f" ]; then echo "## array $i: MISSING $f"; continue; fi
-            awk -f "$AWK" "$f" | to_rows "$i" >> "$raw"
+            rows=$(awk -f "$AWK" "$f" | to_rows "$i")
 
             line=$(grep -h "results saved out of" "$f" | tail -n 1 |
                    sed -nE 's/.*: ([0-9]+) results saved out of ([0-9]+) total; ([0-9]+) skipped.*/\1 \2 \3/p')
             json=$(grep -h "JSON error files" "$f" | tail -n 1 |
                    sed -nE 's/.*: ([0-9]+) JSON error files.*/\1/p')
-            if [ -n "$line" ]; then echo "$line ${json:-NA}" >> "$res"
-            else echo "## array $i: no final STATS line (job incomplete?)"; fi
-        done
 
+            if [ -n "$line" ]; then
+                echo "$line ${json:-NA}" >> "$res"
+                [ -n "$rows" ] && echo "$rows" >> "$raw"
+            else
+                reason=$(grep -hi "exceeded limit" "$f" "$o" 2>/dev/null | head -n 1)
+                echo "## array $i: incomplete (${reason:-no final STATS line}); last dataset excluded from timings"
+                if [ -n "$rows" ]; then
+                    lastds=$(cut -f2 <<< "$rows" | sort -n | tail -n 1)
+                    awk -F'\t' -v d="$lastds" '$2 != d' <<< "$rows" >> "$raw"
+                fi
+            fi
+        done
         echo
         echo "# resource usage per array job ($(wc -l < "$usg") jobs)"
         colstat "$usg" 5 "Walltime" time

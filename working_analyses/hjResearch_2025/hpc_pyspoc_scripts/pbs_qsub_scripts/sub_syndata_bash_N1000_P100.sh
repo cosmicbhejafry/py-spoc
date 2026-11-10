@@ -16,9 +16,9 @@ submit() {
         3) CONFIG=configs/pyspoc_internal_stats_fast.yaml; CONFIG_NAME=pyspoc_internal
            N_CHUNKS=200; WALLTIME=03:30:00; NCPUS=2; MEM=6gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc_pooled.pbs ;;
         4) CONFIG=configs/fast_reducedstat_cluster_graph.yaml; CONFIG_NAME=fast_reducedstat_cluster_graph
-           N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
+           N_CHUNKS=20; WALLTIME=02:00:00; NCPUS=2; MEM=4gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
         5) CONFIG=configs/faster_stats_graph_fractal_cluster.yaml; CONFIG_NAME=faster_stats_graph_fractal_cluster
-           N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
+           N_CHUNKS=150; WALLTIME=04:00:00; NCPUS=2; MEM=4gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
         6) CONFIG=configs/slow_stats_graph.yaml; CONFIG_NAME=slow_stats_graph
            N_CHUNKS=4000; WALLTIME=00:30:00; NCPUS=4; MEM=16gb; NGPUS=0; PBS_SCRIPT_NAME=run_pyspoc.pbs ;;
         *) echo "unknown config: $i" >&2; exit 1 ;;
