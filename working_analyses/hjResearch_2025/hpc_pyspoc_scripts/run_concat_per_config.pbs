@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -N concat
+#PBS -l select=1:ncpus=1:mem=96gb
+#PBS -l walltime=00:30:00
+#PBS -o pbs_job_outs/
+#PBS -e pbs_job_outs/
+set -eo pipefail
+
+eval "$(~/anaconda3/bin/conda shell.bash hook)"
+conda activate pyspoc_env
+
+cd "$PBS_O_WORKDIR"
+
+echo $DATA_NAME
+
+python py_scripts/concat_outs.py \
+    --data_base "$EPHEMERAL/nov2026_pyspoc_results/results/per_dataset" \
+    --data_name "$DATA_NAME" \
+    --out_dir "$EPHEMERAL/nov2026_pyspoc_results/results/concat_per_config" \
+
+echo "DONE!"
+
+# qsub -v DATA_NAME=syn_data_N1000_P100_10seeds run_concat_per_config.pbs
