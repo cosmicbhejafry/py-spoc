@@ -3,9 +3,10 @@ from __future__ import annotations
 import numpy as np
 
 from abc import abstractmethod
-from typing import Literal, Any, TypeVar, overload
+from typing import Literal, Any, TypeVar
 
 import pyspoc._argchecking as argchk
+from pyspoc.dataset import Dataset
 from .._base import GraphStatistic
 from pyspoc.statistics.base import Statistic, PairwiseStatistic
 from pyspoc._tag import Tag, Type, Signature
@@ -78,76 +79,28 @@ class CausalGraphStatistic(
     @abstractmethod
     def _standardise_adjacency(
             cls,
-            adjacency: np.ndarray[tuple[int, int], np.dtype[np.number]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.integer]]:
+            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         pass
 
 
-    @overload
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
-        """
-        Compute the Causal Graph Statistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[int, int]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-
-
-        Returns
-        -------
-        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating]]`
-            Adjacency of the estimated causal graph.
-        """
-        ...
-
-
-    @overload
-    def compute(
-            self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            *,
-            dataset_nan_policy: Literal["raise", "row-omit", "col-omit"]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
-        """
-        Compute the Causal Graph Statistic for the given point cloud data matrix.
-
-        
-        Parameters
-        -------
-        data : np.ndarray[int, int]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-
-        ## Internal Parameters
-
-        dataset_nan_policy : {"raise", "row-omit", "col-omit"}
-            The :class:`Dataset` level NaN policy. Only relevant when :meth:`compute` is called
-            by :meth:`calculate`.
-
-            
-        Returns
-        -------
-        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating]]`
-            Adjacency of the estimated causal graph.
-        """
-        ...
+    def _compute_dataset(self, dataset: Dataset, **kwargs: Any
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
+        graph = super()._compute_dataset(dataset, **kwargs)
+        return self._post_process(graph)
 
 
     def compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            *,
-            dataset_nan_policy: Literal["raise", "row-omit", "col-omit", None] = None
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
-        graph = super().compute(
-            data, dataset_nan_policy=dataset_nan_policy)
-        
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
+        graph = super().compute(data)
+        return self._post_process(graph)
+
+    def _post_process(
+            self,
+            graph: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         if not self._standardise:
             return graph.astype(np.float64)
         
@@ -158,7 +111,7 @@ class CausalGraphStatistic(
         argchk.check_causal_graph_adjacency_standardisation(
             graph, self._standard_graph_convention)
 
-        return graph.astype(np.float16)
+        return graph
 
 
 class CausalGraphPairwiseStatistic(

@@ -25,8 +25,7 @@ class CorrelationGraph(GraphStatistic):
     ----------
     estimator : {"Pearson", "SpearmanR", "KendallTau", "Partial"}, default="Pearson"
         Correlation coefficient used for each pair of feature columns.
-    ensure_adjacency-type : {"binary", "binary-weighted", "bipolar", \
-        "bipolar-weighted", "absolute", `None`}
+    enforce_adjacency_type : {"binary", "bipolar", "absolute", `None`}
         <Insert description here>
     adjacency_scaling : {"minmax", "clip", None}
         <Insert description here>
@@ -66,18 +65,21 @@ class CorrelationGraph(GraphStatistic):
                 "SpearmanR",
                 "KendallTau",
                 "Partial"] = "Pearson",
-            ensure_adjacency_type: Literal[
-                "binary",
-                "binary-weighted",
-                "bipolar",
-                "bipolar-weighted",
-                "absolute",
-                None] = None,
+            # Scales the adjacency matrix to these ranges.
             adjacency_scaling: Literal[
-                "minmax",
-                "clip",
+                "unit-minmax",
+                "unit-absolute",
+                "unit-signed",
                 None
             ] = None,
+            
+            # Enforces the adjacency matrix to these constraints.
+            enforce_adjacency_type: Literal[
+                "binary",
+                "bipolar",
+                "absolute",
+                None] = None,
+
             zero_threshold: float | None = None,
             self_value: float | None = 0,
             dim: Literal["n", "p"] = "p",
@@ -89,18 +91,13 @@ class CorrelationGraph(GraphStatistic):
         super().__init__(
             dim=dim,
             nan_policy=nan_policy,
-            ensure_adjacency_type=ensure_adjacency_type,
+            enforce_adjacency_type=enforce_adjacency_type,
             adjacency_scaling=adjacency_scaling,
             zero_threshold=zero_threshold,
             self_value=self_value)
 
         self._method = estimator
         self._nan_policy = nan_policy
-
-        if ensure_adjacency_type in ("binary", "binary-weighted", "absolute"):
-            self._tags = self._get_modified_tags(
-                self._tags,
-                remove_tags=Tag.SIGNED)
 
         estimator_kwargs = {
             "dim": dim,
@@ -120,9 +117,8 @@ class CorrelationGraph(GraphStatistic):
 
         self._base_stat = base_stat
 
-        if estimator in ("Spearman", "KendallTau"):
-            self._tags = self._get_modified_tags(
-                self._tags,
+        if estimator in ("SpearmanR", "KendallTau"):
+            self._modify_tags(
                 add_tags=Tag.NONLINEAR)
 
 
@@ -168,18 +164,20 @@ class CovarianceGraph(GraphStatistic):
                 "OAS",
                 "LedoitWolf",
                 "ShrunkCovariance"] = "EmpiricalCovariance",
-            ensure_adjacency_type: Literal[
-                "binary",
-                "binary-weighted",
-                "bipolar",
-                "bipolar-weighted",
-                "absolute",
-                None] = None,
+            # Scales the adjacency matrix to these ranges.
             adjacency_scaling: Literal[
-                "minmax",
-                "clip",
+                "unit-minmax",
+                "unit-absolute",
+                "unit-signed",
                 None
             ] = None,
+            
+            # Enforces the adjacency matrix to these constraints.
+            enforce_adjacency_type: Literal[
+                "binary",
+                "bipolar",
+                "absolute",
+                None] = None,
             zero_threshold: float | None = None,
             self_value: float | None = 0,
             dim: Literal["n", "p"] = "p",
@@ -191,15 +189,10 @@ class CovarianceGraph(GraphStatistic):
         super().__init__(
             dim=dim,
             nan_policy=nan_policy,
-            ensure_adjacency_type=ensure_adjacency_type,
+            enforce_adjacency_type=enforce_adjacency_type,
             adjacency_scaling=adjacency_scaling,
             zero_threshold=zero_threshold,
             self_value=self_value)
-
-        if ensure_adjacency_type in ("binary", "binary-weighted", "absolute"):
-            self._tags = self._get_modified_tags(
-                self._tags,
-                remove_tags=Tag.SIGNED)
 
         self._assume_centered = assume_centered
         self._estimator = estimator
@@ -215,7 +208,7 @@ class CovarianceGraph(GraphStatistic):
             dim=self._dim,
             nan_policy=self._nan_policy,
             estimator=self._estimator,
-            estimator_kwargs=self._estimator_kwargs)
+            **self._estimator_kwargs)
 
 
     def _compute(self, data: np.ndarray) -> np.ndarray:
@@ -255,18 +248,20 @@ class RegressionGraph(GraphStatistic):
     def __init__(
             self,
             estimator: Literal["ols", "lasso", "ridge", "elastic_net"] = "lasso",
-            ensure_adjacency_type: Literal[
-                "binary",
-                "binary-weighted",
-                "bipolar",
-                "bipolar-weighted",
-                "absolute",
-                None] = None,
+            # Scales the adjacency matrix to these ranges.
             adjacency_scaling: Literal[
-                "minmax",
-                "clip",
+                "unit-minmax",
+                "unit-absolute",
+                "unit-signed",
                 None
             ] = None,
+            
+            # Enforces the adjacency matrix to these constraints.
+            enforce_adjacency_type: Literal[
+                "binary",
+                "bipolar",
+                "absolute",
+                None] = None,
             zero_threshold: float | None = None,
             self_value: float | None = 0,
             symmetrize: Literal["mean", "maximum", "minimum"] | None = "mean",
@@ -290,22 +285,17 @@ class RegressionGraph(GraphStatistic):
         self._symmetrize = symmetrize
         self._absolute = False
 
-        if symmetrize:
-            self._tags = self._get_modified_tags(
-                self._tags,
+        if symmetrize is None:
+            self._modify_tags(
+                add_tags=Tag.GRAPH_DIRECTED)
+        else:
+            self._modify_tags(
                 add_tags=Tag.SYMMETRICAL)
-
-        if ensure_adjacency_type in ("binary", "binary-weighted", "absolute"):
-            # Graph adjacency will be absolute if any of these are selected (*1)
-            self._absolute = True
-            self._tags = self._get_modified_tags(
-                self._tags,
-                remove_tags=Tag.SIGNED)
-
+            
         super().__init__(
             dim=dim,
             nan_policy=nan_policy,
-            ensure_adjacency_type=ensure_adjacency_type,
+            enforce_adjacency_type=enforce_adjacency_type,
             adjacency_scaling=adjacency_scaling,
             zero_threshold=zero_threshold,
             self_value=self_value)
@@ -332,7 +322,7 @@ class RegressionGraph(GraphStatistic):
         """Fit one regression per target feature and return its coefficient graph."""
         matrix = data
         
-        if self._adjacency_type:
+        if self._enforce_adjacency_type:
             from sklearn.preprocessing import StandardScaler
             matrix = StandardScaler().fit_transform(matrix)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import inspect
 
 from sklearn import covariance as skcov
 from sklearn.covariance import EmpiricalCovariance as EmpCov
@@ -78,8 +79,7 @@ class Covariance(Statistic):
             **estimator_kwargs: Any):
         
         if squared:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
             self._identifier += "-sq"
 
@@ -117,11 +117,17 @@ class Covariance(Statistic):
     
 
     def _fit(self, data: np.ndarray) -> EmpCov:
-        cov_class: EmpCov = getattr(skcov, self._estimator)(
-            store_precision=True,
+        cov_class = getattr(skcov, self._estimator)
+        cov_params = inspect.signature(cov_class).parameters.keys()
+
+        if "store_precision" in cov_params:
+            self._estimator_kwargs["store_precision"] = True
+
+        cov_instance: EmpCov = cov_class(
             assume_centered=self._assume_centered,
             **self._estimator_kwargs)
-        cov_obj = cov_class.fit(data)
+        
+        cov_obj = cov_instance.fit(data)
         return cov_obj
 
 
@@ -289,8 +295,7 @@ class EllipticEnvelope(Covariance):
             random_state=self.random_seed
         )
 
-        self._tags = self._get_modified_tags(
-            self._tags,
+        self._modify_tags(
             add_tags=[Tag.PARAMETRIC, Tag.DISTRIBUTION])
 
 
@@ -403,12 +408,12 @@ class GraphicalLasso(Covariance):
                 "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
             *,
             alpha: float | None = None,
+            max_iter: int = 100,
             cv_alphas : int | Collection[float] = 4,
             cv_folds: int = 5,
             cv_n_refinements: int = 4,
             cv_tol: float = 1e-4,
             cv_enet_tol: float = 1e-4,
-            cv_max_iter: int = 100,
             cv_mode: Literal["cd", "lars"] = "cd",
             cv_eps: float = np.finfo(np.float64).eps):
 
@@ -417,11 +422,11 @@ class GraphicalLasso(Covariance):
         self._nan_policy = nan_policy
         self._assume_centered = assume_centered
         self._alpha = alpha
+        max_iter = argchk.check_natural_number(max_iter, arg_name="max_iter")
 
         if alpha is None: # Cross-validation used.
             self._cv_folds = argchk.check_integer(cv_folds, minimum=2, arg_name="cv_folds")
             cv_n_refinements = argchk.check_natural_number(cv_n_refinements, "cv_n_refinements")
-            cv_max_iter = argchk.check_natural_number(cv_max_iter, arg_name="cv_max_iter")
             cv_tol = argchk.check_float(cv_tol, exclusive_minimum=0, arg_name="cv_tol")
             cv_enet_tol = argchk.check_float(
                 cv_enet_tol, exclusive_minimum=0, arg_name="cv_enet_tol")
@@ -443,14 +448,15 @@ class GraphicalLasso(Covariance):
                 alphas=cv_alphas,
                 cv=self._cv_folds,
                 n_refinements=cv_n_refinements,
-                max_iter=cv_max_iter,
+                max_iter=max_iter,
                 mode=cv_mode,
                 tol=cv_tol,
                 enet_tol=cv_enet_tol,
                 eps=cv_eps,
                 n_jobs = settings.current.max_worker_threads)
         else:
-            alpha = argchk.check_float(alpha, exclusive_minimum=0, arg_name="alpha")
+            alpha = argchk.check_float(
+                alpha, exclusive_minimum=0, arg_name="alpha")
             super().__init__(
                 dim=dim,
                 squared=squared,
@@ -458,7 +464,8 @@ class GraphicalLasso(Covariance):
                 invert=invert,
                 estimator="GraphicalLasso",
                 assume_centered=assume_centered,
-                alpha=alpha)
+                alpha=alpha,
+                max_iter=max_iter)
     
 
     def _compute(self, data: np.ndarray[tuple[int, int], np.dtype[np.floating]]

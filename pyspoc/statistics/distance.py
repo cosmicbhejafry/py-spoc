@@ -37,8 +37,7 @@ class PairwiseDistance(Statistic):
         self._kwargs = kwargs
 
         if metric in ("correlation", "cosine"):
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 add_tags=Tag.ASSOCIATION)
 
         if metric == "cubic":

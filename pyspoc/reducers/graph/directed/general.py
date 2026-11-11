@@ -1,16 +1,20 @@
 import numpy as np
+import networkx as nx
 
 from typing import Literal
 
 from pyspoc.types import SummaryType
 from pyspoc._utils.numerical import summarize
 from .._base import GraphSummaryReducer
-from ._base import DirectedGraphReducer
+from ._base import DiGraphReducer
 
 
 
-class GraphDegreeSummary(DirectedGraphReducer, GraphSummaryReducer):
+class DiGraphDirectedDegreeSummary(GraphSummaryReducer, DiGraphReducer):
 
+    _long_name = "Directed Graph Degree Summary"
+    _identifier = "digraph-degree"
+    
     def __init__(
             self,
             direction: Literal["in", "out"],
@@ -22,36 +26,67 @@ class GraphDegreeSummary(DirectedGraphReducer, GraphSummaryReducer):
     
     def _reduce_graph(
             self,
-            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
     ) -> float:
-
-        is_parent = adjacency > 0
-        degree = is_parent.sum(axis=self._axis)
+                
+        binary = self.get_binary_adjacency(
+            formatted_adjacency=formatted_adjacency)
+        degree = binary.sum(axis=self._axis)
         return float(summarize(degree, self._summary_type))
 
 
-class GraphStrengthSummary(GraphDegreeSummary):
+class DiGraphStrengthSummary(DiGraphDirectedDegreeSummary):
+
+    _long_name = "Directed Graph Strength Summary"
+    _identifier = "digraph-strength"
     
     def _reduce_graph(
             self,
-            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
     ) -> float:
 
-        is_parent = adjacency > 0
-        in_strength = adjacency[is_parent].sum(axis=self._axis)
+        binary = self.get_binary_adjacency(
+            formatted_adjacency=formatted_adjacency)
+        parents = np.where(binary, formatted_adjacency, 0)
+        in_strength = parents.sum(axis=self._axis)
         return float(summarize(in_strength, self._summary_type))
 
 
-class GraphReciprocity(DirectedGraphReducer):
+class DiGraphReciprocity(DiGraphReducer):
+
+    _long_name = "Directed Graph Reciprocity"
+    _identifier = "digraph-reciprocity"
     
     def _reduce_graph(
             self,
-            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
-    ) -> np.integer:
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> float:
+        
+        binary = self.get_binary_adjacency(
+            formatted_adjacency=formatted_adjacency)
+        
+        if binary.sum() == 0:
+            return np.nan
 
-        is_parent = adjacency > 0
-        row_parents = is_parent[np.triu_indices_from(is_parent, 1)]
-        col_parents = is_parent[np.tril_indices_from(is_parent, -1)]
-        return (row_parents & col_parents).sum()
+        reciprocated = binary & binary.T
+        return reciprocated.sum() / binary.sum()
         
 
+class DiGraphFlowHierarchy(DiGraphReducer):
+
+    _long_name = "Directed Graph Reciprocity"
+    _identifier = "digraph-reciprocity"
+    
+    def _reduce_graph(
+            self,
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> float:
+        
+        binary = self.get_binary_adjacency(
+            formatted_adjacency=formatted_adjacency)
+        
+        if binary.sum() == 0:
+            return np.nan
+
+        G = self._get_digraph(binary)
+        return nx.flow_hierarchy(G)

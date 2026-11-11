@@ -86,6 +86,10 @@ class Component(
     _warned_properties_error = False
     _properties_mapping: MappingProxyType[str, dict[str, str | list]] = MappingProxyType({})
 
+    _added_tags = tuple()
+    _removed_tags = tuple()
+    _add_signatures = tuple()
+    _removed_signatures = tuple()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Instrument directly declared constructors for argument capture.
@@ -352,7 +356,9 @@ class Component(
         error_response = settings.current.properties_missing_response
         
         try:
-            return owner._get_tags(cls_or_self)
+            tags = owner._get_tags(cls_or_self)
+            return tuple(
+                set(tags).difference(cls_or_self._removed_tags).union(cls_or_self._added_tags))
         except AttributeError as e:
             if error_response == "ignore":
                 return tuple()
@@ -387,22 +393,41 @@ class Component(
             return getattr(cls_or_self, "_tags")
 
 
-    @staticmethod
-    def _get_modified_tags(
-            current_tags: Collection[TTag],
-            add_tags: Collection[TTag] | TTag | None = None,
-            remove_tags: Collection[TTag] | TTag | None = None) -> tuple[TTag, ...]:
+    @hybridmethod
+    def get_descriptors(
+            cls_or_self: Component | type[Component],
+            descriptor_type: type[Tag] | type[Type] | type[Signature]
+    ) -> tuple[Tag, ...] | Type | tuple[Signature, ...] | None:
+
+        if descriptor_type is Tag:
+            return cls_or_self.get_tags()
+
+        if descriptor_type is Type:
+            return cls_or_self.get_type()
+
+        if descriptor_type is Signature:
+            return cls_or_self.get_signatures()
+
+
+    def _modify_tags(
+            self,
+            add_tags: Collection[Tag] | Tag | None = None,
+            remove_tags: Collection[Tag] | Tag | None = None
+    ):
         
-        tags_difference = (set() if remove_tags is None
+        tags_to_remove = (set() if remove_tags is None
             else set(remove_tags) if isinstance(remove_tags, Collection)
             else {remove_tags})
 
-        tags_union: set[TTag] = (set() if add_tags is None
+        tags_to_add: set[Tag] = (set() if add_tags is None
             else set(add_tags) if isinstance(add_tags, Collection)
             else {add_tags})
 
-        new_tags = set(current_tags).difference(tags_difference).union(tags_union)
-        return tuple(new_tags)
+        self._added_tags = tuple(
+            set(self._added_tags).union(tags_to_add).difference(tags_to_remove))
+
+        self._removed_tags = tuple(
+            set(self._removed_tags).difference(tags_to_add).union(tags_to_remove))
 
 
     def set_scheme(self, scheme: str):
@@ -414,7 +439,8 @@ class Component(
         tuple[type[Component], ...],
         dict[str, Exception]]:
 
-        component_type = cls._get_component_type()
+        #component_type = cls._get_component_type()
+        component_type = cls
         base_package_name = component_type.__module__
         module = import_module(base_package_name)
         package = cls._get_containing_package(module)

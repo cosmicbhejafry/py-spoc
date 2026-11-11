@@ -247,7 +247,7 @@ KMeansErrors:
   Signatures:
     - blobbiness
 
-  KMeansSILScores:
+KMeansSILScores:
   Long Name: KMeans - Silhouette Score Distribution
   Identifier: kmeans-sil
   Type: descriptive
@@ -258,7 +258,7 @@ KMeansErrors:
   Signatures:
     - blobbiness
 
-  KMeansDispersionSummaries:
+KMeansDispersionSummaries:
   Long Name: KMeans - Dispersion Summary Distribution
   Identifier: kmeans-dispersion
   Type: descriptive
@@ -294,7 +294,7 @@ KMedoidsErrors:
   Signatures:
     - blobbiness
 
-  KMedoidsSILScores:
+KMedoidsSILScores:
   Long Name: KMedoids - Silhouette Score Distribution
   Identifier: kmedoids-sil
   Type: descriptive
@@ -305,7 +305,7 @@ KMedoidsErrors:
   Signatures:
     - blobbiness
 
-  KMedoidsDispersionSummaries:
+KMedoidsDispersionSummaries:
   Long Name: KMedoids - Dispersion Summary Distribution
   Identifier: kmedoids-dispersion
   Type: descriptive
@@ -404,8 +404,9 @@ CorrelationGraph:
   Identifier: graph-corr
   Type: descriptive
   Tags:
+    - graph
     - symmetrical
-    - weighted
+    - graph-weighted
     - signed
     - association
   Signatures:
@@ -417,8 +418,9 @@ CovarianceGraph:
   Identifier: graph-cov
   Type: descriptive
   Tags:
+    - graph
     - symmetrical
-    - weighted
+    - graph-weighted
     - signed
     - association
   Signatures:
@@ -430,7 +432,8 @@ RegressionGraph:
   Identifier: graph-regression
   Type: descriptive
   Tags:
-    - weighted
+    - graph
+    - graph-weighted
     - signed
     - association
     - parametric
@@ -445,7 +448,7 @@ FCICausalGraph:
   Type: descriptive
   Tags:
     - graph
-    - digraph
+    - graph-mixed
     - signed
   Signatures:
     - causal
@@ -456,7 +459,7 @@ PCCausalGraph:
   Type: descriptive
   Tags:
     - graph
-    - digraph
+    - graph-mixed
     - signed
   Signatures:
     - causal
@@ -467,11 +470,14 @@ GGM:
   Identifier: graph-ggm
   Type: descriptive
   Tags:
+    - graph
+    - graph-weighted
+    - symmetrical
     - parametric
+    - gaussian
+    - association
     - signed
     - distribution
-    - weighted
-    - digraph
   Signatures:
     - density
     - topology
@@ -482,9 +488,10 @@ ChowLiuTree:
   Identifier: graph-chow-liu
   Type: descriptive
   Tags:
-    - forest
-    - weighted
-    - acyclic
+    - graph
+    - graph-forest
+    - graph-weighted
+    - graph-acyclic
     - symmetrical
     - nonparametric
   Signatures:
@@ -497,9 +504,11 @@ DistributionGraph:
   Identifier: graph-distribution
   Type: descriptive
   Tags:
-    - weighted
+    - graph
+    - graph-weighted
     - symmetrical
     - distribution
+    - distance
   Signatures:
     - topology
     - dimensionality
@@ -509,7 +518,8 @@ ProximityGraph:
   Identifier: graph-proximity
   Type: descriptive
   Tags:
-    - weighted
+    - graph
+    - graph-weighted
     - symmetrical
     - distance
   Signatures:
@@ -527,3 +537,74 @@ DBScanSimilarity:
     - symmetrical
   Signatures:
     - blobbiness
+
+ICALiNGAMCausalGraph:
+  Long Name: Independent Component Analysis LiNGAM Causal Discovery Graph
+  Identifier: graph-cd-lingam
+  Type: descriptive
+  Tags:
+    - graph
+    - graph-acyclic
+    - digraph
+    - graph-weighted
+    - signed
+  Signatures:
+    - causal
+
+DirectLiNGAMCausalGraph:
+  Long Name: Direct Independent Component Analysis LiNGAM Causal Discovery Graph
+  Identifier: graph-cd-direct-lingam
+  Type: descriptive
+  Tags:
+    - graph
+    - graph-acyclic
+    - digraph
+    - graph-weighted
+    - signed
+  Signatures:
+    - causal
+
+RCDLiNGAMCausalGraph:
+  Long Name: RCD Independent Component Analysis LiNGAM Causal Discovery Graph
+  Identifier: graph-cd-rcd-lingam
+  Type: descriptive
+  Tags:
+    - graph
+    - graph-mixed
+    - graph-weighted
+    - signed
+  Signatures:
+    - causal
+
+CAMUVLiNGAMCausalGraph:
+  Long Name: CAM-UV Independent Component Analysis LiNGAM Causal Discovery Graph
+  Identifier: graph-cd-cam-uv-lingam
+  Type: descriptive
+  Tags:
+    - graph
+    - graph-mixed    
+    - signed
+  Signatures:
+    - causal
+
+BICExactCausalGraph:
+  Long Name: BIC Exact Causal Discovery Graph
+  Identifier: graph-cd-bic
+  Type: descriptive
+  Tags:
+    - graph
+    - digraph
+    - graph-acyclic
+  Signatures:
+    - causal
+
+GESCausalGraph:
+  Long Name: Greedy Equivalence Search Score-Based Causal Discovery Graph
+  Identifier: graph-sbcd-ges
+  Type: descriptive
+  Tags:
+    - graph
+    - graph-mixed
+    - signed
+  Signatures:
+    - causal

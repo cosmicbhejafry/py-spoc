@@ -1,11 +1,13 @@
 from .general import (
-    GraphDegreeSummary,
-    GraphReciprocity,
-    GraphStrengthSummary
+    DiGraphDirectedDegreeSummary,
+    DiGraphReciprocity,
+    DiGraphStrengthSummary,
+    DiGraphFlowHierarchy
 )
 
 __all__ = [
-    "GraphDegreeSummary",
-    "GraphReciprocity",
-    "GraphStrengthSummary"
+    "DiGraphDirectedDegreeSummary",
+    "DiGraphReciprocity",
+    "DiGraphStrengthSummary",
+    "DiGraphFlowHierarchy"
 ]

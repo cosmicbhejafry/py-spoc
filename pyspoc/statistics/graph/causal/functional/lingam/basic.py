@@ -1,4 +1,5 @@
 import numpy as np
+import inspect
 
 from typing import Literal, Any
 from causallearn.search.FCMBased.lingam import (
@@ -33,16 +34,15 @@ class LiNGAMCausalGraphBaseStatistic(CausalGraphStatistic):
             nan_policy=nan_policy)
 
         if standardise:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=(Tag.GRAPH_WEIGHTED, Tag.SIGNED))
 
 
     @classmethod
     def _standardise_adjacency(
             cls,
-            graph: np.ndarray[tuple[int, int], np.dtype[Any]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[Any]]:
+            graph: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         
         # Coefficients do not indicate direction, hence non-zero indicates cause.
         # Transpose to shift from causal column-wise directions to row-wise.
@@ -57,9 +57,14 @@ class LiNGAMCausalGraphBaseStatistic(CausalGraphStatistic):
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
             model_type: type[ICALiNGAM | DirectLiNGAM | RCD],
             **model_kwargs: Any
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         
-        model = model_type(**model_kwargs)
+        param_names = inspect.signature(model_type).parameters.keys()
+        selected_kwargs = {k:v for k,v
+            in model_kwargs.items()
+            if k in param_names}
+
+        model = model_type(**selected_kwargs)
         model.fit(data)
         adjacency_mat = model.adjacency_matrix_
 
@@ -93,7 +98,7 @@ class ICALiNGAMCausalGraph(LiNGAMCausalGraphBaseStatistic):
     def _compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
 
         return self._compute_adjacency_matrix(
             data,
@@ -124,17 +129,19 @@ class DirectLiNGAMCausalGraph(LiNGAMCausalGraphBaseStatistic):
     def _compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
 
         return self._compute_adjacency_matrix(
             data,
-            model_type=ICALiNGAM,
+            model_type=DirectLiNGAM,
             random_seed=self.random_seed,
             measure=self._measure)
     
 
 
 class RCDLiNGAMCausalGraph(LiNGAMCausalGraphBaseStatistic):
+
+    _tags = (Tag.GRAPH, Tag.GRAPH_MIXED, Tag.GRAPH_WEIGHTED, Tag.SIGNED)
 
     def __init__(
             self,
@@ -165,11 +172,18 @@ class RCDLiNGAMCausalGraph(LiNGAMCausalGraphBaseStatistic):
             standardise=standardise,
             dim=dim,
             nan_policy=nan_policy)
+
+        if not self._standardise:
+            self._modify_tags(
+                add_tags=(Tag.GRAPH_ACYCLIC, Tag.GRAPH_DIRECTED),
+                remove_tags=Tag.GRAPH_MIXED
+            )
+
     
     def _compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
 
         return self._compute_adjacency_matrix(
             data,
@@ -194,6 +208,19 @@ class RCDLiNGAMCausalGraph(LiNGAMCausalGraphBaseStatistic):
         # Latent confounders encoded as NaNs
         graph[np.isnan(graph)] = 2
         return graph
+
+    def _post_process(
+            self,
+            graph: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
+        graph = super()._post_process(graph)
+
+        if not self._standardise:
+            # Set latent confounders to zero coefficient in non-standardised adjacency.
+            graph[np.isnan(graph)] = 0
+
+        return graph
+
 
 
 class CAMUVLiNGAMCausalGraph(CausalGraphStatistic):
@@ -242,7 +269,7 @@ class CAMUVLiNGAMCausalGraph(CausalGraphStatistic):
     def _compute(
             self,
             data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
 
         try:
             from causallearn.search.FCMBased.lingam.CAMUV import execute
@@ -273,7 +300,7 @@ class CAMUVLiNGAMCausalGraph(CausalGraphStatistic):
             self,
             P: tuple[set[int], ...],
             U: tuple[set[int], ...]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating]]:
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
 
         p = len(P)
         adjacency = np.zeros(shape=(p,p))
@@ -300,7 +327,9 @@ class CAMUVLiNGAMCausalGraph(CausalGraphStatistic):
         return adjacency
 
     @classmethod
-    def _standardise_adjacency(cls, graph: np.ndarray[tuple[int, int], np.dtype[np.number]]
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.number]]:
+    def _standardise_adjacency(
+        cls,
+        graph: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         # None needed, already standardised by construction in _make_graph()
         return graph

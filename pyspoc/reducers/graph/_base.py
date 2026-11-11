@@ -5,7 +5,7 @@ import numpy as np
 from enum import Enum
 from abc import abstractmethod
 
-from pyspoc.reducers.base import Reducer
+from pyspoc.reducers.base import Reducer, AnyOf, FilterCondition
 from pyspoc.statistics.base import Statistic
 from pyspoc.types import SummaryType
 from pyspoc._tag import Tag, Signature
@@ -16,6 +16,12 @@ class GraphType(Enum):
     WEIGHTED = "weighted"
     CAUSAL_UNWEIGHTED = "causal_unweighted"
     CAUSAL_WEIGHTED = "causal_weighted"
+
+
+class GraphDirectedType(Enum):
+    DIRECTED = "directed"
+    MIXED = "mixed"
+    UNDIRECTED = "undirected"
 
 
 class GraphReducer(Reducer):
@@ -32,16 +38,61 @@ class GraphReducer(Reducer):
 
         self._stat_graph_type = None
         self._stat_tags = None
-        self._is_stat_causal = None
+        self._stat_is_causal = None
+        self._stat_directed_type = None
     
     @classmethod
-    def get_statistic_tags_filter(cls) -> tuple[Tag, ...]:
+    def get_statistic_tags_filter(cls) -> tuple[FilterCondition[Tag], ...]:
         """Graph tags that the GraphReducer is restricted to.
         """
-        return tuple(Tag(tag) for name, tag
-            in Tag._member_map_.items()
-            if "graph" in name.lower())
+        return (
+            AnyOf(
+                Tag(tag) for name, tag
+                in Tag._member_map_.items()
+                if "graph" in name.lower()),
+        )
 
+    @classmethod
+    def _get_directed_type(cls, statistic: Statistic) -> GraphDirectedType:
+        stat_tags = statistic.get_tags()
+
+        if Tag.GRAPH_MIXED in stat_tags:
+            return GraphDirectedType.MIXED
+
+        if Tag.GRAPH_DIRECTED in stat_tags:
+            return GraphDirectedType.DIRECTED
+        
+        return GraphDirectedType.UNDIRECTED
+
+
+    def _get_edge_counting_adjacency(
+            self,
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.integer]]:
+        
+        binary = (formatted_adjacency != 0).astype(np.uint8)
+        
+        if self._stat_directed_type == GraphDirectedType.DIRECTED:
+            return binary
+
+        if self._stat_directed_type == GraphDirectedType.MIXED:
+            if self._stat_graph_type not in (GraphType.UNWEIGHTED, GraphType.CAUSAL_UNWEIGHTED):
+                raise ValueError("Weighted mixed directed graphs are not currently supported.")
+            
+            triu_mask = np.triu(np.full(shape=binary.shape, fill_value=True))
+            
+            # Remove undirected self-edges and one side of other undirected edges.
+            binary[(formatted_adjacency == -1) & triu_mask] = 0
+            return binary
+
+        return np.triu(binary, k=1)
+
+    def _get_undirected_adjacency(
+            self,
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+    ):
+        adj = self._get_edge_counting_adjacency(formatted_adjacency=formatted_adjacency)
+        return adj + adj.T
     
     @classmethod
     def _supported_graph_types(cls):
@@ -56,6 +107,12 @@ class GraphReducer(Reducer):
             self,
             stat: Statistic) -> bool:
         return Signature.CAUSAL in stat.get_signatures()
+    
+
+    def _is_alleged_weighted(
+            self,
+            stat: Statistic) -> bool:
+        return Tag.GRAPH_WEIGHTED in stat.get_tags()
 
 
     def _reformat_unweighted_causal(
@@ -71,7 +128,8 @@ class GraphReducer(Reducer):
     def _get_adjacency_type(
             self,
             adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]],
-            is_causal: bool
+            is_causal: bool,
+            is_alleged_weighted: bool
     ) -> GraphType | None:
 
         if not np.isfinite(adjacency).all():
@@ -80,7 +138,8 @@ class GraphReducer(Reducer):
         if np.issubdtype(adjacency.dtype, np.integer):
             return self._get_integer_adjacency_type(
                 adjacency=adjacency,
-                is_causal=is_causal
+                is_causal=is_causal,
+                is_alleged_weighted=is_alleged_weighted
             )
 
         if not np.issubdtype(adjacency.dtype, np.floating):
@@ -95,15 +154,17 @@ class GraphReducer(Reducer):
             return GraphType.WEIGHTED
 
         return self._get_integer_adjacency_type(
-            adjacency=adjacency,
-            is_causal=is_causal
+            adjacency=int_adjacency,
+            is_causal=is_causal,
+            is_alleged_weighted=is_alleged_weighted
         )
 
 
     def _get_integer_adjacency_type(
             self,
             adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]],
-            is_causal: bool):
+            is_causal: bool,
+            is_alleged_weighted: bool):
 
         unweighted_causal_components = (-2,-1,0,1,2)
         unweighted_components = (-1,0,1)
@@ -112,12 +173,15 @@ class GraphReducer(Reducer):
 
         if is_causal:
             if (amax in unweighted_causal_components
-                and amin in unweighted_causal_components):
+                and amin in unweighted_causal_components
+                and not is_alleged_weighted):
                 return GraphType.CAUSAL_UNWEIGHTED
 
             return GraphType.CAUSAL_WEIGHTED
        
-        if amax in unweighted_components and amin in unweighted_components:
+        if (amax in unweighted_components
+            and amin in unweighted_components
+            and not is_alleged_weighted):
             return GraphType.UNWEIGHTED
 
         return GraphType.WEIGHTED
@@ -135,19 +199,39 @@ class GraphReducer(Reducer):
         
         self._stat_graph_type = None
         self._stat_tags = None
-        self._is_stat_causal = None
+        self._stat_is_causal = None
+
+        # temporarily uncache results, TODO: fix caching mechanisms
+        self.clear_cache(statistic)
+
         adjacency = self._get_statistic_result(statistic)
-        is_causal = self._has_causal_signature(statistic)
 
         if not isinstance(adjacency, np.ndarray):
             raise ValueError("GraphReducer can only reduce statistics "
                 "that return an ndarray result.")
 
-        if adjacency.ndim < 2:
+        if adjacency.ndim != 2:
             raise ValueError("GraphReducer can only reduce statistics that "
                 "return a 2D array result.")
 
-        graph_type = self._get_adjacency_type(adjacency, is_causal)
+        # NOTE: TEMPORARY LINTING FIX, CACHING NEEDS TO BE FIXED.
+        if adjacency.shape[0] != adjacency.shape[1]: # pyright: ignore[reportGeneralTypeIssues]
+            raise ValueError("GraphReducer can only reduce statistics "
+                "that return a square 2D array result.")
+
+        if adjacency.size == 0:
+            raise ValueError("GraphReducer can only reduce statistics "
+                "that return a non-empty 2D array result.")
+
+        if adjacency.sum() == 0:
+            return np.nan
+
+        is_causal = self._has_causal_signature(statistic)
+        is_alleged_weighted = self._is_alleged_weighted(statistic)
+        graph_type = self._get_adjacency_type(
+            adjacency=adjacency,
+            is_causal=is_causal,
+            is_alleged_weighted=is_alleged_weighted)
         supported_graph_types = self._supported_graph_types()
 
         if graph_type not in supported_graph_types:
@@ -156,12 +240,10 @@ class GraphReducer(Reducer):
                 "\t{graph_types}".format(name=self.get_name(),
                                          graph_types=supported_graph_types))
         
-        if graph_type in (GraphType.UNWEIGHTED, GraphType.CAUSAL_UNWEIGHTED):
-            adjacency = np.rint(adjacency)
-
         self._stat_graph_type = graph_type
         self._stat_tags = statistic.get_tags()
-        self._is_stat_causal = is_causal
+        self._stat_directed_type = self._get_directed_type(statistic)
+        self._stat_is_causal = is_causal
         return super().calculate(statistic)
 
     
@@ -175,16 +257,22 @@ class GraphReducer(Reducer):
           float |
           int):
 
-        if self._stat_graph_type == GraphType.CAUSAL_UNWEIGHTED:
-            data = self._reformat_unweighted_causal(adjacency=data)
+        if self._stat_graph_type in (GraphType.UNWEIGHTED, GraphType.CAUSAL_UNWEIGHTED):
+            adjacency = np.rint(data)
 
-        return self._reduce_graph(adjacency=data)
+            if self._stat_graph_type == GraphType.CAUSAL_UNWEIGHTED:
+                adjacency = self._reformat_unweighted_causal(adjacency=adjacency)
+
+            return self._reduce_graph(formatted_adjacency=adjacency)
+
+        else:
+            return self._reduce_graph(formatted_adjacency=data)
     
 
     @abstractmethod
     def _reduce_graph(
             self,
-            adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
+            formatted_adjacency: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]
     ) -> (np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
           np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
           np.floating |
