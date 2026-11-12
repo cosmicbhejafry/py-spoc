@@ -121,31 +121,25 @@ class EigenParticipationRatio(Reducer):
     pass
     # https://peterponyu.github.io/liora-ui/metrics/participation_ratio/
 
-class MeanOfMoments(Reducer):
-
-    _name = "MeanOfMoments"
-    _identifier = "moment"
-    _labels = ["vector"]
-    
-    def __init__(self, moments: list[int] = [2,4]):
-        self._moments = moments
-        super().__init__()
-
-    @property
-    def name(self) -> str:
-        return self._name
-    
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-    
-    @property
-    def tags(self) -> list[str]:
-        return self._labels
-
-    def reduce(self, data: np.ndarray) -> np.ndarray | float:
-        mom = sp.moment(data, order = self._moments)
-        return mom.mean(axis=1)
+# class MeanOfMoments(Reducer):
+#     _name = "MeanOfMoments"
+#     _identifier = "moment"
+#     _labels = ["vector"]
+#     def __init__(self, moments: list[int] = [2,4]):
+#         self._moments = moments
+#         super().__init__()
+#     @property
+#     def name(self) -> str:
+#         return self._name
+#     @property
+#     def identifier(self) -> str:
+#         return self._identifier
+#     @property
+#     def tags(self) -> list[str]:
+#         return self._labels
+#     def reduce(self, data: np.ndarray) -> np.ndarray | float:
+#         mom = sp.moment(data, order = self._moments)
+#         return mom.mean(axis=1)
 
 class MeanOfMoments(Reducer):
 

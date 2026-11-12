@@ -1,0 +1,7 @@
+idx,config,config_name,n_chunks,walltime,ncpus,mem,ngpus,pbs_script
+1,configs/dist_distrib_stats_metricSweep.yml,dist_distrib_stats_metricSweep,4000,00:10:00,1,32gb,0,run_pyspoc.pbs
+2,configs/manifold_stats_ID.yml,manifold_stats,4000,01:00:00,1,32gb,0,run_pyspoc_pooled.pbs
+3,configs/pyspoc_internal_stats_fast.yaml,pyspoc_internal,4000,02:00:00,1,32gb,0,run_pyspoc_pooled.pbs
+4,configs/fast_reducedstat_cluster_graph.yaml,fast_reducedstat_cluster_graph,4000,01:00:00,1,32gb,0,run_pyspoc.pbs
+5,configs/faster_stats_graph_fractal_cluster.yaml,faster_stats_graph_fractal_cluster,4000,08:00:00,2,32gb,0,run_pyspoc.pbs
+6,configs/slow_stats_graph.yaml,slow_stats_graph,4000,01:00:00,2,32gb,0,run_pyspoc.pbs

@@ -83,9 +83,11 @@ def main():
             calc.compute(cfg)
 
             results = calc.get_results()
-            if results is not None:
+            
+            if results is not None:                
                 results.to_parquet(out)
                 num_ds_saved+=1
+                
             if results is None:
                 errors["no_results"] = "get_results() returned None"
                 
@@ -108,3 +110,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# FOR FUTURE: SAVE AS 'LONG' FOR EASIER CONCAT
+# save_long = True
+# if save_long:
+#     long = results.melt() # MultiIndex columns -> variable_0, variable_1, ..., value
+#     long["value"] = pd.to_numeric(long["value"], errors="coerce")
+#     long.to_parquet(out, index=False)                                
+# else:
