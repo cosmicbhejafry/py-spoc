@@ -59,8 +59,24 @@ class ProximityGraph(GraphStatistic):
 
         self._metric = metric
         self._topology = topology
+
+        remove_tags = []
+        add_tags = []
+
+        if topology == "mst":
+            add_tags.extend((Tag.GRAPH_ACYCLIC, Tag.GRAPH_FOREST))
+
         self._neighbor_mode = neighbor_mode
         self._weighting = weighting
+
+        if weighting == "binary":
+            remove_tags.append(Tag.GRAPH_WEIGHTED)
+
+        self._modify_tags(
+            remove_tags=remove_tags,
+            add_tags=add_tags
+        )
+
         self._metric_kwargs = metric_kwargs
         super().__init__(dim=dim, nan_policy=nan_policy)
 
@@ -122,6 +138,12 @@ class DistributionGraph(GraphStatistic):
         self._bins = argchk.check_integer(bins, minimum=2, arg_name="bins")
         self._metric = metric
         self._weighting = weighting
+
+        if weighting == "binary":
+            self._modify_tags(
+                remove_tags=Tag.GRAPH_WEIGHTED
+            )
+
         self._gamma = (
             argchk.check_float(gamma, exclusive_minimum=0, arg_name="gamma")
             if gamma is not None
@@ -148,13 +170,13 @@ class DistributionGraph(GraphStatistic):
                 for feature in range(n_features)
             ]
 
-        assert histograms is not None
         
         for i in range(n_features):
             for j in range(i + 1, n_features):
                 if self._metric == "wasserstein":
                     distance = wasserstein_distance(data[:, i], data[:, j])
                 else:
+                    assert histograms is not None
                     distance = jensenshannon(histograms[i], histograms[j])
 
                 distances[i, j] = distances[j, i] = distance

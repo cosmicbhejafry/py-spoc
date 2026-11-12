@@ -175,7 +175,6 @@ Statistics:
           downsample: true
           dim: p
           nan_policy: raise
-          kernel_kwargs: {}
 Reducers:
   pyspoc.reducers.basic:
     Determinant:

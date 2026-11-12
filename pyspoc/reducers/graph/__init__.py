@@ -1,9 +1,27 @@
 from .general import (
     GraphDegreeSummary,
-    GraphEdgeCount
+    GraphEdgeCount,
+    GraphCliqueCount,
+    GraphBridgeCount,
+    GraphCentreSize,
+    GraphDiameter,
+    GraphRadius,
+    GraphLocalEfficiency,
+    GraphGlobalEfficiency,
+    GraphPeripheryCount,
+    GraphKCoreSummary
 )
 
 __all__ = [
     "GraphDegreeSummary",
-    "GraphEdgeCount"
+    "GraphEdgeCount",
+    "GraphCliqueCount",
+    "GraphBridgeCount",
+    "GraphCentreSize",
+    "GraphDiameter",
+    "GraphRadius",
+    "GraphLocalEfficiency",
+    "GraphGlobalEfficiency",
+    "GraphPeripheryCount",
+    "GraphKCoreSummary"
 ]

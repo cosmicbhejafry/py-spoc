@@ -5,7 +5,7 @@ import gc
 import warnings
 
 from abc import ABC, abstractmethod
-from typing import Any, TypeGuard, Literal, TypeAlias, overload
+from typing import Any, TypeGuard, Literal, TypeAlias
 from types import FunctionType, MethodType
 from pathlib import Path
 
@@ -82,6 +82,7 @@ class StatisticBase(Component, ABC):
             thread_safety: Literal["safe", "unsafe"] = "unsafe"):
         
         self._cached_result = None
+        self._attached_dataset = None
 
         # Kwargs store for temporary calculate-level and compute-level arguments.
         self._calculate_kwargs = dict()
@@ -114,8 +115,12 @@ class StatisticBase(Component, ABC):
 
         self._calculate_kwargs = kwargs
 
+        use_cache = self._attached_dataset is dataset
+
         # Get result from instance cache if present.
-        if self._cached_result is not None:
+        if not use_cache:
+            self._attached_dataset = dataset
+        elif self._cached_result is not None:
             return self._cached_result
 
         # TODO: Implement class-wide Statistic caching.
@@ -128,9 +133,7 @@ class StatisticBase(Component, ABC):
         # Else compute from scratch.
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            result = self.compute(
-                dataset=dataset,
-                dataset_nan_policy=dataset.nan_policy)
+            result = self._compute_dataset(dataset=dataset, **kwargs)
 
             if captured and self._active_calculator is not None:
                 self._active_calculator._add_warnings(captured)
@@ -147,23 +150,8 @@ class StatisticBase(Component, ABC):
         return result
     
 
-    @overload
-    def compute(
+    def _compute_dataset(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            **kwargs: Any
-    ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
-          np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
-          np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
-          np.floating | np.integer |
-          float | int):
-        ...
-
-
-    @overload
-    def compute(
-            self,
-            *,
             dataset: Dataset,
             **kwargs: Any
     ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
@@ -171,14 +159,22 @@ class StatisticBase(Component, ABC):
           np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
           np.floating | np.integer |
           float | int):
-        ...
+
+        dataset_nan_policy = dataset.nan_policy
+        data = dataset.get_data()
+        data = np.asarray(data, copy=True)
+        
+        if dataset_nan_policy == self._nan_policy:
+            self._compute_kwargs = kwargs
+            data = self._set_dim(data)
+            return self._compute(data)
+
+        return self.compute(data, **kwargs)
 
         
     def compute(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
-            *,
-            dataset: Dataset | None = None,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
             **kwargs: Any
     ) -> (np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]] |
           np.ndarray[tuple[int], np.dtype[np.floating | np.integer]] |
@@ -196,27 +192,14 @@ class StatisticBase(Component, ABC):
             2-dimensional floating point cloud data matrix with observations along the rows
             and features along the columns.
 
-
         Returns
         -------
         :class:`StatisticResultNDArray`
             Statistic estimate.
         """
-        is_direct_compute = True
-        
-        if dataset is not None:
-            dataset_nan_policy = dataset.nan_policy
-            is_direct_compute = False
-            data = dataset.get_data()
-
         self._compute_kwargs = kwargs
-        matrix = np.asarray(data, copy=True) if is_direct_compute else data
-        matrix = self._set_dim(matrix)
-
-        if dataset is not None and dataset_nan_policy == self._nan_policy:
-            return self._compute(matrix)
-
-        nan_rows = np.isnan(matrix).any(axis=1)
+        data = self._set_dim(data)
+        nan_rows = np.isnan(data).any(axis=1)
         has_nans = bool(nan_rows.any())
 
         if self._nan_policy == "raise" and has_nans:
@@ -224,12 +207,12 @@ class StatisticBase(Component, ABC):
 
         if has_nans:
             if self._nan_policy == "row-omit":
-                matrix = matrix[~nan_rows]
+                data = data[~nan_rows]
             else:
-                nan_cols = np.isnan(matrix).any(axis=0)
-                matrix = matrix[:,~nan_cols]
+                nan_cols = np.isnan(data).any(axis=0)
+                data = data[:,~nan_cols]
 
-        return self._compute(matrix)
+        return self._compute(data)
     
 
     def _set_dim(self, data: np.ndarray[tuple[int, int], np.dtype[np.floating]]
@@ -325,41 +308,9 @@ class Statistic(StatisticBase, ABC):
     ----------
         Input: (n x p) -> Output: (p x p)
     """
-    @overload
-    def compute(
+
+    def _compute_dataset(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
-            **kwargs: Any
-    ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
-        """
-        Compute the Statistic for the given point cloud data matrix.
-
-
-        Parameters
-        -------
-        data : np.ndarray[int, int]
-            2-dimensional floating point cloud data matrix with observations along the rows
-            and features along the columns.
-            
-            ### Key-word Arguments
-
-        force_serial: bool, default=False
-            Forces the Statistic to use serial compute, even if configured for asynchronous
-            execution.
-
-
-        Returns
-        -------
-        :class:`np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]`
-            Statistic estimate.
-        """
-        ...
-        
-
-    @overload
-    def compute(
-            self,
-            *,
             dataset: Dataset,
             **kwargs: Any
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
@@ -385,14 +336,32 @@ class Statistic(StatisticBase, ABC):
         :class:`np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]`
             Statistic estimate.
         """
-        ...
+        force_serial = kwargs.get("force_serial", False)
+
+        if force_serial:
+            thread_safety = self._thread_safety
+            self._thread_safety = "unsafe"
+        
+        try:
+            result = super()._compute_dataset(
+                dataset=dataset, kwargs=kwargs)
+
+            if self._is_2d(result):
+                return result
+
+            raise ValueError(
+                f"compute() returned a result of incorrect type: {type(result)}, "
+                "expected: np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]")
+        
+        finally:
+            if force_serial:
+                # Reinstate original thread safety parameter.
+                self._thread_safety = thread_safety
 
 
     def compute(
             self,
-            data: np.ndarray[tuple[int, int], np.dtype[np.floating]] | None = None,
-            *,
-            dataset: Dataset | None = None,
+            data: np.ndarray[tuple[int, int], np.dtype[np.floating]],
             **kwargs: Any
     ) -> np.ndarray[tuple[int, int], np.dtype[np.floating | np.integer]]:
         
@@ -404,12 +373,8 @@ class Statistic(StatisticBase, ABC):
             self._thread_safety = "unsafe"
 
         try:
-            if dataset is not None:
-                result = super().compute(
-                    dataset=dataset, kwargs=kwargs)
-            else:
-                result = super().compute(
-                    data=data, kwargs=kwargs)
+            result = super().compute(
+                data=data, kwargs=kwargs)
 
             if self._is_2d(result):
                 return result

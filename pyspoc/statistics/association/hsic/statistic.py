@@ -150,13 +150,11 @@ class HilbertSchmidtIndependenceCriterion(Statistic):
             self._identifier += ".biased"
 
         if metric in ("gaussian", "rbf"):
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 add_tags=Tag.GAUSSIAN)
 
         if metric == "linear":
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.NONLINEAR)
 
         super().__init__(

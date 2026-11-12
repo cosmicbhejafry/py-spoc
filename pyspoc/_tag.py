@@ -19,10 +19,10 @@ class Tag(Enum):
     SYMMETRICAL = "symmetrical"
     GRAPH_DIRECTED = "digraph"
     GRAPH_MIXED = "graph-mixed"
-    GRAPH_ACYCLIC = "acyclic"
-    GRAPH_TREE = "tree"
-    GRAPH_FOREST = "forest"
-    GRAPH_WEIGHTED = "weighted"
+    GRAPH_ACYCLIC = "graph-acyclic"
+    GRAPH_TREE = "graph-tree"
+    GRAPH_FOREST = "graph-forest"
+    GRAPH_WEIGHTED = "graph-weighted"
     GRAPH = "graph"
 
 

@@ -58,7 +58,7 @@ class Calculator(RuntimeTypeCheckedMixin):
 
     def __init__(self,
                  dataset: Dataset | np.ndarray | pd.DataFrame | str,
-                 name: str = None,
+                 name: str,
                  labels: Collection[str] | None = None,
                  normalise: bool = True):
 
@@ -303,14 +303,24 @@ class Calculator(RuntimeTypeCheckedMixin):
                 applicable_stat_names = config.get_reducer_filters(reducer)
 
                 if not applicable_stat_names:
-                    reducer_stat_names = stat_names
+                    applicable_stat_names = stat_names
                 else:
-                    reducer_stat_names = [stat_name for stat_name in applicable_stat_names
-                                          if stat_name in stat_names]
+                    applicable_stat_names = [
+                        stat_name for stat_name in applicable_stat_names
+                        if stat_name in stat_names]
 
-                for stat_name in reducer_stat_names:
+                for stat_name in applicable_stat_names:
+                    stat = stats.get(stat_name)
+
+                    if stat is None:
+                        applicable_stat_names.remove(stat_name)
+                        continue
+
+                    if not reducer.evaluate_filters(stat):
+                        applicable_stat_names.remove(stat_name)
+                        continue
+
                     reducer_stat_list.append((reducer_name, stat_name))
-
 
             n_stat_reducer_pairs = len(reducer_stat_list)
 
@@ -482,6 +492,7 @@ class Calculator(RuntimeTypeCheckedMixin):
                     result_row.extend(reduced_result)
                 else:
                     result_row.append(reduced_result)
+                    size = 1
                 
                 stat_name = self._get_display_name(stat_full_name, display_names)
                 reducer_name = self._get_display_name(reducer_full_name, display_names)

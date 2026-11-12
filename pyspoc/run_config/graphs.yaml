@@ -1,0 +1,209 @@
+Statistics:
+  pyspoc.statistics.graph.association:
+    CovarianceGraph:
+      schemes:
+        main:
+          estimator: LedoitWolf
+          adjacency_scaling: null
+          enforce_adjacency_type: null
+          zero_threshold: null
+          self_value: 0
+          dim: p
+          assume_centered: false
+          nan_policy: raise
+          estimator_kwargs: {}
+    RegressionGraph:
+      schemes:
+        main:
+          estimator: lasso
+          adjacency_scaling: null
+          enforce_adjacency_type: null
+          zero_threshold: null
+          self_value: 0
+          symmetrize: null
+          dim: p
+          nan_policy: raise
+          max_iter: 1000
+          alpha: 0.1
+          l1_ratio: 0.5
+  pyspoc.statistics.graph.gaussian:
+    GGM:
+      schemes:
+        main:
+          inversion_method: graphical_lasso
+          adjacency_scaling: null
+          enforce_adjacency_type: null
+          zero_threshold: null
+          self_value: 0
+          assume_centered: false
+          dim: p
+          nan_policy: raise
+          alpha: 0.1
+          max_iter: 1000
+          cv_alphas: 4
+          cv_folds: 5
+          cv_n_refinements: 4
+          cv_tol: 0.0001
+          cv_enet_tol: 0.0001
+          cv_mode: cd
+          cv_eps: !!python/object/apply:numpy._core.multiarray.scalar
+          - !!python/object/apply:numpy.dtype
+            args:
+            - f8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - !!binary |
+            AAAAAAAAsDw=
+  pyspoc.statistics.graph.causal.constraint_based:
+    PCCausalGraph:
+      schemes:
+        main:
+          standardise: true
+          alpha: 0.05
+          independence_test: fisherz
+          stable: true
+          uc_rule: uc_sepset
+          uc_priority: existing
+          mvpc: false
+          correction_name: MV_Crtn_Fisher_Z
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.graph.causal.functional.lingam.basic:
+    ICALiNGAMCausalGraph:
+      schemes:
+        main:
+          standardise: false
+          max_iter: 1000
+          random_seed: null
+          dim: p
+          nan_policy: raise
+    DirectLiNGAMCausalGraph:
+      schemes:
+        main:
+          standardise: false
+          random_seed: null
+          measure: pwling
+          dim: p
+          nan_policy: raise
+    RCDLiNGAMCausalGraph:
+      schemes:
+        main:
+          standardise: false
+          max_explanatory_num: 2
+          cor_alpha: 0.01
+          ind_alpha: 0.01
+          shapiro_alpha: 0.01
+          MLHSICR: false
+          bw_method: mdbs
+          dim: p
+          nan_policy: raise
+  pyspoc.statistics.graph.information:
+    ChowLiuTree:
+      schemes:
+        main:
+          n_neighbors: 3
+          adjacency_scaling: null
+          enforce_adjacency_type: null
+          zero_threshold: null
+          dim: p
+          nan_policy: raise
+          random_seed: null
+  pyspoc.statistics.graph.proximity:
+    DistributionGraph:
+      schemes:
+        main:
+          metric: wasserstein
+          bins: 128
+          weighting: distance
+          gamma: null
+          dim: p
+          nan_policy: raise
+Reducers:
+  pyspoc.reducers.graph.general:
+    GraphEdgeCount:
+      schemes:
+        main: null
+    GraphCliqueCount:
+      schemes:
+        main: null
+    GraphPeripheryCount:
+      schemes:
+        main:
+          use_weighted_average: true
+    GraphLocalEfficiency:
+      schemes:
+        main: null
+    GraphGlobalEfficiency:
+      schemes:
+        main: null
+    GraphDiameter:
+      schemes:
+        main:
+          use_weighted_average: true
+    GraphRadius:
+      schemes:
+        main:
+          use_weighted_average: true
+    GraphCentreSize:
+      schemes:
+        main:
+          use_weighted_average: true
+    GraphBridgeCount:
+      schemes:
+        main: null
+    GraphDegreeSummary:
+      schemes:
+        mean:
+          summary_type: mean
+        range:
+          summary_type: range
+    GraphKCoreSummary:
+      schemes:
+        mean:
+          summary_type: mean
+        range:
+          summary_type: range
+  pyspoc.reducers.graph.directed.dag:
+    DAGLongestPathLength:
+      schemes:
+        main:
+          weighted_depth: false
+    DAGTopologicalDepth:
+      schemes:
+        main: null
+  pyspoc.reducers.graph.directed.general:
+    DiGraphReciprocity:
+      schemes:
+        main: null
+    DiGraphDirectedDegreeSummary:
+      schemes:
+        in-mean:
+          direction: in
+          summary_type: mean
+        in-range:
+          direction: in
+          summary_type: range
+        out-mean:
+          direction: out
+          summary_type: mean
+        out-range:
+          direction: out
+          summary_type: range
+    DiGraphStrengthSummary:
+      schemes:
+        in:
+          direction: in
+          summary_type: mean
+        out:
+          direction: out
+          summary_type: mean
+ReducedStatistics: {}

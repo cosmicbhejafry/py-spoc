@@ -6,14 +6,14 @@ import gc
 
 from abc import ABC, abstractmethod
 from types import MethodType, FunctionType
-from typing import TypeAlias
+from typing import Iterable, TypeAlias, TypeVar, Generic, overload
 from pathlib import Path
+from dataclasses import dataclass
 
 from pyspoc.statistics.base import Statistic, StatisticResultNDArray
 from pyspoc._base import Component
 from pyspoc._tag import Tag, Type, Signature
 from pyspoc.settings import settings
-from pyspoc._exceptions import MissingComponentPropertyError
 
 
 ReducerResultNDArray: TypeAlias = (
@@ -21,6 +21,35 @@ ReducerResultNDArray: TypeAlias = (
     np.ndarray[tuple[()], np.dtype[np.floating | np.integer]] |
     np.floating | np.integer |
     float | int)
+
+
+TFilter = TypeVar("TFilter", bound=Tag | Type | Signature | str)
+
+@dataclass(frozen=True)
+class AnyOf(Generic[TFilter]):
+    descriptors: tuple[TFilter, ...]
+
+    @overload
+    def __init__(self, *args: TFilter): ...
+
+    @overload
+    def __init__(self, args: Iterable[TFilter], /): ...
+
+    
+    def __init__(self, *args: TFilter | Iterable[TFilter]):
+        values = tuple(args)
+
+        if len(values) == 1 and isinstance(values[0], Iterable):
+            values = tuple(values[0])
+        else:
+            # Reject mixed forms such as example(1, (2, 3)).
+            if any(isinstance(value, tuple) for value in values):
+                raise TypeError("Pass individual descriptors or one tuple of descriptors.")
+
+        object.__setattr__(self, "descriptors", values)
+
+
+FilterCondition: TypeAlias = TFilter | AnyOf[TFilter]
 
 
 class Reducer(Component, ABC):
@@ -45,65 +74,118 @@ class Reducer(Component, ABC):
 
 
     @classmethod
-    def get_statistics_filter(cls) -> tuple[Statistic, ...]:
+    def get_statistics_filter(cls) -> tuple[str, ...]:
         """Return the Statistic names that the Reducer is restricted to. Higher level or abstract
         Statistics can be provided to select an entire family of Statistics.
         
-        A new Reducer class must implement either:
+        To provide filters, a new Reducer class must implement either:
         - _statistics_filter: A `tuple[str, ...]` class-level private field.
-        - get_statistics_filter(): A `tuple[str, ...]` class method overriding this method.
+        - get_statistics_filter(): A `tuple[str, ...]` class method
+            overriding this method.
         """
         try:
             return getattr(cls, "_statistics_filter")
-        except AttributeError as e:
-            raise MissingComponentPropertyError(
-                cls, "statistics_filter", tuple[str, ...]) from e
+        except AttributeError:
+            try:
+                return getattr(cls, "_pyspoc_statistics_filter")
+            except AttributeError:
+                return tuple()
 
 
     @classmethod
-    def get_statistic_types_filter(cls) -> tuple[Type, ...]:
+    def get_statistic_types_filter(cls) -> tuple[FilterCondition[Type], ...]:
         """Return the Statistic Types that the Reducer is restricted to.
         
-        A new Reducer class must implement either:
-        - _statistic_types_filter: A `tuple[Type, ...]` class-level private field.
-        - get_statistic_types_filter(): A `tuple[Type, ...]` class method overriding this method.
+        To provide filters, a new Reducer class must implement either:
+        - _statistic_types_filter: A `tuple[FilterCondition[Type], ...]` class-level private field.
+        - get_statistic_types_filter(): A `tuple[FilterCondition[Type], ...]` class method
+            overriding this method.
         """
         try:
             return getattr(cls, "_statistic_types_filter")
-        except AttributeError as e:
-            raise MissingComponentPropertyError(
-                cls, "statistic_types_filter", tuple[Type, ...]) from e
+        except AttributeError:
+            try:
+                return getattr(cls, "_pyspoc_statistic_types_filter")
+            except AttributeError:
+                return tuple()
 
 
     @classmethod
-    def get_statistic_tags_filter(cls) -> tuple[Tag, ...]:
+    def get_statistic_tags_filter(cls) -> tuple[FilterCondition[Tag], ...]:
         """Return the Statistic Tags that the Reducer is restricted to.
         
-        A new Reducer class must implement either:
-        - _statistic_tags_filter: A `tuple[Tag, ...]` class-level private field.
-        - get_statistic_tags_filter(): A `tuple[Tag, ...]` class method overriding this method.
+        To provide filters, a new Reducer class must implement either:
+        - _statistic_tags_filter: A `tuple[FilterCondition[Tag], ...]` class-level private field.
+        - get_statistic_tags_filter(): A `tuple[FilterCondition[Tag], ...]` class method
+            overriding this method.
         """
         try:
             return getattr(cls, "_statistic_tags_filter")
-        except AttributeError as e:
-            raise MissingComponentPropertyError(
-                cls, "statistic_tags_filter", tuple[Tag, ...]) from e
+        except AttributeError:
+            try:
+                return getattr(cls, "_pyspoc_statistic_tags_filter")
+            except AttributeError:
+                return tuple()
 
     @classmethod
-    def get_statistic_signatures_filter(cls) -> tuple[Signature, ...]:
+    def get_statistic_signatures_filter(cls) -> tuple[FilterCondition[Signature], ...]:
         """Return the Statistic Signatures that the Reducer is restricted to.
         
-        A new Reducer class must implement either:
-        - _statistic_tags_filter: A `tuple[Signature, ...]` class-level private field.
-        - get_statistic_tags_filter(): A `tuple[Signature, ...]` class method overriding \
-            this method.
+        To provide filters, a new Reducer class must implement either:
+        - _statistic_tags_filter: A `tuple[FilterCondition[Signature], ...]` class-level private
+            field.
+        - get_statistic_tags_filter(): A `tuple[FilterCondition[Signature], ...]` class method
+            overriding this method.
         """
         try:
             return getattr(cls, "_statistic_signatures_filter")
-        except AttributeError as e:
-            raise MissingComponentPropertyError(
-                cls, "statistic_signatures_filter", tuple[Signature, ...]) from e
+        except AttributeError:
+            try:
+                return getattr(cls, "_pyspoc_statistic_signatures_filter")
+            except AttributeError:
+                return tuple()
     
+    
+    def evaluate_filters(
+            self,
+            statistic: Statistic
+        ) -> bool:
+        stats = self.get_statistics_filter()
+
+        if stats:
+            if statistic.get_name() not in stats:
+                return False
+
+        tag_filters = (
+            (Tag, self.get_statistic_tags_filter),
+            (Type, self.get_statistic_types_filter),
+            (Signature, self.get_statistic_signatures_filter)
+        )
+
+        for filter_type, filter_func in tag_filters:
+            matches = self._matches_tags(
+                filter_type=filter_type,
+                available_tags=statistic.get_descriptors(filter_type),
+                conditions=filter_func()
+            )
+            if not matches:
+                return False
+
+        return True
+            
+
+    def _matches_tags(
+            self,
+            filter_type: type[TFilter],
+            available_tags: set[TFilter],
+            conditions: tuple[FilterCondition[TFilter], ...],
+    ) -> bool:
+        return all(
+            condition in available_tags
+            if isinstance(condition, filter_type)
+            else any(tag in available_tags for tag in condition.descriptors)
+            for condition in conditions
+        )
 
     @classmethod
     def _get_properties_yaml_path(cls) -> Path:

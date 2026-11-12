@@ -52,8 +52,7 @@ class Pearson(Statistic):
         self._alternative = alternative
 
         if squared:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
 
         # Call the base class initialiser with required arguments.
@@ -93,8 +92,7 @@ class SpearmanR(PairwiseStatistic):
         self._alternative = alternative
         
         if squared:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
 
         super().__init__(dim=dim,
@@ -138,8 +136,7 @@ class KendallTau(PairwiseStatistic):
         self._alternative = alternative
 
         if squared:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
 
         super().__init__(dim=dim,
@@ -193,8 +190,7 @@ class PowerEnvelopeCorrelation(Statistic):
         self._absolute = absolute
 
         if absolute:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
 
         # Call the base class initialiser.
@@ -296,18 +292,17 @@ class PartialCorrelation(Statistic):
                 "ledoit_wolf"] = "pseudo",
             *,
             alpha: float | None = None,
+            max_iter: int = 100,
             cv_alphas : int | Collection[float] = 4,
             cv_folds: int = 5,
             cv_n_refinements: int = 4,
             cv_tol: float = 1e-4,
             cv_enet_tol: float = 1e-4,
-            cv_max_iter: int = 100,
             cv_mode: Literal["cd", "lars"] = "cd",
             cv_eps: float = np.finfo(np.float64).eps,
             nan_policy: Literal[
                 "raise", "row-omit", "col-omit"] = settings.current.data_nan_policy,
     ):
-
         self._squared = squared
         self._dim = dim
         self._inversion_method = (
@@ -317,18 +312,17 @@ class PartialCorrelation(Statistic):
         self._nan_policy = nan_policy
         self._assume_centered = assume_centered
         self._alpha = alpha
+        self._max_iter = max_iter
         self._cv_alphas = cv_alphas
         self._cv_folds = cv_folds
         self._cv_n_refinements = cv_n_refinements
         self._cv_tol = cv_tol
         self._cv_enet_tol = cv_enet_tol
-        self._cv_max_iter = cv_max_iter
         self._cv_mode = cv_mode
         self._cv_eps = cv_eps
         
         if squared:
-            self._tags = self._get_modified_tags(
-                self._tags,
+            self._modify_tags(
                 remove_tags=Tag.SIGNED)
 
         super().__init__(dim=dim, nan_policy=nan_policy)
@@ -387,7 +381,7 @@ class PartialCorrelation(Statistic):
                 cv_n_refinements=self._cv_n_refinements,
                 cv_tol=self._cv_tol,
                 cv_enet_tol=self._cv_enet_tol,
-                cv_max_iter=self._cv_max_iter,
+                max_iter=self._max_iter,
                 cv_mode=self._cv_mode,
                 cv_eps=self._cv_eps)
         

@@ -74,7 +74,6 @@ def _maximum_spanning_tree(weights: np.ndarray) -> np.ndarray:
 
         return True
     
-
     edges = [
         (float(weights[i, j]), i, j)
         for i in range(n_nodes)
@@ -93,7 +92,7 @@ def _maximum_spanning_tree(weights: np.ndarray) -> np.ndarray:
             if selected == n_nodes - 1:
                 break
 
-    return np.clip(tree, 0.0)
+    return np.clip(tree, 0.0, None)
 
 
 
@@ -120,6 +119,7 @@ class ChowLiuTree(GraphStatistic):
     _signatures = (Signature.DENSITY,Signature.TOPOLOGY)
     _type = Type.DESCRIPTIVE
     _tags = (Tag.GRAPH_FOREST,
+             Tag.GRAPH_ACYCLIC,
              Tag.GRAPH_WEIGHTED,
              Tag.SYMMETRICAL,
              Tag.NONPARAMETRIC)
@@ -127,10 +127,21 @@ class ChowLiuTree(GraphStatistic):
     def __init__(
             self,
             n_neighbors: int = 3,
-            ensure_adjacency_type: Literal[
+
+            # Scales the adjacency matrix to these ranges.
+            adjacency_scaling: Literal[
+                "unit-minmax",
+                "unit-absolute",
+                "unit-signed",
+                None
+            ] = None,
+            # Enforces the adjacency matrix to these constraints.
+            enforce_adjacency_type: Literal[
                 "binary",
-                "binary-weighted",
+                "bipolar",
+                "absolute",
                 None] = None,
+
             zero_threshold: float | None = None,
             dim: Literal["n", "p"] = "p",
             nan_policy: Literal[
@@ -138,13 +149,11 @@ class ChowLiuTree(GraphStatistic):
             random_seed: int | None = None):
 
         self._n_neighbors = argchk.check_natural_number(n_neighbors, "n_neighbors")
-        adjacency_scaling = ("minmax" if ensure_adjacency_type is not None
-            else None)
 
         super().__init__(
             dim=dim,
             nan_policy=nan_policy,
-            ensure_adjacency_type=ensure_adjacency_type,
+            enforce_adjacency_type=enforce_adjacency_type,
             adjacency_scaling=adjacency_scaling,
             zero_threshold=zero_threshold)
 

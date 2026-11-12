@@ -167,7 +167,7 @@ class PCCausalGraph(CBCDStatistic):
             verbose=verbose,
             show_progress=show_progress)
         
-        return cgraph.G.graph.astype(np.integer)
+        return cgraph.G.graph.astype(np.int16)
 
 
     @classmethod

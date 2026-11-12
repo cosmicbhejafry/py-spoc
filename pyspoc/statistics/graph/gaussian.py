@@ -43,6 +43,9 @@ class GGM(GraphStatistic):
     alpha : float or None, optional or requires: >0
         Graphical LASSO penalty coefficient. If ``None``, use
         :class:`sklearn.covariance.GraphicalLassoCV`.
+    max_iter : int, default=100, requires: >=1
+        Maximum number of iterations for the optimization algorithm to run.
+        For cross-valiated graphical lasso, this applies to each fold.
 
         ### Cross-Validation Parameters
 
@@ -61,8 +64,6 @@ class GGM(GraphStatistic):
         The tolerance for the elastic net solver used to calculate the descent direction.
         This parameter controls the accuracy of the search direction for a given column update,
         not of the overall parameter estimate.
-    cv_max_iter : int, default=100, requires: >=1
-        Maximum number of cross-valiation iterations.
     cv_mode : {"cd", "lars"}, default="cd"
         The Lasso solver to use: coordinate descent or LARS. Use `"lars"` for very sparse underlying
         graphs, where number of features is greater than number of samples. Otherwise, `"cd"` is
@@ -75,7 +76,7 @@ class GGM(GraphStatistic):
     _long_name = "Gaussian Graphical Model Graph"
     _identifier = "graph-ggm"
     _signatures = (Signature.DENSITY, Signature.TOPOLOGY)
-    _tags = (Tag.PARAMETRIC, Tag.SIGNED, Tag.DISTRIBUTION, Tag.GRAPH_WEIGHTED, Tag.GRAPH_DIRECTED)
+    _tags = (Tag.PARAMETRIC, Tag.SIGNED, Tag.DISTRIBUTION, Tag.GRAPH_WEIGHTED, Tag.SYMMETRICAL)
 
     def __init__(
             self,
@@ -84,18 +85,20 @@ class GGM(GraphStatistic):
                 "pseudoinverse",
                 "graphical_lasso",
                 "ledoit_wolf"] = "graphical_lasso",
-            ensure_adjacency_type: Literal[
-                "binary",
-                "binary-weighted",
-                "bipolar",
-                "bipolar-weighted",
-                "absolute",
-                None] = None,
+            # Scales the adjacency matrix to these ranges.
             adjacency_scaling: Literal[
-                "minmax",
-                "clip",
+                "unit-minmax",
+                "unit-absolute",
+                "unit-signed",
                 None
             ] = None,
+            
+            # Enforces the adjacency matrix to these constraints.
+            enforce_adjacency_type: Literal[
+                "binary",
+                "bipolar",
+                "absolute",
+                None] = None,
             zero_threshold: float | None = None,
             self_value: float | None = 0,
             assume_centered: bool = False,
@@ -103,27 +106,22 @@ class GGM(GraphStatistic):
             nan_policy: Literal["raise", "row-omit", "col-omit"] = "raise",
             *,
             alpha: float | None = None,
+            max_iter: int = 100,
             cv_alphas : int | Collection[float] = 4,
             cv_folds: int = 5,
             cv_n_refinements: int = 4,
             cv_tol: float = 1e-4,
             cv_enet_tol: float = 1e-4,
-            cv_max_iter: int = 100,
             cv_mode: Literal["cd", "lars"] = "cd",
             cv_eps: float = np.finfo(np.float64).eps):
 
         super().__init__(
             dim=dim,
             nan_policy=nan_policy,
-            ensure_adjacency_type=ensure_adjacency_type,
+            enforce_adjacency_type=enforce_adjacency_type,
             adjacency_scaling=adjacency_scaling,
             zero_threshold=zero_threshold,
             self_value=self_value)
-        
-        if adjacency_scaling in ("binary", "binary-weighted", "absolute"):
-            self._tags = self._get_modified_tags(
-                self._tags,
-                remove_tags=[Tag.GRAPH_DIRECTED, Tag.SIGNED])
         
         self._nan_policy = nan_policy
         self._base_stat = PartialCorrelation(
@@ -133,12 +131,12 @@ class GGM(GraphStatistic):
             nan_policy=nan_policy,
             assume_centered=assume_centered,
             alpha=alpha,
+            max_iter=max_iter,
             cv_alphas=cv_alphas,
             cv_folds=cv_folds,
             cv_n_refinements=cv_n_refinements,
             cv_tol=cv_tol,
             cv_enet_tol=cv_enet_tol,
-            cv_max_iter=cv_max_iter,
             cv_mode=cv_mode,
             cv_eps=cv_eps)
 
@@ -146,9 +144,4 @@ class GGM(GraphStatistic):
     def _compute(self, data: np.ndarray) -> np.ndarray:
         """Return the ``(n_features, n_features)`` correlation adjacency."""
         graph_mat = self._base_stat._compute(data)
-
-        if self._adjacency_type:
-            from sklearn.preprocessing import MinMaxScaler
-            graph_mat = MinMaxScaler(feature_range=(-1,1)).fit_transform(graph_mat)
-
-        return graph_mat
+        return self._finalize_adjacency(graph_mat)
