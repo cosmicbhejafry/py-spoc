@@ -28,7 +28,7 @@ import os, shutil
 
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
-# from concurrent.futures import TimeoutError as FutureTimeout
+from concurrent.futures import TimeoutError as FutureTimeout
 
 def compute_one(args_dict):
     # path, name, config, config_name
@@ -59,11 +59,13 @@ def main():
     p.add_argument("--manifest_data_id", default="safe_data_id",type=str)
     p.add_argument("--manifest_path", default="path",type=str)
     p.add_argument("--results_base_dir", default=ROOT,type=Path)
+    p.add_argument("--timeout_s", default=1400)
 
     # MANIFEST NEEDS TO HAVE A SAFE_DATA_ID AND A PATH COL
 
     args = p.parse_args()
 
+    TIMEOUT = args.timeout_s
     manifest = ROOT / args.manifest
     config = ROOT / args.config
     out_dir = args.results_base_dir / "results" / "per_dataset" / manifest.stem / config.stem
@@ -85,7 +87,7 @@ def main():
     num_ds_tot = 0
     num_ds_skipped = 0
     num_err_files = 0
-    
+    num_timeout = 0
     # ITERATE THRU DATASET BATCHES    
     for _, row in chunk.iterrows():
         v = row[args.manifest_data_id]
@@ -106,11 +108,20 @@ def main():
             in_args['config_name'] = args.config_name
                         
             with ProcessPoolExecutor(max_workers=1) as ex:
-                results, errors = ex.submit(compute_one, in_args).result()                
-                if results is not None:
-                    results.to_parquet(out)
-                    num_ds_saved+=1                    
-                status = "ok"
+                try:
+                    results, errors = ex.submit(compute_one, in_args).result(timeout=TIMEOUT)                
+                    if results is not None:
+                        results.to_parquet(out)
+                        num_ds_saved+=1                    
+                    status = "ok"
+                    
+                except FutureTimeout:
+                    for p in ex._processes.values():
+                        p.terminate()                    
+                    errors, status = {"crash": "timed out"}, "failed"        
+                    num_timeout +=1
+                    log.info(f"TIMEOUT at {TIMEOUT} FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {v}")        
+                    
         except BrokenProcessPool:
             errors, status = {"crash": "child killed (likely out of memory)"}, "failed"
         except Exception:
@@ -121,12 +132,9 @@ def main():
             num_err_files+=1
             (out_dir / f"{v}.errors.json").write_text(json.dumps(errors, indent=2))
         log.info(f"{status} {v} ({time.time() - t0:.1f}s, {len(errors)} errors)")
+        
     log.info(f"STATS FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {num_err_files} JSON error files")        
     log.info(f"STATS FOR INDEX {args.index}, NUM CHUNK {args.n_chunks}: {num_ds_saved} results saved out of {num_ds_tot} total; {num_ds_skipped} skipped / pre-computed")
     
 if __name__ == "__main__":
     main()
-    
-# COULD ADD A TIMEOUT TO THIS PER-DATASET IF NEEDED
-# except FutureTimeout:
-#     errors, status = {"crash": "timed out"}, "failed"
