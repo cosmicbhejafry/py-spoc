@@ -59,7 +59,7 @@ def main():
     p.add_argument("--manifest_data_id", default="safe_data_id",type=str)
     p.add_argument("--manifest_path", default="path",type=str)
     p.add_argument("--results_base_dir", default=ROOT,type=Path)
-    p.add_argument("--timeout_s", default=1400)
+    p.add_argument("--timeout_s", default=1400,type=int)
 
     # MANIFEST NEEDS TO HAVE A SAFE_DATA_ID AND A PATH COL
 
