@@ -5,3 +5,4 @@ idx,config,config_name,n_chunks,walltime,ncpus,mem,ngpus,pbs_script
 4,configs/fast_reducedstat_cluster_graph.yaml,fast_reducedstat_cluster_graph,100,01:00:00,1,10gb,0,run_pyspoc.pbs
 5,configs/faster_stats_graph_fractal_cluster.yaml,faster_stats_graph_fractal_cluster,50,02:00:00,2,4gb,0,run_pyspoc.pbs
 6,configs/fast_graph.yaml,fast_graph,50,08:00:00,2,6gb,0,run_pyspoc.pbs
+8,configs/topology_stats.yml,topology_stats,20,01:00:00,2,16gb,0,run_pyspoc.pbs
